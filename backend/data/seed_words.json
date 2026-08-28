@@ -1,0 +1,110 @@
+[
+  {
+    "word": "anxious",
+    "part_of_speech": "adjective",
+    "definition_cn": "焦虑的；担忧的",
+    "definition_en": "worried or nervous about something uncertain",
+    "example_sentence": "He was very anxious about the results of the examination.",
+    "example_translation_cn": "他对考试结果非常焦虑。",
+    "pronunciation": "anxious"
+  },
+  {
+    "word": "abundant",
+    "part_of_speech": "adjective",
+    "definition_cn": "大量的；充足的",
+    "definition_en": "existing in large quantities",
+    "example_sentence": "The region has abundant fresh water and fertile soil.",
+    "example_translation_cn": "这个地区有充足的淡水和肥沃的土壤。",
+    "pronunciation": "abundant"
+  },
+  {
+    "word": "concise",
+    "part_of_speech": "adjective",
+    "definition_cn": "简明的；简洁的",
+    "definition_en": "giving a lot of information clearly in few words",
+    "example_sentence": "Her report was clear, concise, and easy to understand.",
+    "example_translation_cn": "她的报告清晰、简洁，而且容易理解。",
+    "pronunciation": "concise"
+  },
+  {
+    "word": "deliberate",
+    "part_of_speech": "adjective",
+    "definition_cn": "故意的；深思熟虑的",
+    "definition_en": "done consciously and intentionally",
+    "example_sentence": "The change in policy was a deliberate attempt to reduce waste.",
+    "example_translation_cn": "这项政策变化是一次有意减少浪费的尝试。",
+    "pronunciation": "deliberate"
+  },
+  {
+    "word": "fragile",
+    "part_of_speech": "adjective",
+    "definition_cn": "脆弱的；易碎的",
+    "definition_en": "easily broken or damaged",
+    "example_sentence": "The old vase was too fragile to ship without special care.",
+    "example_translation_cn": "这个旧花瓶太易碎，运输时需要特别小心。",
+    "pronunciation": "fragile"
+  },
+  {
+    "word": "imply",
+    "part_of_speech": "verb",
+    "definition_cn": "暗示；意味着",
+    "definition_en": "to suggest something without saying it directly",
+    "example_sentence": "Her silence seemed to imply that she disagreed with the decision.",
+    "example_translation_cn": "她的沉默似乎暗示她不同意这个决定。",
+    "pronunciation": "imply"
+  },
+  {
+    "word": "reluctant",
+    "part_of_speech": "adjective",
+    "definition_cn": "不情愿的；勉强的",
+    "definition_en": "unwilling and hesitant",
+    "example_sentence": "He was reluctant to leave the city he had lived in for years.",
+    "example_translation_cn": "他不情愿离开自己生活了多年的城市。",
+    "pronunciation": "reluctant"
+  },
+  {
+    "word": "vivid",
+    "part_of_speech": "adjective",
+    "definition_cn": "生动的；鲜明的",
+    "definition_en": "producing clear and strong images in the mind",
+    "example_sentence": "She gave a vivid description of her journey across the desert.",
+    "example_translation_cn": "她生动地描述了自己穿越沙漠的旅程。",
+    "pronunciation": "vivid"
+  },
+  {
+    "word": "remedy",
+    "part_of_speech": "noun",
+    "definition_cn": "补救办法；治疗方法",
+    "definition_en": "a way of dealing with a problem or illness",
+    "example_sentence": "The committee proposed a simple remedy for the scheduling problem.",
+    "example_translation_cn": "委员会为这个排期问题提出了一个简单的补救办法。",
+    "pronunciation": "remedy"
+  },
+  {
+    "word": "hesitate",
+    "part_of_speech": "verb",
+    "definition_cn": "犹豫；迟疑",
+    "definition_en": "to pause before doing or saying something",
+    "example_sentence": "Do not hesitate to ask questions if the instructions are unclear.",
+    "example_translation_cn": "如果说明不清楚，不要犹豫，直接提问。",
+    "pronunciation": "hesitate"
+  },
+  {
+    "word": "resilient",
+    "part_of_speech": "adjective",
+    "definition_cn": "有复原力的；坚韧的",
+    "definition_en": "able to recover quickly from difficulties",
+    "example_sentence": "Children can be remarkably resilient after a stressful event.",
+    "example_translation_cn": "孩子们在经历压力事件后可能表现出惊人的复原力。",
+    "pronunciation": "resilient"
+  },
+  {
+    "word": "subtle",
+    "part_of_speech": "adjective",
+    "definition_cn": "微妙的；不易察觉的",
+    "definition_en": "not obvious and therefore difficult to notice",
+    "example_sentence": "There was a subtle change in his tone when he mentioned the plan.",
+    "example_translation_cn": "当他提到这个计划时，语气发生了微妙的变化。",
+    "pronunciation": "subtle"
+  }
+]
