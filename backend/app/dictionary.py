@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 from ctypes import util
 
 
@@ -12,6 +13,14 @@ class CFRange(ctypes.Structure):
 
 
 def lookup_system_definition(word: str) -> str | None:
+    """Look a word up in the macOS system dictionary.
+
+    DictionaryServices only exists on macOS, so on any other platform this
+    returns None and the caller reports the lookup as unavailable.
+    """
+    if sys.platform != "darwin":
+        return None
+
     query = word.strip()
     if not query:
         return None

@@ -11,8 +11,13 @@ def next_state(
     current: dict[str, Any] | None,
     is_correct: bool,
     had_wrong_in_last_180_days: bool,
+    today: date,
 ) -> dict[str, Any]:
-    today = date.today()
+    """Advance a word's schedule.
+
+    `today` is the caller's calendar day, which is resolved in the learner's own
+    timezone rather than the server's, so due dates line up with their days.
+    """
     state = {
         "review_count": 0,
         "correct_count": 0,

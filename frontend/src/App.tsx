@@ -1,59 +1,25 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AuthScreen } from "./AuthScreen";
+import { errorMessage, isUnauthorized, request } from "./api";
+import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User } from "./types";
 
-const API_BASE = "";
+// The old backend shelled out to macOS `say -r`, which took words per minute and
+// defaulted to 175. SpeechSynthesisUtterance instead takes a multiplier where 1
+// is normal speed, so the slider keeps the familiar wpm range and converts on the
+// way out.
+const BASE_WPM = 175;
+const MIN_WPM = 80;
+const MAX_WPM = 320;
 
-type Card = {
-  id: number;
-  part_of_speech: string;
-  definition_cn: string;
-  definition_en?: string | null;
-  cloze_sentence: string;
-  example_sentence: string;
-  example_translation_cn?: string | null;
-  status: "New" | "Learning" | "Reviewing" | "Mature";
-  remaining_today: number;
-};
+// Voice and speed are per-browser now, so they live in localStorage rather than
+// in the server-side settings table.
+const SPEECH_SETTINGS_KEY = "cvt.speech";
 
-type ReviewResult = {
-  is_correct: boolean;
-  is_blank: boolean;
-  correct_answer: string;
-  example_sentence: string;
-  srs_state: {
-    correct_count: number;
-    interval_days: number;
-    next_review_date: string;
-    status: Card["status"];
-  };
-};
-
-type Stats = {
-  today_learning: number;
-  today_accuracy: number;
-  total_learned: number;
-  due_review: number;
-  new_words: number;
-  learning: number;
-  learning_due: number;
-  lapse_words: number;
-  due_lapses: number;
-  mastered: number;
-  mature: number;
-  streak_days: number;
-};
-
-type Voice = {
-  name: string;
-  locale: string;
-  description: string;
-};
-
-type Settings = {
-  voice: string;
-  rate: number;
-  show_sentence_translation: boolean;
-  voices: Voice[];
-};
+// How long a correct answer stays on screen before the next card loads. Speech
+// is deliberately not part of this: the review flow never waits on audio, which
+// can start late or not at all (no output device, a muted or backgrounded tab,
+// an autoplay policy). The sentence keeps playing across the transition.
+const ADVANCE_DELAY_MS = 450;
 
 const emptyStats: Stats = {
   today_learning: 0,
@@ -70,16 +36,52 @@ const emptyStats: Stats = {
   streak_days: 0
 };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || response.statusText);
+function clampWpm(value: number) {
+  if (!Number.isFinite(value)) return BASE_WPM;
+  return Math.min(MAX_WPM, Math.max(MIN_WPM, Math.round(value)));
+}
+
+function loadSpeechSettings(): SpeechSettings {
+  try {
+    const raw = window.localStorage.getItem(SPEECH_SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SpeechSettings>;
+      return {
+        voiceURI: typeof parsed.voiceURI === "string" ? parsed.voiceURI : "",
+        rate: clampWpm(Number(parsed.rate))
+      };
+    }
+  } catch {
+    // Unreadable or malformed storage just falls back to the defaults.
   }
-  return response.json() as Promise<T>;
+  return { voiceURI: "", rate: BASE_WPM };
+}
+
+function saveSpeechSettings(value: SpeechSettings) {
+  try {
+    window.localStorage.setItem(SPEECH_SETTINGS_KEY, JSON.stringify(value));
+  } catch {
+    // Storage can be unavailable (private mode, blocked site data); the setting
+    // still applies for this session.
+  }
+}
+
+// Chrome populates the voice list asynchronously, so read it now and again on
+// every change rather than once at mount.
+function useEnglishVoices() {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const read = () =>
+      setVoices(synth.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith("en")));
+    read();
+    synth.addEventListener("voiceschanged", read);
+    return () => synth.removeEventListener("voiceschanged", read);
+  }, []);
+
+  return voices;
 }
 
 function highlightSentence(sentence: string, word: string) {
@@ -98,20 +100,50 @@ function highlightSentence(sentence: string, word: string) {
 }
 
 function App() {
+  // undefined while the session cookie is being checked, null when signed out.
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  useEffect(() => {
+    request<{ user: User }>("/api/auth/me")
+      .then((payload) => setUser(payload.user))
+      .catch(() => setUser(null));
+  }, []);
+
+  if (user === undefined) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f7f4]">
+        <p className="text-gray-500">Loading...</p>
+      </main>
+    );
+  }
+
+  if (user === null) {
+    return <AuthScreen onAuthenticated={setUser} />;
+  }
+
+  // Remounting per account keeps one learner's cards and stats from lingering
+  // on screen after a different one signs in.
+  return <Trainer key={user.id} user={user} onSignedOut={() => setUser(null)} />;
+}
+
+function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
   const [card, setCard] = useState<Card | null>(null);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
-  const [settings, setSettings] = useState<Settings>({
-    voice: "Samantha",
-    rate: 175,
-    show_sentence_translation: false,
-    voices: []
-  });
+  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false });
+  const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // Chrome garbage-collects an utterance that nothing references, which cuts
+  // playback short. Holding the current one here keeps it alive until it is
+  // replaced by the next.
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const voices = useEnglishVoices();
+  const speechSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
   const visibleSentence = useMemo(() => {
     if (result) {
@@ -120,14 +152,70 @@ function App() {
     return card?.cloze_sentence ?? "";
   }, [card, result]);
 
+  // A session can expire mid-review, so every call funnels through here and a
+  // 401 drops straight back to the sign-in screen.
+  const guarded = useCallback(
+    async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (caught) {
+        if (isUnauthorized(caught)) {
+          onSignedOut();
+          return;
+        }
+        setMessage(errorMessage(caught));
+        setLoading(false);
+      }
+    },
+    [onSignedOut]
+  );
+
+  function updateSpeech(next: Partial<SpeechSettings>) {
+    setSpeech((current) => {
+      const merged = { ...current, ...next };
+      saveSpeechSettings(merged);
+      return merged;
+    });
+  }
+
+  // Once the browser reports its voices, adopt a sensible default if nothing is
+  // stored yet or the stored voice is not installed here.
+  useEffect(() => {
+    if (voices.length === 0) return;
+    if (voices.some((voice) => voice.voiceURI === speech.voiceURI)) return;
+    updateSpeech({ voiceURI: preferredVoice(voices, "en-US") });
+  }, [voices]);
+
+  const speak = useCallback(
+    (text: string) => {
+      const synth = window.speechSynthesis;
+      const clean = text.replace(/\s+/g, " ").trim();
+      if (!synth || !clean) return;
+
+      // Drop anything still queued so rapid answers do not stack up utterances.
+      synth.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(clean);
+      const voice = voices.find((item) => item.voiceURI === speech.voiceURI);
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
+      } else {
+        utterance.lang = "en-US";
+      }
+      utterance.rate = Math.min(10, Math.max(0.1, speech.rate / BASE_WPM));
+      utteranceRef.current = utterance;
+      synth.speak(utterance);
+    },
+    [voices, speech.voiceURI, speech.rate]
+  );
+
   async function loadStats() {
-    const nextStats = await request<Stats>("/api/stats");
-    setStats(nextStats);
+    setStats(await request<Stats>("/api/stats"));
   }
 
   async function loadSettings() {
-    const nextSettings = await request<Settings>("/api/settings");
-    setSettings(nextSettings);
+    setSettings(await request<Settings>("/api/settings"));
   }
 
   async function loadNext() {
@@ -141,23 +229,11 @@ function App() {
     window.setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  async function refreshAll() {
-    await Promise.all([loadStats(), loadSettings(), loadNext()]);
-  }
-
-  async function speak(text: string) {
-    if (!text.trim()) return;
-    await request<{ status: string }>("/api/tts", {
-      method: "POST",
-      body: JSON.stringify({ text })
-    });
-  }
-
   async function submit(event?: FormEvent) {
     event?.preventDefault();
     if (!card || submitting || result?.is_correct || (result && answer.trim() === "")) return;
     setSubmitting(true);
-    try {
+    await guarded(async () => {
       const review = await request<ReviewResult>("/api/review", {
         method: "POST",
         body: JSON.stringify({ word_id: card.id, user_answer: answer })
@@ -165,18 +241,17 @@ function App() {
       setResult(review);
       await loadStats();
       if (review.is_correct) {
-        await speak(review.example_sentence);
+        speak(review.example_sentence);
         window.setTimeout(() => {
-          loadNext();
-        }, 450);
+          void guarded(loadNext);
+        }, ADVANCE_DELAY_MS);
       } else {
         setAnswer("");
         window.setTimeout(() => inputRef.current?.focus(), 50);
-        void speak(review.example_sentence).catch((error) => setMessage(error.message));
+        speak(review.example_sentence);
       }
-    } finally {
-      setSubmitting(false);
-    }
+    });
+    setSubmitting(false);
   }
 
   function handleAnswerChange(value: string) {
@@ -186,18 +261,24 @@ function App() {
     setAnswer(value);
   }
 
-  async function updateSetting(next: Partial<Settings>) {
-    const payload = await request<Settings>("/api/settings", {
-      method: "PATCH",
-      body: JSON.stringify(next)
+  function updateSetting(next: Partial<Settings>) {
+    void guarded(async () => {
+      setSettings(
+        await request<Settings>("/api/settings", { method: "PATCH", body: JSON.stringify(next) })
+      );
     });
-    setSettings(payload);
+  }
+
+  function signOut() {
+    void guarded(async () => {
+      await request<{ status: string }>("/api/auth/logout", { method: "POST" });
+      onSignedOut();
+    });
   }
 
   useEffect(() => {
-    refreshAll().catch((error) => {
-      setMessage(error.message);
-      setLoading(false);
+    void guarded(async () => {
+      await Promise.all([loadStats(), loadSettings(), loadNext()]);
     });
   }, []);
 
@@ -210,6 +291,18 @@ function App() {
           <div>
             <h1 className="text-2xl font-semibold tracking-normal">Context Vocabulary Trainer</h1>
             <p className="mt-1 text-sm text-gray-600">通过语境回忆单词，而不是孤立背诵。</p>
+            <p className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{user.username}</span>
+              <span className="text-gray-400">·</span>
+              <span className="text-xs">{user.timezone}</span>
+              <button
+                type="button"
+                onClick={signOut}
+                className="ml-1 border border-gray-300 px-2 py-0.5 text-xs text-gray-700"
+              >
+                登出
+              </button>
+            </p>
           </div>
           <div className="grid grid-cols-4 gap-2 text-center sm:grid-cols-8">
             <Stat label="今日" value={stats.today_learning} />
@@ -254,10 +347,7 @@ function App() {
                       <ResultLine tone="correct" text="Correct" />
                     ) : result ? (
                       <div className="space-y-2">
-                        <ResultLine
-                          tone="incorrect"
-                          text={result.is_blank ? "不会" : "Incorrect"}
-                        />
+                        <ResultLine tone="incorrect" text={result.is_blank ? "不会" : "Incorrect"} />
                         <p className="text-base text-gray-700">
                           正确答案：<span className="font-semibold text-gray-950">{result.correct_answer}</span>
                         </p>
@@ -287,7 +377,8 @@ function App() {
                   <button
                     type="button"
                     onClick={() => speak(result ? result.example_sentence : blankSpeech)}
-                    className="h-12 border border-gray-300 px-5 text-sm font-medium text-gray-900"
+                    disabled={!speechSupported}
+                    className="h-12 border border-gray-300 px-5 text-sm font-medium text-gray-900 disabled:cursor-not-allowed disabled:text-gray-400"
                   >
                     发音
                   </button>
@@ -316,56 +407,69 @@ function App() {
             </div>
 
             <h2 className="mt-7 text-sm font-semibold text-gray-900">发音设置</h2>
-            <div className="mt-4 space-y-4">
-              <label className="block text-sm text-gray-600">
-                语音
-                <select
-                  value={settings.voice}
-                  onChange={(event) => updateSetting({ voice: event.target.value })}
-                  className="mt-1 h-10 w-full border border-gray-300 bg-white px-2 text-gray-950"
-                >
-                  {settings.voices.length === 0 ? (
-                    <option value={settings.voice}>{settings.voice}</option>
-                  ) : (
-                    settings.voices.map((voice) => (
-                      <option key={`${voice.name}-${voice.locale}`} value={voice.name}>
-                        {voice.name} · {voice.locale}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </label>
+            <p className="mt-1 text-xs text-gray-500">由浏览器朗读，仅保存在本机。</p>
 
-              <label className="block text-sm text-gray-600">
-                语速 {settings.rate}
-                <input
-                  type="range"
-                  min="80"
-                  max="320"
-                  value={settings.rate}
-                  onChange={(event) => setSettings({ ...settings, rate: Number(event.target.value) })}
-                  onBlur={() => updateSetting({ rate: settings.rate })}
-                  className="mt-2 w-full"
-                />
-              </label>
+            {!speechSupported ? (
+              <p className="mt-4 border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                当前浏览器不支持语音合成，发音功能不可用。
+              </p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <label className="block text-sm text-gray-600">
+                  语音
+                  <select
+                    value={speech.voiceURI}
+                    onChange={(event) => updateSpeech({ voiceURI: event.target.value })}
+                    disabled={voices.length === 0}
+                    className="mt-1 h-10 w-full border border-gray-300 bg-white px-2 text-gray-950 disabled:bg-gray-100"
+                  >
+                    {voices.length === 0 ? (
+                      <option value="">系统未安装英文语音</option>
+                    ) : (
+                      voices.map((voice) => (
+                        <option key={voice.voiceURI} value={voice.voiceURI}>
+                          {voice.name} · {voice.lang}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </label>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => updateSetting({ voice: preferredVoice(settings.voices, "en_US") })}
-                  className="h-10 border border-gray-300 text-sm"
-                >
-                  美式
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateSetting({ voice: preferredVoice(settings.voices, "en_GB") })}
-                  className="h-10 border border-gray-300 text-sm"
-                >
-                  英式
-                </button>
+                <label className="block text-sm text-gray-600">
+                  语速 {speech.rate}
+                  <input
+                    type="range"
+                    min={MIN_WPM}
+                    max={MAX_WPM}
+                    value={speech.rate}
+                    onChange={(event) => updateSpeech({ rate: clampWpm(Number(event.target.value)) })}
+                    className="mt-2 w-full"
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateSpeech({ voiceURI: preferredVoice(voices, "en-US") })}
+                    disabled={voices.length === 0}
+                    className="h-10 border border-gray-300 text-sm disabled:text-gray-400"
+                  >
+                    美式
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateSpeech({ voiceURI: preferredVoice(voices, "en-GB") })}
+                    disabled={voices.length === 0}
+                    className="h-10 border border-gray-300 text-sm disabled:text-gray-400"
+                  >
+                    英式
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
+            <h2 className="mt-7 text-sm font-semibold text-gray-900">账号</h2>
+            <PasswordForm />
           </aside>
         </section>
       </div>
@@ -373,8 +477,99 @@ function App() {
   );
 }
 
-function preferredVoice(voices: Voice[], locale: "en_US" | "en_GB") {
-  return voices.find((voice) => voice.locale === locale)?.name ?? voices[0]?.name ?? "Samantha";
+function PasswordForm() {
+  const [open, setOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setStatus("");
+    try {
+      await request<{ status: string }>("/api/auth/password", {
+        method: "PATCH",
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+      });
+      setStatus("密码已更新，其他设备的登录已失效。");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (caught) {
+      // Deliberately not routed through the shared 401 handler: a wrong current
+      // password answers 401 too, and mistaking that for an expired session
+      // would sign the user out over a typo.
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 h-10 w-full border border-gray-300 text-sm text-gray-700"
+      >
+        修改密码
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-3 space-y-3">
+      <input
+        type="password"
+        value={currentPassword}
+        onChange={(event) => setCurrentPassword(event.target.value)}
+        placeholder="当前密码"
+        autoComplete="current-password"
+        className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-gray-950"
+      />
+      <input
+        type="password"
+        value={newPassword}
+        onChange={(event) => setNewPassword(event.target.value)}
+        placeholder="新密码（至少 8 位）"
+        autoComplete="new-password"
+        className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-gray-950"
+      />
+      {error ? <p className="text-xs text-red-700">{error}</p> : null}
+      {status ? <p className="text-xs text-emerald-700">{status}</p> : null}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="submit"
+          disabled={busy || !currentPassword || !newPassword}
+          className="h-10 border border-gray-950 bg-gray-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300"
+        >
+          {busy ? "提交中" : "保存"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setError("");
+            setStatus("");
+          }}
+          className="h-10 border border-gray-300 text-sm"
+        >
+          取消
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function preferredVoice(voices: SpeechSynthesisVoice[], lang: "en-US" | "en-GB") {
+  const target = lang.toLowerCase();
+  const match =
+    voices.find((voice) => voice.lang.toLowerCase().replace("_", "-") === target) ?? voices[0];
+  return match?.voiceURI ?? "";
 }
 
 function queueLabel(card: Card) {
