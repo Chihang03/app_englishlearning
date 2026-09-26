@@ -158,6 +158,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function focusAnswer() {
     inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (result && !result.is_correct) inputRef.current?.select();
   }
 
   const guarded = useCallback(
@@ -323,7 +324,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function handleAnswerChange(value: string) {
-    if (result && !result.is_correct && value !== "") setResult(null);
+    if (result && !result.is_correct) setResult(null);
     setAnswer(value);
   }
 
@@ -408,6 +409,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       focusAnswer();
     }
   }, [card, loading]);
+
+  useEffect(() => {
+    if (pageRef.current === "study" && result && !result.is_correct) focusAnswer();
+  }, [result]);
 
   useEffect(() => {
     if (page !== "study") return;
@@ -508,8 +513,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                       ref={index === 0 ? inputRef : undefined}
                       className={`sentence-input ${result?.is_correct ? "is-correct" : result ? "is-retry" : ""}`}
                       style={{ width: `${Math.min(18, Math.max(5, (result ? result.correct_answer.length : answer.length) + 1))}ch` }}
-                      value={result?.is_correct ? result.correct_answer : answer}
+                      value={result ? result.correct_answer : answer}
                       onChange={(event) => { if (!busy) handleAnswerChange(event.target.value); }}
+                      onFocus={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
+                      onClick={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
                       aria-busy={busy} aria-describedby="answer-feedback"
                       autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
@@ -524,12 +531,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                   <p className="sentence-translation">{card.example_translation_cn}</p>
                 ) : null}
               </div>
-              <div id="answer-feedback" className="answer-feedback" aria-live="polite" aria-atomic="true">
+              <div id="answer-feedback" className={result && !result.is_correct ? "sr-only" : "answer-feedback"} aria-live="polite" aria-atomic="true">
                 {result?.is_correct ? <p className="feedback-correct">✓ 答对了</p> : result ? (
-                  <div className="feedback-incorrect">
-                    <p>{result.is_blank ? "没关系，再记一次" : "再试一次"}</p>
-                    <p>正确答案：<strong>{result.correct_answer}</strong></p>
-                  </div>
+                  <span>正确答案已在句中显示：{result.correct_answer}。重新输入可重试。</span>
                 ) : <p className="question-hint">回车提交；留空回车可查看答案。</p>}
               </div>
               {message ? <p role="alert" className="error-notice">{message}</p> : null}
