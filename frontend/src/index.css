@@ -113,7 +113,10 @@ h1, h2, p { margin: 0; }
 .english-sentence { font-size: clamp(24px, 6.6vw, 34px); font-weight: 550; line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }
 /* The actual answer field lives at the blank, with stable keys across cards. */
 .question-content { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 2px; }
-.sentence-input { display: inline-block; max-width: 100%; min-width: 0; border: 0; border-bottom: 2px solid #90ab85; border-radius: 6px 6px 0 0; background: #edf1e6; color: var(--accent); font: inherit; line-height: 1.4; letter-spacing: inherit; padding: 0 5px; margin: 0 2px; vertical-align: baseline; }
+.sentence-blank { display: inline-block; position: relative; width: 5ch; max-width: calc(100% - 4px); margin: 0 2px; vertical-align: -.3em; }
+.sentence-measurer { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; user-select: none; }
+.sentence-measure { display: block; width: max-content; white-space: pre; font: inherit; letter-spacing: inherit; }
+.sentence-input { display: block; width: 100%; min-width: 0; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; border: 0; border-bottom: 2px solid #90ab85; border-radius: 6px 6px 0 0; background: #edf1e6; color: var(--accent); font: inherit; line-height: 1.4; letter-spacing: inherit; padding: 0 5px; margin: 0; }
 .sentence-input:focus { outline: none; border-bottom-color: var(--accent); box-shadow: 0 2px 0 var(--accent); background: #e5edda; }
 .sentence-input.is-correct { background: #dfeccc; color: #305b40; }
 .sentence-input.is-retry { background: #fff0ed; color: #b42318; border-bottom-color: #b42318; }

@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
+import { InlineAnswer } from "./InlineAnswer";
 import { errorMessage, isUnauthorized, request } from "./api";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User } from "./types";
 
@@ -133,7 +134,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [readingCorrectAnswer, setReadingCorrectAnswer] = useState(false);
   const [message, setMessage] = useState("");
   const [queueMessage, setQueueMessage] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDetailsElement>(null);
@@ -446,7 +447,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       if (pageRef.current === "study") {
         window.requestAnimationFrame(() => {
           const active = document.activeElement;
-          if (active instanceof HTMLInputElement && active.classList.contains("sentence-input")) {
+          if (active instanceof HTMLTextAreaElement && active.classList.contains("sentence-input")) {
             active.scrollIntoView({ block: "nearest", inline: "nearest" });
           }
         });
@@ -509,12 +510,11 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                 {sentenceParts.flatMap((part, index) => [
                   <span key={`text-${index}`}>{part}</span>,
                   index < sentenceParts.length - 1 ? (
-                    <input key={`blank-${index}`} id={index === 0 ? "study-answer" : undefined}
+                    <InlineAnswer key={`blank-${index}`} id={index === 0 ? "study-answer" : undefined}
                       ref={index === 0 ? inputRef : undefined}
                       className={`sentence-input ${result?.is_correct ? "is-correct" : result ? "is-retry" : ""}`}
-                      style={{ width: `${Math.min(18, Math.max(5, (result ? result.correct_answer.length : answer.length) + 1))}ch` }}
                       value={result ? result.correct_answer : answer}
-                      onChange={(event) => { if (!busy) handleAnswerChange(event.target.value); }}
+                      onChange={(event) => { if (!busy) handleAnswerChange(event.target.value.replace(/[\r\n]+/g, " ")); }}
                       onFocus={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       onClick={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
