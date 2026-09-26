@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { errorMessage, request } from "./api";
+import { loginWithPasskey, passkeyError, usePasskeyAvailability } from "./passkeys";
 import type { User } from "./types";
 
 type Mode = "login" | "register";
@@ -21,7 +22,10 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
   const [timezone, setTimezone] = useState(browserTimezone);
   const [registrationCode, setRegistrationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [error, setError] = useState("");
+  const availability = usePasskeyAvailability();
+  const busy = submitting || passkeyBusy;
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -30,7 +34,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (submitting) return;
+    if (busy) return;
     setSubmitting(true);
     setError("");
     try {
@@ -55,6 +59,19 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
     }
   }
 
+  async function signInWithPasskey() {
+    if (busy || !availability.ready) return;
+    setPasskeyBusy(true);
+    setError("");
+    try {
+      onAuthenticated(await loginWithPasskey());
+    } catch (caught) {
+      setError(passkeyError(caught));
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f7f7f4] px-4 py-10 text-gray-950">
       <div className="w-full max-w-sm">
@@ -62,20 +79,34 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
         <p className="mt-1 text-sm text-gray-600">通过语境回忆单词，而不是孤立背诵。</p>
 
         <div className="mt-7 flex border border-gray-300 bg-white">
-          <TabButton active={mode === "login"} onClick={() => switchMode("login")}>
+          <TabButton disabled={busy} active={mode === "login"} onClick={() => switchMode("login")}>
             登录
           </TabButton>
-          <TabButton active={mode === "register"} onClick={() => switchMode("register")}>
+          <TabButton disabled={busy} active={mode === "register"} onClick={() => switchMode("register")}>
             注册
           </TabButton>
         </div>
 
         <form onSubmit={submit} className="mt-5 space-y-4 border border-gray-300 bg-white px-5 py-5">
+          {mode === "login" ? (
+            <div className="space-y-2 border-b border-gray-200 pb-4">
+              <button type="button" onClick={() => void signInWithPasskey()}
+                disabled={busy || !availability.ready}
+                className="h-11 w-full border border-gray-950 bg-gray-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300">
+                {passkeyBusy ? "正在验证通行密钥…" : "使用通行密钥登录"}
+              </button>
+              <p className="text-xs text-gray-500">{availability.ready
+                ? "无需输入用户名或密码。首次使用请先用密码登录，在账号中添加通行密钥。"
+                : availability.reason}</p>
+              <p className="pt-2 text-sm text-gray-600">或使用密码登录</p>
+            </div>
+          ) : null}
           <Field label="用户名">
             <input
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
+              disabled={busy}
               autoFocus
               className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
             />
@@ -87,6 +118,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
+              disabled={busy}
               className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
             />
           </Field>
@@ -112,19 +144,19 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
           ) : null}
 
           {error ? (
-            <p className="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+            <p role="alert" className="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
           ) : null}
 
           <button
             type="submit"
-            disabled={submitting || !username || !password}
-            className="h-11 w-full border border-gray-950 bg-gray-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300"
+            disabled={busy || !username || !password}
+            className="h-11 w-full border border-gray-950 bg-white text-sm font-semibold text-gray-950 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
           >
-            {submitting ? "处理中" : mode === "login" ? "登录" : "创建账号"}
+            {submitting ? "处理中" : mode === "login" ? "密码登录" : "创建账号"}
           </button>
 
           {mode === "register" ? (
-            <p className="text-xs text-gray-500">密码至少 8 位。用户名 3–32 位，可用字母、数字、_ . -</p>
+            <p className="text-xs text-gray-500">密码至少 8 位。用户名 3–32 位，可用字母、数字、_ . -。创建账号后可添加通行密钥。</p>
           ) : null}
         </form>
       </div>
@@ -134,16 +166,19 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
 function TabButton({
   active,
+  disabled,
   onClick,
   children
 }: {
   active: boolean;
+  disabled: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       className={`h-11 flex-1 text-sm font-medium ${
         active ? "bg-gray-950 text-white" : "text-gray-700"

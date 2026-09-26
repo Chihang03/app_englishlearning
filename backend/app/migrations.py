@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-import shutil
 import sqlite3
 from datetime import datetime
+from contextlib import closing
 from pathlib import Path
 
 from .security import DEFAULT_TIMEZONE, hash_password, resolve_timezone, utc_iso_from, utc_now_iso
@@ -13,7 +13,7 @@ from .security import DEFAULT_TIMEZONE, hash_password, resolve_timezone, utc_iso
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def run_migrations(db_path: Path) -> None:
@@ -51,12 +51,59 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 2 (multi-user)")
 
+        if version < 3:
+            conn.execute("BEGIN")
+            _migrate_to_v3(conn)
+            conn.execute("PRAGMA user_version = 3")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 3 (passkeys)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v3(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        """
+        CREATE TABLE webauthn_users (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            user_handle BLOB NOT NULL UNIQUE
+        )
+        """,
+        """
+        CREATE TABLE passkeys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            credential_id BLOB NOT NULL UNIQUE,
+            public_key BLOB NOT NULL,
+            sign_count INTEGER NOT NULL,
+            device_type TEXT NOT NULL,
+            backed_up INTEGER NOT NULL,
+            transports TEXT NOT NULL,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_used_at TEXT
+        )
+        """,
+        "CREATE INDEX idx_passkeys_user ON passkeys(user_id)",
+        """
+        CREATE TABLE webauthn_challenges (
+            token_hash TEXT PRIMARY KEY,
+            purpose TEXT NOT NULL,
+            challenge BLOB NOT NULL,
+            origin TEXT NOT NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            session_hash TEXT,
+            name TEXT,
+            expires_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_webauthn_challenges_expiry ON webauthn_challenges(expires_at)"
+    ])
 
 
 def _run(conn: sqlite3.Connection, statements: list[str]) -> None:
@@ -74,7 +121,10 @@ def _backup(db_path: Path, version: int) -> None:
         return
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     target = db_path.with_name(f"{db_path.name}.bak-v{version}-{stamp}")
-    shutil.copy2(db_path, target)
+    # A file copy misses committed data still in SQLite's WAL. Take a consistent
+    # SQLite snapshot so the migration backup includes recent learning records.
+    with closing(sqlite3.connect(db_path)) as source, closing(sqlite3.connect(target)) as backup:
+        source.backup(backup)
     logger.warning("Backed up database before migration: %s", target)
 
 

@@ -7,7 +7,7 @@
 - Frontend: React, TypeScript, TailwindCSS, Vite
 - Backend: Python FastAPI
 - Database: SQLite（WAL 模式）
-- Auth: 会话 Cookie + scrypt 口令散列（均来自标准库，无额外依赖）
+- Auth: 会话 Cookie + scrypt 口令散列 + WebAuthn 通行密钥（Passkey）
 - TTS: 浏览器 Web Speech API（`speechSynthesis`）
 
 ## 目录
@@ -17,6 +17,7 @@ backend/
   app/
     main.py          # FastAPI API + 生产环境静态前端托管
     auth.py          # 注册 / 登录 / 会话 / 改密
+    passkeys.py      # 通行密钥注册、登录与管理
     security.py      # 口令散列、会话令牌、时区处理
     migrations.py    # 版本化 schema 迁移
     database.py      # 连接管理与查询
@@ -28,6 +29,8 @@ frontend/
   src/
     App.tsx          # 认证网关 + 训练界面
     AuthScreen.tsx   # 登录 / 注册
+    PasskeySettings.tsx # 通行密钥管理
+    passkeys.ts      # 浏览器 WebAuthn 调用
     api.ts           # fetch 封装与错误处理
     types.ts
     main.tsx
@@ -79,6 +82,9 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 | `COOKIE_SECURE` | `false` | 设为 `true` 后会话 Cookie 仅通过 HTTPS 发送。**部署到 HTTPS 后务必开启**；纯 HTTP 环境下开启会导致无法登录。 |
 | `INITIAL_USERNAME` | `admin` | 首次迁移旧数据时创建的账号名，仅在迁移那一次生效。 |
 | `INITIAL_PASSWORD` | 随机生成 | 同上。不设置则随机生成并在启动日志中打印一次。 |
+| `WEBAUTHN_RP_ID` | `localhost` | 通行密钥绑定的域名，不含协议、端口或路径，不能是 IP 地址。 |
+| `WEBAUTHN_RP_NAME` | `Context Vocabulary Trainer` | 创建通行密钥时显示的服务名称。 |
+| `WEBAUTHN_ORIGINS` | `http://localhost:5173,http://localhost:8000` | 逗号分隔的前端来源白名单，必须包含协议和实际端口，不含路径或末尾 `/`。正式环境必须 HTTPS；HTTP 仅允许 localhost。 |
 
 注意 `seed_words.json` 始终随代码从仓库读取，不受 `DATA_DIR` 影响。
 
@@ -91,7 +97,7 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `GET /api/stats` 首页统计
 - `GET /api/next` 获取下一题
 - `POST /api/review` 提交答案并更新 SRS
-除 `GET /api/health` 外，所有接口都需要登录。
+学习与设置接口需要登录；健康检查、注册、登录及通行密钥登录流程公开。
 
 - `POST /api/auth/register` 注册
 - `POST /api/auth/login` 登录
@@ -99,11 +105,48 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `GET /api/auth/me` 当前账号
 - `PATCH /api/auth/me` 修改时区
 - `PATCH /api/auth/password` 修改密码（会使其他设备的登录失效）
+- `GET /api/auth/passkeys/config` 通行密钥站点配置（公开）
+- `GET /api/auth/passkeys` 当前账号的通行密钥列表
+- `POST /api/auth/passkeys/register/options` 确认当前密码并获取注册选项（需要登录）
+- `POST /api/auth/passkeys/register/verify` 验证并保存通行密钥（需要登录）
+- `POST /api/auth/passkeys/login/options` 获取登录选项（公开）
+- `POST /api/auth/passkeys/login/verify` 验证签名并建立原有 Cookie 会话（公开）
+- `DELETE /api/auth/passkeys/{id}` 确认当前密码并删除自己的通行密钥
 - `GET /api/settings` 获取显示设置
 - `PATCH /api/settings` 更新显示设置
 - `GET /api/dictionary/{word}` 尝试通过 macOS DictionaryServices 查询系统词典
 - `POST /api/words` 新增单词
 - `POST /api/words/import` 批量导入单词
+
+## 通行密钥（Passkey）
+
+首次使用先注册或用密码登录，再在账号区域打开「管理通行密钥」，输入当前密码、密钥名称，点击「添加通行密钥」。浏览器会调用设备或密码管理器完成确认。下次点击登录页的「使用通行密钥登录」，无需输入用户名和密码。每个账号支持最多 20 个密钥，可查看添加日期、最近登录时间并删除；删除时需要当前密码。删除服务端记录后，该密钥不能再登录，设备或密码管理器中的副本需要用户自行清理。
+
+密码注册、密码登录和改密保持可用。建议设置可靠的备用密码，并添加备用通行密钥。当前版本没有邮箱找回或恢复码；如果所有通行密钥和密码都丢失，不能自助恢复。修改密码会使其他设备的会话失效，但不会删除已有通行密钥；怀疑密钥泄露时应在管理界面删除它。
+
+本机开发请通过 `http://localhost:5173` 或 `http://localhost:8000` 访问。普通 HTTP 服务器地址或局域网 IP 不支持此登录方式，界面会显示原因并保留密码入口。浏览器支持 WebAuthn 不代表设备一定具有可用的通行密钥；用户取消、超时或没有密钥时仍可用密码登录。
+
+正式部署先确定稳定 HTTPS 域名，并为后端设置，例如：
+
+```bash
+WEBAUTHN_RP_ID=learn.example.com
+WEBAUTHN_ORIGINS=https://learn.example.com
+COOKIE_SECURE=true
+```
+
+这些设置是后端进程的环境变量，本项目不会自动读取 `.env` 文件。反向代理提供 HTTPS，前后端仍可保持同源。RP ID 必须与前端域名相同或为其父域，服务器不会从请求的 Host 或转发头自动信任域名。变更 RP ID 后旧密钥不能直接用于新 RP ID，应保留密码入口并重新添加密钥。前后端分离时还需设置 `CORS_ORIGINS`，且会话 Cookie 仍受浏览器的同站策略约束，推荐同源部署。
+
+服务器只保存公钥、凭据标识和必要元数据，不接收指纹或面容。注册及登录均要求用户验证；挑战绑定当前浏览器、来源和用途，注册挑战还绑定账号及会话，5 分钟过期且只能使用一次。设备同步能力取决于用户使用的系统或密码管理器。
+
+## 认证测试
+
+```bash
+cd backend
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+测试使用临时数据库及软件生成的签名，验证注册、登录、账号隔离、挑战过期和重放、用户验证和删除行为，不会修改运行中的学习数据库。真实 Touch ID / Face ID、密码管理器同步和正式域名仍需在实际设备上验证。
 
 ## macOS Dictionary
 

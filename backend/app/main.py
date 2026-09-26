@@ -16,6 +16,7 @@ from .auth import get_current_user
 from .auth import router as auth_router
 from .database import connect, get_settings, init_database, row_to_dict, update_settings
 from .dictionary import lookup_system_definition
+from .passkeys import router as passkeys_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
 from .srs import next_state
 
@@ -55,6 +56,7 @@ if CORS_ORIGINS:
     )
 
 app.include_router(auth_router)
+app.include_router(passkeys_router)
 
 
 class WordInput(BaseModel):

@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthScreen } from "./AuthScreen";
+import { PasskeySettings } from "./PasskeySettings";
 import { errorMessage, isUnauthorized, request } from "./api";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User } from "./types";
 
@@ -469,6 +470,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             )}
 
             <h2 className="mt-7 text-sm font-semibold text-gray-900">账号</h2>
+            <PasskeySettings onSignedOut={onSignedOut} />
             <PasswordForm />
           </aside>
         </section>
