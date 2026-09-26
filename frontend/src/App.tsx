@@ -16,11 +16,9 @@ const MAX_WPM = 320;
 // in the server-side settings table.
 const SPEECH_SETTINGS_KEY = "cvt.speech";
 
-// How long a correct answer stays on screen before the next card loads. Speech
-// is deliberately not part of this: the review flow never waits on audio, which
-// can start late or not at all (no output device, a muted or backgrounded tab,
-// an autoplay policy). The sentence keeps playing across the transition.
-const ADVANCE_DELAY_MS = 450;
+// If a browser never starts speech, retain the answer with a manual next-card
+// action. Once speech starts, only its end event allows automatic advancement.
+const SPEECH_START_TIMEOUT_MS = 8000;
 
 const emptyStats: Stats = {
   today_learning: 0,
@@ -132,6 +130,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [readingCorrectAnswer, setReadingCorrectAnswer] = useState(false);
   const [message, setMessage] = useState("");
   const [queueMessage, setQueueMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +145,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   // Keeping the input mounted and the utterance referenced allows consecutive
   // answers without intentionally closing the keyboard or cutting off audio.
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const cancelSpeechRef = useRef<(() => void) | null>(null);
   const voices = useEnglishVoices();
   const speechSupported = "speechSynthesis" in window;
 
@@ -190,23 +190,68 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, [voices, speech.voiceURI]);
 
   const speak = useCallback(
-    (text: string) => {
+    (text: string, onEnd?: () => void, onFailure?: () => void) => {
+      cancelSpeechRef.current?.();
       const synth = window.speechSynthesis;
       const clean = text.replace(/\s+/g, " ").trim();
-      if (!synth || !clean) return;
+      const failed = () => {
+        if (onFailure) onFailure();
+        else if (mountedRef.current) setMessage("当前浏览器暂时无法朗读，可以继续答题。");
+      };
+      if (!synth || !clean) {
+        failed();
+        return () => {};
+      }
+
+      let active = true;
+      let utterance: SpeechSynthesisUtterance | null = null;
+      let startTimer: number | undefined;
+      const detach = () => {
+        window.clearTimeout(startTimer);
+        if (utterance) {
+          utterance.onstart = null;
+          utterance.onend = null;
+          utterance.onerror = null;
+        }
+        if (utteranceRef.current === utterance) utteranceRef.current = null;
+        if (cancelSpeechRef.current === cancel) cancelSpeechRef.current = null;
+      };
+      const cancel = () => {
+        if (!active) return;
+        active = false;
+        detach();
+        // Detach handlers first: a cancellation is not a completed sentence.
+        try { synth.cancel(); } catch { /* The browser may already be closing. */ }
+      };
+      const finish = (completed: boolean) => {
+        if (!active) return;
+        if (completed) {
+          active = false;
+          detach();
+          onEnd?.();
+        } else {
+          cancel();
+          failed();
+        }
+      };
       try {
         synth.cancel();
-        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance = new SpeechSynthesisUtterance(clean);
         const voice = voices.find((item) => item.voiceURI === speech.voiceURI);
         if (voice) utterance.voice = voice;
         utterance.lang = voice?.lang ?? "en-US";
         utterance.rate = Math.min(10, Math.max(0.1, speech.rate / BASE_WPM));
+        utterance.onstart = () => { window.clearTimeout(startTimer); };
+        utterance.onend = () => finish(true);
+        utterance.onerror = () => finish(false);
         utteranceRef.current = utterance;
+        cancelSpeechRef.current = cancel;
+        startTimer = window.setTimeout(() => finish(false), SPEECH_START_TIMEOUT_MS);
         synth.speak(utterance);
       } catch {
-        // Speech is optional; it must not interrupt an accepted review.
-        setMessage("当前浏览器暂时无法朗读，可以继续答题。");
+        finish(false);
       }
+      return cancel;
     },
     [voices, speech.voiceURI, speech.rate]
   );
@@ -225,6 +270,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   async function loadNext() {
     if (loadingRef.current) return;
+    cancelSpeechRef.current?.();
+    setReadingCorrectAnswer(false);
     loadingRef.current = true;
     setLoading(true);
     setMessage("");
@@ -256,9 +303,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       });
       if (!mountedRef.current) return;
       setResult(review);
+      setReadingCorrectAnswer(review.is_correct && pageRef.current === "study");
       if (!review.is_correct) setAnswer("");
       if (pageRef.current === "study") {
-        speak(review.example_sentence);
+        if (!review.is_correct) speak(review.example_sentence);
         focusAnswer();
       }
       // A failed stats refresh must never cause an accepted answer to be posted
@@ -283,7 +331,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     if (next === pageRef.current) return;
     inputRef.current?.blur();
     if (menuRef.current) menuRef.current.open = false;
-    window.speechSynthesis?.cancel();
+    cancelSpeechRef.current?.();
     pageRef.current = next;
     window.history.pushState(null, "", `#${next}`);
     setPage(next);
@@ -324,6 +372,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     window.history.replaceState(null, "", "#home");
     const syncPage = () => {
       const next = pageFromHash();
+      if (next !== pageRef.current) cancelSpeechRef.current?.();
       if (menuRef.current) menuRef.current.open = false;
       pageRef.current = next;
       setPage(next);
@@ -335,7 +384,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       mountedRef.current = false;
       window.removeEventListener("popstate", syncPage);
       window.removeEventListener("hashchange", syncPage);
-      window.speechSynthesis?.cancel();
+      cancelSpeechRef.current?.();
     };
   }, []);
 
@@ -369,8 +418,18 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   useEffect(() => {
     if (page !== "study" || !result?.is_correct) return;
-    const timer = window.setTimeout(() => { void guarded(loadNext); }, ADVANCE_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    setReadingCorrectAnswer(true);
+    const cancel = speak(result.example_sentence, () => {
+      if (!active || !mountedRef.current || pageRef.current !== "study") return;
+      setReadingCorrectAnswer(false);
+      void guarded(loadNext);
+    }, () => {
+      if (!active || !mountedRef.current || pageRef.current !== "study") return;
+      setReadingCorrectAnswer(false);
+      setMessage("整句朗读未能完成，请点击下一题继续。");
+    });
+    return () => { active = false; cancel(); };
   }, [page, result]);
 
   useEffect(() => {
@@ -437,7 +496,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                 <span className="pill">{card.status === "New" ? "新词" : "复习"}</span>
                 <button type="button" className="icon-button pronunciation-button"
                   onClick={() => speak(result ? result.example_sentence : blankSpeech)}
-                  disabled={!speechSupported} aria-label="朗读英文句子" title="朗读英文句子">
+                  disabled={!speechSupported || readingCorrectAnswer} aria-label="朗读英文句子" title="朗读英文句子">
                   <Icon name="sound" />
                 </button>
               </div>
@@ -476,7 +535,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               {message ? <p role="alert" className="error-notice">{message}</p> : null}
             </div>
             <div className="study-actions">
-              <span className="study-action-status" role="status">{loading ? "正在加载下一题…" : result?.is_correct ? "即将进入下一题…" : ""}</span>
+              <span className="study-action-status" role="status">{loading ? "正在加载下一题…" : readingCorrectAnswer ? "整句朗读中，结束后自动进入下一题…" : ""}</span>
               <div className="study-action-buttons">
                 {result?.is_correct && !loading ? (
                   <button type="button" className="text-button" onClick={() => { void guarded(loadNext); }}>下一题 <Icon name="arrow" /></button>
