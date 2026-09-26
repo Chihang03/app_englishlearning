@@ -3,12 +3,13 @@ import type { ComponentPropsWithoutRef } from "react";
 
 type Props = Omit<ComponentPropsWithoutRef<"textarea">, "value" | "rows" | "style"> & {
   value: string;
+  onEnter?: () => void;
 };
 
 // A stable textarea keeps focus across cards and can wrap a word that exceeds
 // a whole sentence line. Both measurement spans inherit the sentence's font.
 export const InlineAnswer = forwardRef<HTMLTextAreaElement, Props>(function InlineAnswer(
-  { value, onKeyDown, onCompositionStart, onCompositionEnd, ...props }, forwardedRef
+  { value, onEnter, onKeyDown, onCompositionStart, onCompositionEnd, ...props }, forwardedRef
 ) {
   const blankRef = useRef<HTMLSpanElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
@@ -76,7 +77,8 @@ export const InlineAnswer = forwardRef<HTMLTextAreaElement, Props>(function Inli
           onKeyDown?.(event);
           if (event.defaultPrevented || event.key !== "Enter" || composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
           event.preventDefault();
-          event.currentTarget.form?.requestSubmit();
+          if (onEnter) onEnter();
+          else event.currentTarget.form?.requestSubmit();
         }} />
     </span>
   );

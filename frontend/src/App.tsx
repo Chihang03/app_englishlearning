@@ -194,9 +194,11 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const speak = useCallback(
     (text: string, onEnd?: () => void, onFailure?: () => void) => {
       cancelSpeechRef.current?.();
+      setReadingCorrectAnswer(Boolean(onEnd));
       const synth = window.speechSynthesis;
       const clean = text.replace(/\s+/g, " ").trim();
       const failed = () => {
+        if (mountedRef.current) setReadingCorrectAnswer(false);
         if (onFailure) onFailure();
         else if (mountedRef.current) setMessage("当前浏览器暂时无法朗读，可以继续答题。");
       };
@@ -221,6 +223,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       const cancel = () => {
         if (!active) return;
         active = false;
+        if (mountedRef.current) setReadingCorrectAnswer(false);
         detach();
         // Detach handlers first: a cancellation is not a completed sentence.
         try { synth.cancel(); } catch { /* The browser may already be closing. */ }
@@ -229,6 +232,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         if (!active) return;
         if (completed) {
           active = false;
+          if (mountedRef.current) setReadingCorrectAnswer(false);
           detach();
           onEnd?.();
         } else {
@@ -258,6 +262,17 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     [voices, speech.voiceURI, speech.rate]
   );
 
+  function playSentence(text: string, advanceAfterReading: boolean) {
+    setMessage("");
+    speak(text, advanceAfterReading ? () => {
+      if (!mountedRef.current || pageRef.current !== "study" || loadingRef.current) return;
+      void guarded(loadNext);
+    } : undefined, advanceAfterReading ? () => {
+      if (!mountedRef.current || pageRef.current !== "study") return;
+      setMessage("整句朗读未能完成，请按回车重播或点击下一题继续。");
+    } : undefined);
+  }
+
   async function loadStats() {
     const payload = await request<Stats>("/api/stats");
     if (!mountedRef.current) return;
@@ -280,6 +295,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     try {
       const payload = await request<{ card: Card | null; message?: string }>("/api/next");
       if (!mountedRef.current) return;
+      cancelSpeechRef.current?.();
+      setReadingCorrectAnswer(false);
       // Do not remove the old input while fetching: mobile keyboards depend on
       // the focused DOM node surviving the transition to the next card.
       setCard(payload.card);
@@ -292,7 +309,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     }
   }
 
-  async function submitAnswer(value: string) {
+  async function submitAnswer(value: string, readSentence = false) {
     if (!card || loadingRef.current || submittingRef.current || result?.is_correct) return;
     if (result && value.trim() === "") return;
     submittingRef.current = true;
@@ -305,10 +322,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       });
       if (!mountedRef.current) return;
       setResult(review);
-      setReadingCorrectAnswer(review.is_correct && pageRef.current === "study");
       if (!review.is_correct) setAnswer("");
       if (pageRef.current === "study") {
-        if (!review.is_correct) speak(review.example_sentence);
+        if (readSentence) playSentence(review.example_sentence, review.is_correct);
         focusAnswer();
       }
       // A failed stats refresh must never cause an accepted answer to be posted
@@ -322,6 +338,18 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function submit(event: FormEvent) {
     event.preventDefault();
     void submitAnswer(answer);
+  }
+
+  function handleEnter() {
+    if (!card || pageRef.current !== "study") return;
+    if (submittingRef.current || loadingRef.current) {
+      playSentence(card.example_sentence, false);
+    } else if (result) {
+      // Replaying feedback must not create another review-history entry.
+      playSentence(result.example_sentence, result.is_correct);
+    } else {
+      void submitAnswer(answer, true);
+    }
   }
 
   function handleAnswerChange(value: string) {
@@ -423,22 +451,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, [page]);
 
   useEffect(() => {
-    if (page !== "study" || !result?.is_correct) return;
-    let active = true;
-    setReadingCorrectAnswer(true);
-    const cancel = speak(result.example_sentence, () => {
-      if (!active || !mountedRef.current || pageRef.current !== "study") return;
-      setReadingCorrectAnswer(false);
-      void guarded(loadNext);
-    }, () => {
-      if (!active || !mountedRef.current || pageRef.current !== "study") return;
-      setReadingCorrectAnswer(false);
-      setMessage("整句朗读未能完成，请点击下一题继续。");
-    });
-    return () => { active = false; cancel(); };
-  }, [page, result]);
-
-  useEffect(() => {
     const viewport = window.visualViewport;
     const updateViewport = () => {
       const height = viewport?.height ?? window.innerHeight;
@@ -464,7 +476,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     };
   }, []);
 
-  const blankSpeech = card?.cloze_sentence.replace(/_______/g, "blank") ?? "";
   const busy = loading || submitting || Boolean(result?.is_correct);
 
   return (
@@ -501,8 +512,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               <div className="question-heading">
                 <span className="pill">{card.status === "New" ? "新词" : "复习"}</span>
                 <button type="button" className="icon-button pronunciation-button"
-                  onClick={() => speak(result ? result.example_sentence : blankSpeech)}
-                  disabled={!speechSupported || readingCorrectAnswer} aria-label="朗读英文句子" title="朗读英文句子">
+                  onClick={() => speak(result?.correct_answer ?? card.word)}
+                  disabled={!speechSupported} aria-label="朗读单词" title="朗读单词">
                   <Icon name="sound" />
                 </button>
               </div>
@@ -514,6 +525,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                       ref={index === 0 ? inputRef : undefined}
                       className={`sentence-input ${result?.is_correct ? "is-correct" : result ? "is-retry" : ""}`}
                       value={result ? result.correct_answer : answer}
+                      onEnter={handleEnter}
                       onChange={(event) => { if (!busy) handleAnswerChange(event.target.value.replace(/[\r\n]+/g, " ")); }}
                       onFocus={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       onClick={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
@@ -534,7 +546,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               <div id="answer-feedback" className={result && !result.is_correct ? "sr-only" : "answer-feedback"} aria-live="polite" aria-atomic="true">
                 {result?.is_correct ? <p className="feedback-correct">✓ 答对了</p> : result ? (
                   <span>正确答案已在句中显示：{result.correct_answer}。重新输入可重试。</span>
-                ) : <p className="question-hint">回车提交；留空回车可查看答案。</p>}
+                ) : <p className="question-hint">回车提交；再次回车重播完整句子。</p>}
               </div>
               {message ? <p role="alert" className="error-notice">{message}</p> : null}
             </div>

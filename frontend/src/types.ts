@@ -6,6 +6,7 @@ export type User = {
 
 export type Card = {
   id: number;
+  word: string;
   part_of_speech: string;
   definition_cn: string;
   definition_en?: string | null;

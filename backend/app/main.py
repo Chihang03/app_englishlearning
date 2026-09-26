@@ -190,6 +190,7 @@ def learning_due_count(conn, user_id: int, today: date) -> int:
 def card_from_word(word: dict[str, Any], remaining_today: int) -> dict[str, Any]:
     return {
         "id": word["id"],
+        "word": word["word"],
         "part_of_speech": word["part_of_speech"],
         "definition_cn": word["definition_cn"],
         "definition_en": word["definition_en"],
