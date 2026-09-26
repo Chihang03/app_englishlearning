@@ -85,21 +85,6 @@ function useEnglishVoices() {
   return voices;
 }
 
-function highlightSentence(sentence: string, word: string) {
-  if (!word) return sentence;
-  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`\\b(${escaped})\\b`, "gi");
-  return sentence.split(regex).map((part, index) =>
-    part.toLowerCase() === word.toLowerCase() ? (
-      <mark key={`${part}-${index}`} className="rounded bg-amber-200 px-1 py-0.5 text-gray-950">
-        {part}
-      </mark>
-    ) : (
-      <span key={`${part}-${index}`}>{part}</span>
-    )
-  );
-}
-
 function App() {
   // undefined while the session cookie is being checked, null when signed out.
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -127,45 +112,65 @@ function App() {
   return <Trainer key={user.id} user={user} onSignedOut={() => setUser(null)} />;
 }
 
+type Page = "home" | "study" | "settings";
+
+function pageFromHash(): Page {
+  const value = window.location.hash.slice(1);
+  return value === "study" || value === "settings" ? value : "home";
+}
+
 function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
+  const [page, setPage] = useState<Page>("home");
+  const [hasStarted, setHasStarted] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
+  const [statsReady, setStatsReady] = useState(false);
   const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false });
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [queueMessage, setQueueMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  // Chrome garbage-collects an utterance that nothing references, which cuts
-  // playback short. Holding the current one here keeps it alive until it is
-  // replaced by the next.
+  const shellRef = useRef<HTMLElement>(null);
+  const questionRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const pageRef = useRef<Page>("home");
+  const loadingRef = useRef(false);
+  const submittingRef = useRef(false);
+  const settingsSavingRef = useRef(false);
+  const mountedRef = useRef(true);
+  // Keeping the input mounted and the utterance referenced allows consecutive
+  // answers without intentionally closing the keyboard or cutting off audio.
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-
   const voices = useEnglishVoices();
-  const speechSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const speechSupported = "speechSynthesis" in window;
 
-  const visibleSentence = useMemo(() => {
-    if (result) {
-      return highlightSentence(result.example_sentence, result.correct_answer);
-    }
-    return card?.cloze_sentence ?? "";
-  }, [card, result]);
+  const sentenceParts = useMemo(() => {
+    const parts = (card?.cloze_sentence ?? "").split("_______");
+    // An imported sentence without a matching word can still be answered.
+    return parts.length > 1 ? parts : [...parts, ""];
+  }, [card]);
 
-  // A session can expire mid-review, so every call funnels through here and a
-  // 401 drops straight back to the sign-in screen.
+  function focusAnswer() {
+    inputRef.current?.focus({ preventScroll: true });
+    inputRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   const guarded = useCallback(
     async (action: () => Promise<void>) => {
       try {
         await action();
       } catch (caught) {
+        if (!mountedRef.current) return;
         if (isUnauthorized(caught)) {
           onSignedOut();
           return;
         }
         setMessage(errorMessage(caught));
-        setLoading(false);
       }
     },
     [onSignedOut]
@@ -179,94 +184,130 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     });
   }
 
-  // Once the browser reports its voices, adopt a sensible default if nothing is
-  // stored yet or the stored voice is not installed here.
   useEffect(() => {
-    if (voices.length === 0) return;
-    if (voices.some((voice) => voice.voiceURI === speech.voiceURI)) return;
+    if (voices.length === 0 || voices.some((voice) => voice.voiceURI === speech.voiceURI)) return;
     updateSpeech({ voiceURI: preferredVoice(voices, "en-US") });
-  }, [voices]);
+  }, [voices, speech.voiceURI]);
 
   const speak = useCallback(
     (text: string) => {
       const synth = window.speechSynthesis;
       const clean = text.replace(/\s+/g, " ").trim();
       if (!synth || !clean) return;
-
-      // Drop anything still queued so rapid answers do not stack up utterances.
-      synth.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(clean);
-      const voice = voices.find((item) => item.voiceURI === speech.voiceURI);
-      if (voice) {
-        utterance.voice = voice;
-        utterance.lang = voice.lang;
-      } else {
-        utterance.lang = "en-US";
+      try {
+        synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(clean);
+        const voice = voices.find((item) => item.voiceURI === speech.voiceURI);
+        if (voice) utterance.voice = voice;
+        utterance.lang = voice?.lang ?? "en-US";
+        utterance.rate = Math.min(10, Math.max(0.1, speech.rate / BASE_WPM));
+        utteranceRef.current = utterance;
+        synth.speak(utterance);
+      } catch {
+        // Speech is optional; it must not interrupt an accepted review.
+        setMessage("当前浏览器暂时无法朗读，可以继续答题。");
       }
-      utterance.rate = Math.min(10, Math.max(0.1, speech.rate / BASE_WPM));
-      utteranceRef.current = utterance;
-      synth.speak(utterance);
     },
     [voices, speech.voiceURI, speech.rate]
   );
 
   async function loadStats() {
-    setStats(await request<Stats>("/api/stats"));
+    const payload = await request<Stats>("/api/stats");
+    if (!mountedRef.current) return;
+    setStats(payload);
+    setStatsReady(true);
   }
 
   async function loadSettings() {
-    setSettings(await request<Settings>("/api/settings"));
+    const payload = await request<Settings>("/api/settings");
+    if (mountedRef.current) setSettings(payload);
   }
 
   async function loadNext() {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
-    setResult(null);
-    setAnswer("");
-    const payload = await request<{ card: Card | null; message?: string }>("/api/next");
-    setCard(payload.card);
-    setMessage(payload.message ?? "");
-    setLoading(false);
-    window.setTimeout(() => inputRef.current?.focus(), 50);
+    setMessage("");
+    try {
+      const payload = await request<{ card: Card | null; message?: string }>("/api/next");
+      if (!mountedRef.current) return;
+      // Do not remove the old input while fetching: mobile keyboards depend on
+      // the focused DOM node surviving the transition to the next card.
+      setCard(payload.card);
+      setResult(null);
+      setAnswer("");
+      setQueueMessage(payload.message ?? "");
+    } finally {
+      loadingRef.current = false;
+      if (mountedRef.current) setLoading(false);
+    }
   }
 
-  async function submit(event?: FormEvent) {
-    event?.preventDefault();
-    if (!card || submitting || result?.is_correct || (result && answer.trim() === "")) return;
+  async function submitAnswer(value: string) {
+    if (!card || loadingRef.current || submittingRef.current || result?.is_correct) return;
+    if (result && value.trim() === "") return;
+    submittingRef.current = true;
     setSubmitting(true);
+    setMessage("");
     await guarded(async () => {
       const review = await request<ReviewResult>("/api/review", {
         method: "POST",
-        body: JSON.stringify({ word_id: card.id, user_answer: answer })
+        body: JSON.stringify({ word_id: card.id, user_answer: value })
       });
+      if (!mountedRef.current) return;
       setResult(review);
-      await loadStats();
-      if (review.is_correct) {
+      if (!review.is_correct) setAnswer("");
+      if (pageRef.current === "study") {
         speak(review.example_sentence);
-        window.setTimeout(() => {
-          void guarded(loadNext);
-        }, ADVANCE_DELAY_MS);
-      } else {
-        setAnswer("");
-        window.setTimeout(() => inputRef.current?.focus(), 50);
-        speak(review.example_sentence);
+        focusAnswer();
       }
+      // A failed stats refresh must never cause an accepted answer to be posted
+      // again. Review feedback and advancement do not depend on this request.
+      void guarded(loadStats);
     });
-    setSubmitting(false);
+    submittingRef.current = false;
+    if (mountedRef.current) setSubmitting(false);
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    void submitAnswer(answer);
   }
 
   function handleAnswerChange(value: string) {
-    if (result && !result.is_correct && value !== "") {
-      setResult(null);
-    }
+    if (result && !result.is_correct && value !== "") setResult(null);
     setAnswer(value);
   }
 
+  function navigate(next: Page) {
+    if (next === pageRef.current) return;
+    inputRef.current?.blur();
+    if (menuRef.current) menuRef.current.open = false;
+    window.speechSynthesis?.cancel();
+    pageRef.current = next;
+    window.history.pushState(null, "", `#${next}`);
+    setPage(next);
+  }
+
   function updateSetting(next: Partial<Settings>) {
+    if (settingsSavingRef.current) return;
+    settingsSavingRef.current = true;
+    setSettingsSaving(true);
+    const previous = settings;
+    setSettings({ ...previous, ...next });
     void guarded(async () => {
-      setSettings(
-        await request<Settings>("/api/settings", { method: "PATCH", body: JSON.stringify(next) })
-      );
+      try {
+        const payload = await request<Settings>("/api/settings", {
+          method: "PATCH", body: JSON.stringify(next)
+        });
+        if (mountedRef.current) setSettings(payload);
+      } catch (caught) {
+        if (mountedRef.current) setSettings(previous);
+        throw caught;
+      } finally {
+        settingsSavingRef.current = false;
+        if (mountedRef.current) setSettingsSaving(false);
+      }
     });
   }
 
@@ -278,205 +319,329 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   useEffect(() => {
-    void guarded(async () => {
-      await Promise.all([loadStats(), loadSettings(), loadNext()]);
-    });
+    mountedRef.current = true;
+    // Each authenticated session starts at Home, including after a reload.
+    window.history.replaceState(null, "", "#home");
+    const syncPage = () => {
+      const next = pageFromHash();
+      if (menuRef.current) menuRef.current.open = false;
+      pageRef.current = next;
+      setPage(next);
+    };
+    window.addEventListener("popstate", syncPage);
+    window.addEventListener("hashchange", syncPage);
+    void guarded(async () => { await Promise.all([loadStats(), loadSettings()]); });
+    return () => {
+      mountedRef.current = false;
+      window.removeEventListener("popstate", syncPage);
+      window.removeEventListener("hashchange", syncPage);
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (page === "study") {
+      if (!hasStarted) {
+        setHasStarted(true);
+        void guarded(loadNext);
+      } else {
+        focusAnswer();
+      }
+    } else if (page === "home" && hasStarted) {
+      void guarded(loadStats);
+    }
+  }, [page]);
+
+  useEffect(() => {
+    if (pageRef.current === "study" && card && !loading) {
+      questionRef.current?.scrollTo(0, 0);
+      focusAnswer();
+    }
+  }, [card, loading]);
+
+  useEffect(() => {
+    if (page !== "study") return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [page]);
+
+  useEffect(() => {
+    if (page !== "study" || !result?.is_correct) return;
+    const timer = window.setTimeout(() => { void guarded(loadNext); }, ADVANCE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [page, result]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      const height = viewport?.height ?? window.innerHeight;
+      shellRef.current?.style.setProperty("--viewport-height", `${height}px`);
+      shellRef.current?.style.setProperty("--viewport-top", `${viewport?.offsetTop ?? 0}px`);
+      if (pageRef.current === "study") {
+        window.requestAnimationFrame(() => {
+          const active = document.activeElement;
+          if (active instanceof HTMLInputElement && active.classList.contains("sentence-input")) {
+            active.scrollIntoView({ block: "nearest", inline: "nearest" });
+          }
+        });
+      }
+    };
+    updateViewport();
+    viewport?.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("scroll", updateViewport);
+    window.addEventListener("resize", updateViewport);
+    return () => {
+      viewport?.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("resize", updateViewport);
+    };
   }, []);
 
   const blankSpeech = card?.cloze_sentence.replace(/_______/g, "blank") ?? "";
+  const busy = loading || submitting || Boolean(result?.is_correct);
 
   return (
-    <main className="min-h-screen bg-[#f7f7f4] px-4 py-5 text-gray-950 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
-        <header className="flex flex-col gap-4 border-b border-gray-300 pb-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-normal">Context Vocabulary Trainer</h1>
-            <p className="mt-1 text-sm text-gray-600">通过语境回忆单词，而不是孤立背诵。</p>
-            <p className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{user.username}</span>
-              <span className="text-gray-400">·</span>
-              <span className="text-xs">{user.timezone}</span>
-              <button
-                type="button"
-                onClick={signOut}
-                className="ml-1 border border-gray-300 px-2 py-0.5 text-xs text-gray-700"
-              >
-                登出
-              </button>
-            </p>
+    <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : ""}`}>
+      {page === "home" ? (
+        <Home user={user} stats={stats} ready={statsReady} hasStarted={hasStarted}
+          onStudy={() => navigate("study")} onSettings={() => navigate("settings")}
+          onRefresh={() => { setMessage(""); void guarded(loadStats); }} />
+      ) : null}
+
+      {/* Hidden rather than unmounted: returning Home preserves the current
+          question and draft, and next-card requests preserve the input node. */}
+      <section hidden={page !== "study"} className="study-page" aria-label="学习">
+        <header className="study-header">
+          <button type="button" className="icon-button" onClick={() => navigate("home")} aria-label="返回首页">
+            <Icon name="back" />
+          </button>
+          <div className="study-progress">
+            <span className="eyebrow">专注学习</span>
+            <span>今日已答 {statsReady ? stats.today_learning : "—"} 次</span>
           </div>
-          <div className="grid grid-cols-4 gap-2 text-center sm:grid-cols-8">
-            <Stat label="今日" value={stats.today_learning} />
-            <Stat label="正确率" value={`${stats.today_accuracy}%`} />
-            <Stat label="累计" value={stats.total_learned} />
-            <Stat label="待复习" value={stats.due_review} />
-            <Stat label="新词" value={stats.new_words} />
-            <Stat label="学习中" value={stats.learning} />
-            <Stat label="错词" value={stats.lapse_words} />
-            <Stat label="已掌握" value={stats.mastered} />
-          </div>
+          <details ref={menuRef} className="study-menu">
+            <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
+            <div className="study-menu-panel">
+              <button type="button" onClick={() => navigate("settings")}>学习设置</button>
+              <button type="button" onClick={() => navigate("home")}>回到首页</button>
+            </div>
+          </details>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="flex min-h-[520px] flex-col justify-center border border-gray-300 bg-white px-5 py-6 shadow-sm sm:px-8">
-            {loading ? (
-              <p className="text-gray-500">Loading...</p>
-            ) : card ? (
-              <>
-                <div className="mb-7 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="border border-gray-300 px-2.5 py-1 text-gray-700">{card.status}</span>
-                  <span className="text-gray-500">{queueLabel(card)}</span>
-                </div>
-
-                <div className="space-y-5">
-                  <div className="border-l-4 border-gray-950 bg-[#fff7df] px-4 py-3">
-                    <div className="text-xs font-semibold uppercase text-gray-600">{card.part_of_speech}</div>
-                    <div className="mt-1 text-2xl font-semibold leading-snug text-gray-950">
-                      {card.definition_cn}
-                    </div>
-                  </div>
-                  <p className="max-w-3xl text-3xl font-semibold leading-snug tracking-normal text-gray-950 sm:text-4xl">
-                    {visibleSentence}
-                  </p>
-                  {settings.show_sentence_translation && card.example_translation_cn ? (
-                    <p className="max-w-3xl text-base leading-7 text-gray-600">
-                      {card.example_translation_cn}
-                    </p>
-                  ) : null}
-                  <div className="min-h-[72px]">
-                    {result?.is_correct ? (
-                      <ResultLine tone="correct" text="Correct" />
-                    ) : result ? (
-                      <div className="space-y-2">
-                        <ResultLine tone="incorrect" text={result.is_blank ? "不会" : "Incorrect"} />
-                        <p className="text-base text-gray-700">
-                          正确答案：<span className="font-semibold text-gray-950">{result.correct_answer}</span>
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <form onSubmit={submit} className="mt-8 flex flex-col gap-3 sm:flex-row">
-                  <input
-                    ref={inputRef}
-                    value={answer}
-                    onChange={(event) => handleAnswerChange(event.target.value)}
-                    disabled={submitting || Boolean(result?.is_correct)}
-                    className="h-12 min-w-0 flex-1 border border-gray-300 bg-white px-4 text-lg outline-none transition focus:border-gray-950 disabled:bg-gray-100"
-                    placeholder={result && !result.is_correct ? "继续输入可重试" : "输入答案，空白回车表示不会"}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <button
-                    type="submit"
-                    disabled={submitting || Boolean(result?.is_correct)}
-                    className="h-12 border border-gray-950 bg-gray-950 px-6 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300"
-                  >
-                    {submitting ? "处理中" : "提交"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => speak(result ? result.example_sentence : blankSpeech)}
-                    disabled={!speechSupported}
-                    className="h-12 border border-gray-300 px-5 text-sm font-medium text-gray-900 disabled:cursor-not-allowed disabled:text-gray-400"
-                  >
-                    发音
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-2xl font-semibold">今日没有待复习单词</p>
-                <p className="text-gray-600">{message}</p>
+        {card ? (
+          <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
+            <div ref={questionRef} className="question-content" tabIndex={0} aria-label="题目内容">
+              <div className="question-heading">
+                <span className="pill">{card.status === "New" ? "新词" : "复习"}</span>
+                <button type="button" className="icon-button pronunciation-button"
+                  onClick={() => speak(result ? result.example_sentence : blankSpeech)}
+                  disabled={!speechSupported} aria-label="朗读英文句子" title="朗读英文句子">
+                  <Icon name="sound" />
+                </button>
               </div>
-            )}
-          </div>
-
-          <aside className="border border-gray-300 bg-white px-4 py-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-900">显示设置</h2>
-            <div className="mt-4 space-y-4">
-              <label className="flex items-center justify-between gap-3 text-sm text-gray-700">
-                <span>句子中文释义</span>
-                <input
-                  type="checkbox"
-                  checked={settings.show_sentence_translation}
-                  onChange={(event) => updateSetting({ show_sentence_translation: event.target.checked })}
-                  className="h-5 w-5 accent-gray-950"
-                />
-              </label>
-            </div>
-
-            <h2 className="mt-7 text-sm font-semibold text-gray-900">发音设置</h2>
-            <p className="mt-1 text-xs text-gray-500">由浏览器朗读，仅保存在本机。</p>
-
-            {!speechSupported ? (
-              <p className="mt-4 border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                当前浏览器不支持语音合成，发音功能不可用。
+              <p className="english-sentence">
+                {sentenceParts.flatMap((part, index) => [
+                  <span key={`text-${index}`}>{part}</span>,
+                  index < sentenceParts.length - 1 ? (
+                    <input key={`blank-${index}`} id={index === 0 ? "study-answer" : undefined}
+                      ref={index === 0 ? inputRef : undefined}
+                      className={`sentence-input ${result?.is_correct ? "is-correct" : result ? "is-retry" : ""}`}
+                      style={{ width: `${Math.min(18, Math.max(5, (result ? result.correct_answer.length : answer.length) + 1))}ch` }}
+                      value={result?.is_correct ? result.correct_answer : answer}
+                      onChange={(event) => { if (!busy) handleAnswerChange(event.target.value); }}
+                      aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
+                      aria-busy={busy} aria-describedby="answer-feedback"
+                      autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
+                      enterKeyHint="send" inputMode="text" />
+                  ) : null
+                ])}
               </p>
-            ) : (
-              <div className="mt-4 space-y-4">
-                <label className="block text-sm text-gray-600">
-                  语音
-                  <select
-                    value={speech.voiceURI}
-                    onChange={(event) => updateSpeech({ voiceURI: event.target.value })}
-                    disabled={voices.length === 0}
-                    className="mt-1 h-10 w-full border border-gray-300 bg-white px-2 text-gray-950 disabled:bg-gray-100"
-                  >
-                    {voices.length === 0 ? (
-                      <option value="">系统未安装英文语音</option>
-                    ) : (
-                      voices.map((voice) => (
-                        <option key={voice.voiceURI} value={voice.voiceURI}>
-                          {voice.name} · {voice.lang}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
-
-                <label className="block text-sm text-gray-600">
-                  语速 {speech.rate}
-                  <input
-                    type="range"
-                    min={MIN_WPM}
-                    max={MAX_WPM}
-                    value={speech.rate}
-                    onChange={(event) => updateSpeech({ rate: clampWpm(Number(event.target.value)) })}
-                    className="mt-2 w-full"
-                  />
-                </label>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => updateSpeech({ voiceURI: preferredVoice(voices, "en-US") })}
-                    disabled={voices.length === 0}
-                    className="h-10 border border-gray-300 text-sm disabled:text-gray-400"
-                  >
-                    美式
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateSpeech({ voiceURI: preferredVoice(voices, "en-GB") })}
-                    disabled={voices.length === 0}
-                    className="h-10 border border-gray-300 text-sm disabled:text-gray-400"
-                  >
-                    英式
-                  </button>
-                </div>
+              <div className="meaning-block">
+                <span className="part-of-speech">{card.part_of_speech}</span>
+                <p className="word-meaning">{card.definition_cn}</p>
+                {settings.show_sentence_translation && card.example_translation_cn ? (
+                  <p className="sentence-translation">{card.example_translation_cn}</p>
+                ) : null}
               </div>
-            )}
+              <div id="answer-feedback" className="answer-feedback" aria-live="polite" aria-atomic="true">
+                {result?.is_correct ? <p className="feedback-correct">✓ 答对了</p> : result ? (
+                  <div className="feedback-incorrect">
+                    <p>{result.is_blank ? "没关系，再记一次" : "再试一次"}</p>
+                    <p>正确答案：<strong>{result.correct_answer}</strong></p>
+                  </div>
+                ) : <p className="question-hint">在句子空白处输入单词，回车即可提交。</p>}
+              </div>
+              {message ? <p role="alert" className="error-notice">{message}</p> : null}
+            </div>
+            <div className="study-actions">
+              <span className="study-action-status" role="status">{loading ? "正在加载下一题…" : result?.is_correct ? "即将进入下一题…" : ""}</span>
+              <div className="study-action-buttons">
+                {result?.is_correct && !loading ? (
+                  <button type="button" className="text-button" onClick={() => { void guarded(loadNext); }}>下一题 <Icon name="arrow" /></button>
+                ) : (
+                  <button type="button" className="text-button" disabled={busy || Boolean(result)}
+                    onPointerDown={(event) => event.preventDefault()} onClick={() => { void submitAnswer(""); }}>不会，查看答案</button>
+                )}
+                <button type="submit" className="primary-button" disabled={busy}
+                  onPointerDown={(event) => event.preventDefault()}>
+                  {submitting ? "提交中" : loading ? "加载中" : "提交"}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <div className="study-empty panel" role="status">
+            <span className="empty-icon"><Icon name={loading ? "book" : message ? "more" : "check"} /></span>
+            <h1>{loading ? "准备好，开始学习" : message ? "题目暂时没有加载成功" : "今天的复习已完成"}</h1>
+            <p>{loading ? "正在准备你的第一道题…" : message || (queueMessage ? "目前没有到期复习或可学习的新词，稍后再来看看。" : "正在准备题目。")}</p>
+            {!loading ? <div className="empty-actions">
+              <button type="button" className="primary-button" onClick={() => navigate("home")}>返回首页</button>
+              <button type="button" className="secondary-button" onClick={() => { void guarded(loadNext); }}>重新检查</button>
+            </div> : null}
+          </div>
+        )}
+      </section>
 
-            <h2 className="mt-7 text-sm font-semibold text-gray-900">账号</h2>
-            <PasskeySettings onSignedOut={onSignedOut} />
-            <PasswordForm />
-          </aside>
-        </section>
-      </div>
+      {page === "settings" ? (
+        <SettingsPage user={user} settings={settings} speech={speech} voices={voices}
+          settingsSaving={settingsSaving}
+          speechSupported={speechSupported} onBack={() => navigate("home")}
+          onSetting={updateSetting} onSpeech={updateSpeech} onSignOut={signOut} onSessionExpired={onSignedOut} />
+      ) : null}
+
+      {message && page !== "study" ? <p role="alert" className="global-error error-notice">{message}</p> : null}
+      {page !== "study" ? (
+        <nav className="bottom-nav" aria-label="主导航">
+          <button type="button" onClick={() => navigate("home")} aria-current={page === "home" ? "page" : undefined}>
+            <Icon name="home" /><span>首页</span>
+          </button>
+          <button type="button" className="nav-study" onClick={() => navigate("study")}>
+            <span className="nav-study-icon"><Icon name="arrow" /></span>
+            <span>{hasStarted ? "继续学习" : "开始学习"}</span>
+          </button>
+          <button type="button" onClick={() => navigate("settings")} aria-current={page === "settings" ? "page" : undefined}>
+            <Icon name="settings" /><span>设置</span>
+          </button>
+        </nav>
+      ) : null}
     </main>
   );
+}
+
+function Home({ user, stats, ready, hasStarted, onStudy, onSettings, onRefresh }: {
+  user: User; stats: Stats; ready: boolean; hasStarted: boolean;
+  onStudy: () => void; onSettings: () => void; onRefresh: () => void;
+}) {
+  const value = (count: number) => ready ? count.toLocaleString() : "—";
+  return (
+    <section className="home-page page-container" aria-label="首页">
+      <header className="page-header">
+        <div><span className="eyebrow">CONTEXT · 语境学词</span><h1>你好，{user.username}</h1></div>
+        <button type="button" className="icon-button header-settings" aria-label="打开设置" onClick={onSettings}><Icon name="settings" /></button>
+      </header>
+      <div className="home-intro"><p>每天一点，让英语更熟悉。</p><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
+      <div className="home-main-grid">
+        <section className="today-panel panel">
+          <div className="section-heading"><h2>今日学习</h2><span className="subtle-label">{ready && stats.today_learning > 0 ? "每一次练习都算数" : "从一个句子开始"}</span></div>
+          <div className="today-metrics">
+            <div><strong>{value(stats.today_learning)}</strong><span>答题次数</span></div>
+            <div><strong>{ready && stats.today_learning > 0 ? `${stats.today_accuracy}%` : "—"}</strong><span>今日正确率</span></div>
+          </div>
+          <p className="metric-note">答题次数包含复习和重试。</p>
+        </section>
+        <section className="learning-plan panel">
+          <span className="plan-icon"><Icon name="book" /></span>
+          <span className="eyebrow">在句子里记住单词</span>
+          <h2>{hasStarted ? "接着上次，继续练习" : "你的下一次进步，从这里开始"}</h2>
+          <p>读英文，想中文，写下答案。<br />复习安排会随你的学习进度更新。</p>
+          <button type="button" className="plan-start text-button" onClick={onStudy}>{hasStarted ? "继续学习" : "开始学习"}<Icon name="arrow" /></button>
+        </section>
+      </div>
+      <section className="overview-section">
+        <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} aria-label="刷新学习数据"><Icon name="refresh" /> 刷新</button></div>
+        <div className="overview-grid">
+          <Metric icon="book" label="累计学过" value={value(stats.total_learned)} caption="不同单词" />
+          <Metric icon="refresh" label="待复习错词" value={value(stats.due_lapses)} caption="今天到期" />
+          <Metric icon="spark" label="可学新词" value={value(stats.new_words)} caption="慢慢积累" />
+          <Metric icon="check" label="已掌握" value={value(stats.mastered)} caption="进入间隔复习" />
+        </div>
+      </section>
+      <details className="learning-details panel">
+        <summary><span><Icon name="chart" /> 更多学习数据</span><Icon name="chevron" /></summary>
+        <dl className="detail-metrics">
+          <div><dt>学习中</dt><dd>{value(stats.learning)}</dd></div>
+          <div><dt>学习中今日到期</dt><dd>{value(stats.learning_due)}</dd></div>
+          <div><dt>有过错误的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
+          <div><dt>长期熟记</dt><dd>{value(stats.mature)}</dd></div>
+        </dl>
+      </details>
+      <p className="home-footnote">学习记录跟随账号，发音偏好保存在当前设备。</p>
+    </section>
+  );
+}
+
+function Metric({ icon, label, value, caption }: { icon: IconName; label: string; value: string; caption: string }) {
+  return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span><span className="metric-caption">{caption}</span></div>;
+}
+
+function SettingsPage({ user, settings, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onSpeech, onSignOut, onSessionExpired }: {
+  user: User; settings: Settings; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
+  settingsSaving: boolean;
+  speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
+  onSpeech: (next: Partial<SpeechSettings>) => void; onSignOut: () => void; onSessionExpired: () => void;
+}) {
+  return (
+    <section className="settings-page page-container" aria-label="设置">
+      <header className="settings-header"><button type="button" className="icon-button" onClick={onBack} aria-label="返回首页"><Icon name="back" /></button><h1>设置</h1><span className="header-spacer" /></header>
+      <div className="account-card panel"><span className="account-avatar"><Icon name="user" /></span><div><h2>{user.username}</h2><p>{user.timezone}</p></div></div>
+      <section className="settings-group panel">
+        <h2><Icon name="book" /> 学习显示</h2>
+        <label className="setting-row"><span><strong>句子中文翻译</strong><small>在单词释义下显示完整句子的翻译</small></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.show_sentence_translation} onChange={(event) => onSetting({ show_sentence_translation: event.target.checked })} /></label>
+      </section>
+      <section className="settings-group panel">
+        <h2><Icon name="sound" /> 发音</h2>
+        <p className="settings-hint">由当前设备的浏览器朗读，偏好仅保存在本机。</p>
+        {!speechSupported ? <p className="warning-notice">当前浏览器不支持语音朗读。</p> : (
+          <div className="speech-controls">
+            <label className="setting-field"><span>英文语音</span><select value={speech.voiceURI} onChange={(event) => onSpeech({ voiceURI: event.target.value })} disabled={voices.length === 0}>
+              {voices.length === 0 ? <option value="">暂无可用英文语音</option> : voices.map((voice) => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} · {voice.lang}</option>)}
+            </select></label>
+            <div className="voice-shortcuts"><button type="button" className="secondary-button" disabled={voices.length === 0} onClick={() => onSpeech({ voiceURI: preferredVoice(voices, "en-US") })}>美式语音</button><button type="button" className="secondary-button" disabled={voices.length === 0} onClick={() => onSpeech({ voiceURI: preferredVoice(voices, "en-GB") })}>英式语音</button></div>
+            <label className="setting-field"><span>语速 <strong>{speech.rate}</strong></span><input type="range" min={MIN_WPM} max={MAX_WPM} value={speech.rate} onChange={(event) => onSpeech({ rate: clampWpm(Number(event.target.value)) })} /><span className="range-labels"><small>慢</small><small>快</small></span></label>
+          </div>
+        )}
+      </section>
+      <section className="settings-group panel">
+        <h2><Icon name="user" /> 账号安全</h2>
+        <PasskeySettings onSignedOut={onSessionExpired} />
+        <PasswordForm />
+      </section>
+      <button type="button" className="sign-out-button secondary-button" onClick={onSignOut}>退出登录</button>
+    </section>
+  );
+}
+
+type IconName = "home" | "settings" | "arrow" | "back" | "more" | "sound" | "book" | "spark" | "check" | "refresh" | "chart" | "chevron" | "user";
+
+function Icon({ name }: { name: IconName }) {
+  const paths: Record<IconName, React.ReactNode> = {
+    home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h5v-7h4v7h5V9" /></>,
+    settings: <><path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3Z" /><circle cx="12" cy="12" r="3" /></>,
+    arrow: <><path d="M4 12h16m-6-6 6 6-6 6" /></>,
+    back: <><path d="M20 12H4m6-6-6 6 6 6" /></>,
+    more: <><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></>,
+    sound: <><path d="m11 4-6 5H2v6h3l6 5Z" /><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" /></>,
+    book: <><path d="M12 5C9 3 5 3 2 4v16c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Zm0 0v16" /></>,
+    spark: <><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z" /></>,
+    check: <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></>,
+    refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6 6a8 8 0 0 1 13 2m-1 10A8 8 0 0 1 5 16" /></>,
+    chart: <><path d="M4 20V10m5 10V4m6 16v-7m5 7V7" /></>,
+    chevron: <><path d="m9 5 7 7-7 7" /></>,
+    user: <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2Z" /></>
+  };
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
 function PasswordForm() {
@@ -530,6 +695,7 @@ function PasswordForm() {
         value={currentPassword}
         onChange={(event) => setCurrentPassword(event.target.value)}
         placeholder="当前密码"
+        aria-label="当前密码"
         autoComplete="current-password"
         className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-gray-950"
       />
@@ -538,6 +704,7 @@ function PasswordForm() {
         value={newPassword}
         onChange={(event) => setNewPassword(event.target.value)}
         placeholder="新密码（至少 8 位）"
+        aria-label="新密码（至少 8 位）"
         autoComplete="new-password"
         className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-gray-950"
       />
@@ -572,31 +739,6 @@ function preferredVoice(voices: SpeechSynthesisVoice[], lang: "en-US" | "en-GB")
   const match =
     voices.find((voice) => voice.lang.toLowerCase().replace("_", "-") === target) ?? voices[0];
   return match?.voiceURI ?? "";
-}
-
-function queueLabel(card: Card) {
-  if (card.status === "New") {
-    return "新词学习，不设每日上限";
-  }
-  if (card.remaining_today > 0) {
-    return `错词待复习 ${card.remaining_today}`;
-  }
-  return "记忆曲线回顾";
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="min-w-[72px] border border-gray-300 bg-white px-2 py-2">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="mt-1 text-lg font-semibold leading-none">{value}</div>
-    </div>
-  );
-}
-
-function ResultLine({ tone, text }: { tone: "correct" | "incorrect"; text: string }) {
-  const color = tone === "correct" ? "text-emerald-700" : "text-red-700";
-  const mark = tone === "correct" ? "✓" : "✗";
-  return <p className={`text-lg font-semibold ${color}`}>{mark} {text}</p>;
 }
 
 export default App;
