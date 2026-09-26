@@ -33,7 +33,12 @@ const emptyStats: Stats = {
   due_lapses: 0,
   mastered: 0,
   mature: 0,
-  streak_days: 0
+  streak_days: 0,
+  learned_senses: 0,
+  new_senses: 0,
+  due_senses: 0,
+  mastered_senses: 0,
+  legacy_unmapped_words: 0
 };
 
 function clampWpm(value: number) {
@@ -128,6 +133,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [statsReady, setStatsReady] = useState(false);
   const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
   const [wordLists, setWordLists] = useState<WordList[]>([]);
+  const otherSensesOpenRef = useRef(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(false);
@@ -266,7 +272,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function playSentence(text: string, advanceAfterReading: boolean) {
     setMessage("");
     speak(text, advanceAfterReading ? () => {
-      if (!mountedRef.current || pageRef.current !== "study" || loadingRef.current) return;
+      if (!mountedRef.current || pageRef.current !== "study" || loadingRef.current || otherSensesOpenRef.current) return;
       void guarded(loadNext);
     } : undefined, advanceAfterReading ? () => {
       if (!mountedRef.current || pageRef.current !== "study") return;
@@ -307,6 +313,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       // the focused DOM node surviving the transition to the next card.
       setCard(payload.card);
       setResult(null);
+      otherSensesOpenRef.current = false;
       setAnswer("");
       setQueueMessage(payload.message ?? "");
     } finally {
@@ -324,7 +331,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     await guarded(async () => {
       const review = await request<ReviewResult>("/api/review", {
         method: "POST",
-        body: JSON.stringify({ word_id: card.id, user_answer: value })
+        body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value })
       });
       if (!mountedRef.current) return;
       setResult(review);
@@ -359,7 +366,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function handleAnswerChange(value: string) {
-    if (result && !result.is_correct) setResult(null);
+    if (result && !result.is_correct) {
+      setResult(null);
+      otherSensesOpenRef.current = false;
+    }
     setAnswer(value);
   }
 
@@ -524,7 +534,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
             <div ref={questionRef} className="question-content" tabIndex={0} aria-label="题目内容">
               <div className="question-heading">
-                <span className="pill">{card.status === "New" ? "新词" : "复习"}</span>
+                <span className="pill">{card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
                 <button type="button" className="icon-button pronunciation-button"
                   onClick={() => speak(result?.correct_answer ?? card.word)}
                   disabled={!speechSupported} aria-label="朗读单词" title="朗读单词">
@@ -552,13 +562,27 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               </p>
               <div className="meaning-block">
                 <span className="part-of-speech">{card.part_of_speech}</span>
-                <p className="word-meaning">{card.definition_cn}</p>
+                <p className="word-meaning">{card.definition_cn || card.definition_en}</p>
+                <p className="sense-hint">本句中的意思{card.answer_form.toLowerCase() !== card.word.toLowerCase() ? " · 请填写句中所需词形" : ""}</p>
                 {settings.show_sentence_translation && card.example_translation_cn ? (
                   <p className="sentence-translation">{card.example_translation_cn}</p>
                 ) : null}
               </div>
+              {result && result.other_senses.length > 0 ? (
+                <details className="other-senses" key={`${card.sense_id}-${card.example_id}`}
+                  onToggle={(event) => { otherSensesOpenRef.current = event.currentTarget.open; }}>
+                  <summary>其他意思与用法（{result.other_senses.length}）</summary>
+                  {result.other_senses.map((sense) => (
+                    <div className="other-sense" key={sense.id}>
+                      <span className="part-of-speech">{sense.part_of_speech} · {sense.status === "New" ? "尚未学习" : sense.status === "Mature" ? "长期熟记" : "已开始学习"}</span>
+                      <p>{sense.definition_cn || sense.definition_en}</p>
+                      {sense.examples.map((example) => <p className="other-sense-example" key={example.id}>{example.sentence}{settings.show_sentence_translation && example.translation_cn ? <span>{example.translation_cn}</span> : null}</p>)}
+                    </div>
+                  ))}
+                </details>
+              ) : null}
               <div id="answer-feedback" className={result && !result.is_correct ? "sr-only" : "answer-feedback"} aria-live="polite" aria-atomic="true">
-                {result?.is_correct ? <p className="feedback-correct">✓ 答对了</p> : result ? (
+                {result?.is_correct ? <p className="feedback-correct">✓ 答对了 · 这个意思下次复习：{result.srs_state.next_review_date}</p> : result ? (
                   <span>正确答案已在句中显示：{result.correct_answer}。重新输入可重试。</span>
                 ) : <p className="question-hint">回车提交；再次回车重播完整句子。</p>}
               </div>
@@ -643,7 +667,7 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
           <Metric icon="book" label="累计学过" value={value(stats.total_learned)} caption="不同单词" />
           <Metric icon="refresh" label="待复习错词" value={value(stats.due_lapses)} caption="今天到期" />
           <Metric icon="spark" label="可学新词" value={value(stats.new_words)} caption="慢慢积累" />
-          <Metric icon="check" label="已掌握" value={value(stats.mastered)} caption="进入间隔复习" />
+          <Metric icon="check" label="已掌握" value={value(stats.mastered)} caption="全部可学义项进入复习" />
         </div>
       </section>
       <details className="learning-details panel">
@@ -653,7 +677,12 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
           <div><dt>学习中今日到期</dt><dd>{value(stats.learning_due)}</dd></div>
           <div><dt>有过错误的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
           <div><dt>长期熟记</dt><dd>{value(stats.mature)}</dd></div>
+          <div><dt>已学义项</dt><dd>{value(stats.learned_senses)}</dd></div>
+          <div><dt>尚未学习的义项</dt><dd>{value(stats.new_senses)}</dd></div>
+          <div><dt>今日到期义项</dt><dd>{value(stats.due_senses)}</dd></div>
+          <div><dt>进入间隔复习的义项</dt><dd>{value(stats.mastered_senses)}</dd></div>
         </dl>
+        {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">已保留 {stats.legacy_unmapped_words} 个单词的旧学习记录，它们的具体义项需要重新确认。</p> : null}
       </details>
       <p className="home-footnote">学习记录跟随账号，发音偏好保存在当前设备。</p>
     </section>

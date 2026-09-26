@@ -6,6 +6,10 @@ export type User = {
 
 export type Card = {
   id: number;
+  sense_id: number;
+  example_id: number;
+  answer_form: string;
+  is_new_word: boolean;
   word: string;
   part_of_speech: string;
   definition_cn: string;
@@ -17,7 +21,21 @@ export type Card = {
   remaining_today: number;
 };
 
+export type Sense = {
+  id: number;
+  part_of_speech: string;
+  definition_cn: string;
+  definition_en?: string | null;
+  status: Card["status"];
+  next_review_date?: string | null;
+  examples: { id: number; sentence: string; translation_cn?: string | null; target_form: string }[];
+};
+
 export type ReviewResult = {
+  sense_id: number;
+  example_id: number;
+  word: string;
+  other_senses: Sense[];
   is_correct: boolean;
   is_blank: boolean;
   correct_answer: string;
@@ -43,6 +61,11 @@ export type Stats = {
   mastered: number;
   mature: number;
   streak_days: number;
+  learned_senses: number;
+  new_senses: number;
+  due_senses: number;
+  mastered_senses: number;
+  legacy_unmapped_words: number;
 };
 
 export type Settings = {

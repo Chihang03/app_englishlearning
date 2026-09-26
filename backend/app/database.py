@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .migrations import run_migrations
+from .senses import authored_sense, migrate_legacy_progress, save_senses, validate_senses
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -106,18 +108,24 @@ def seed_words() -> None:
 
 def seed_vocabulary_catalog() -> None:
     """Copy the bundled, example-complete catalog into SQLite for fast queries."""
-    if VOCABULARY_CATALOG_PATH.exists():
-        catalog = json.loads(VOCABULARY_CATALOG_PATH.read_text(encoding="utf-8"))
-    else:
-        catalog = {"lists": [], "words": []}
+    catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
+    seed_bytes = SEED_PATH.read_bytes() if SEED_PATH.exists() else b'[]'
+    fingerprint = hashlib.sha256(catalog_bytes + b'\0' + seed_bytes).hexdigest()
+    with connect() as conn:
+        stored = conn.execute("SELECT value FROM vocabulary_catalog_state WHERE key='fingerprint'").fetchone()
+        if stored and stored[0] == fingerprint:
+            migrate_legacy_progress(conn)
+            return
+    catalog = json.loads(catalog_bytes)
+    seed_entries = json.loads(seed_bytes)
 
     lists = [STARTER_LIST, *catalog.get("lists", [])]
     words = catalog.get("words", [])
-    list_ids = {item["id"] for item in lists}
+    list_ids = {item.get("id", item.get("list_id")) for item in lists}
+    if words and catalog.get("format_version") != 2:
+        raise ValueError("Re-export vocabulary_catalog.json with paired sense format version 2")
     for item in words:
-        example = str(item.get("example_sentence") or "").strip()
-        if not example:
-            raise ValueError(f"Vocabulary catalog word {item.get('word')!r} has no example sentence")
+        validate_senses(item.get("senses", []))
         for membership in item.get("memberships", []):
             if membership.get("list_id") not in list_ids:
                 raise ValueError(f"Unknown vocabulary list {membership.get('list_id')!r}")
@@ -159,6 +167,10 @@ def seed_vocabulary_catalog() -> None:
                 f"DELETE FROM word_list_memberships WHERE list_id IN ({placeholders})",
                 catalog_list_ids,
             )
+            conn.execute("UPDATE word_senses SET active=0 WHERE source='macOS Dictionary'")
+            conn.execute("UPDATE sense_examples SET active=0 WHERE source='macOS Dictionary'")
+
+        starter_by_word = {s["word"]: s for s in seed_entries}
 
         for item in words:
             word = str(item["word"]).strip()
@@ -205,6 +217,31 @@ def seed_vocabulary_catalog() -> None:
                     for membership in item.get("memberships", [])
                 ],
             )
+            senses = list(item["senses"])
+            if word in starter_by_word:
+                starter = authored_sense(starter_by_word[word], "内置例词")[0]
+                # Merge a curated example into an exactly matching meaning.
+                # A separate legacy gloss is never attached to another sense.
+                matching = [s for s in senses if s["definition_cn"] == starter["definition_cn"]
+                            and s["part_of_speech"] == starter["part_of_speech"]]
+                if len(matching) == 1:
+                    for ex in starter["examples"]:
+                        if not any(e["sentence"] == ex["sentence"] for e in matching[0]["examples"]):
+                            matching[0]["examples"].append(ex)
+                else:
+                    senses += [starter]
+            save_senses(conn, word_id, senses)
+
+        # Curated starter/private pairs can be preserved without guessing which
+        # meaning an imported, flattened dictionary record was exercising.
+        for seed in seed_entries:
+            row = conn.execute("SELECT id FROM words WHERE owner_id IS NULL AND word=?", (seed["word"],)).fetchone()
+            if row and not conn.execute("SELECT 1 FROM word_senses WHERE word_id=? AND active=1", (row[0],)).fetchone():
+                save_senses(conn, row[0], authored_sense(seed, "内置例词"))
+        for row in conn.execute("SELECT * FROM words WHERE owner_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM word_senses WHERE word_id=words.id)").fetchall():
+            if row["example_sentence"].strip():
+                save_senses(conn, row["id"], authored_sense(dict(row)))
+        migrate_legacy_progress(conn)
 
         # The original sample entries remain selectable even before a generated
         # catalog is present, and stay available as a small fallback collection.
@@ -230,6 +267,7 @@ def seed_vocabulary_catalog() -> None:
             SET word_count = (
                 SELECT COUNT(*) FROM word_list_memberships m
                 WHERE m.list_id = vocabulary_lists.list_id
+                  AND EXISTS(SELECT 1 FROM word_senses s WHERE s.word_id=m.word_id AND s.active=1)
             )
             """
         )
@@ -240,6 +278,7 @@ def seed_vocabulary_catalog() -> None:
             FROM users CROSS JOIN vocabulary_lists
             """
         )
+        conn.execute("INSERT OR REPLACE INTO vocabulary_catalog_state(key,value) VALUES('fingerprint',?)", (fingerprint,))
 
 
 def selected_vocabulary_list_ids(conn: sqlite3.Connection, user_id: int) -> list[str]:

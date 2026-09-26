@@ -125,6 +125,13 @@ h1, h2, p { margin: 0; }
 .meaning-block { border-top: 1px solid var(--line); padding-top: 21px; margin-top: 25px; }
 .part-of-speech { color: var(--muted); font-size: 12px; }
 .word-meaning { margin-top: 4px; font-size: 20px; font-weight: 550; line-height: 1.55; overflow-wrap: anywhere; }
+.sense-hint { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.other-senses { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+.other-senses summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.other-sense { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
+.other-sense p { margin-top: 5px; overflow-wrap: anywhere; }
+.other-sense-example { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.other-sense-example span { display: block; }
 .sentence-translation { font-size: 15px; color: #697369; line-height: 1.75; margin-top: 14px; }
 .answer-feedback { min-height: 78px; padding-top: 21px; font-size: 14px; line-height: 1.6; }
 .question-hint { color: var(--muted); font-size: 12px; }

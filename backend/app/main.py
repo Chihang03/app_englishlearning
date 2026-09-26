@@ -20,16 +20,13 @@ from .database import (
     get_vocabulary_lists,
     init_database,
     row_to_dict,
-    selected_vocabulary_list_ids,
     update_settings,
 )
 from .passkeys import router as passkeys_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
-from .srs import next_state
+from .sense_learning import learning_metrics, next_sense_card, record_sense_review
+from .senses import authored_sense, save_senses, senses_for_word
 
-
-# A word counts as freshly forgotten if it was missed within this window.
-LAPSE_LOOKBACK_DAYS = 180
 
 # The streak walks back day by day from today, so history older than this cannot
 # extend it. Bounding the scan keeps the query flat as history grows.
@@ -93,6 +90,8 @@ class WordInput(BaseModel):
 
 class ReviewInput(BaseModel):
     word_id: int
+    sense_id: int | None = None
+    example_id: int | None = None
     user_answer: str = Field(default="", max_length=200)
 
 
@@ -101,14 +100,6 @@ class SettingsInput(BaseModel):
     selected_word_list_ids: list[str] | None = Field(default=None, max_length=50)
 
 
-def normalize_answer(value: str) -> str:
-    return " ".join(value.strip().lower().split())
-
-
-def mask_sentence(sentence: str, word: str) -> str:
-    escaped = re.escape(word)
-    pattern = re.compile(rf"(?<![A-Za-z'-]){escaped}(?![A-Za-z'-])", re.IGNORECASE)
-    return pattern.sub("_______", sentence)
 
 
 def user_timezone(user: dict[str, Any]):
@@ -120,124 +111,6 @@ def user_today(user: dict[str, Any]) -> date:
     return today_in(user_timezone(user))
 
 
-def due_lapse_count(conn, user_id: int, today: date) -> int:
-    """Words the learner got wrong the first time and that are due again.
-
-    These drive both the review queue and the lapse counter on the dashboard.
-    """
-    return int(
-        conn.execute(
-            """
-            SELECT COUNT(*) AS total
-            FROM srs_state s
-            JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ?
-              AND s.status != 'Mature'
-              AND length(trim(w.example_sentence)) > 0
-              AND s.next_review_date <= ?
-              AND EXISTS (
-                  SELECT 1
-                  FROM review_history first_review
-                  WHERE first_review.user_id = s.user_id
-                    AND first_review.word_id = s.word_id
-                    AND first_review.id = (
-                        SELECT MIN(rh.id)
-                        FROM review_history rh
-                        WHERE rh.user_id = s.user_id AND rh.word_id = s.word_id
-                    )
-                    AND first_review.is_correct = 0
-              )
-            """,
-            (user_id, today.isoformat()),
-        ).fetchone()["total"]
-    )
-
-
-def lapse_word_count(conn, user_id: int) -> int:
-    """Every word the learner got wrong the first time, due or not."""
-    return int(
-        conn.execute(
-            """
-            SELECT COUNT(*) AS total
-            FROM srs_state s
-            JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ?
-              AND s.status != 'Mature'
-              AND length(trim(w.example_sentence)) > 0
-              AND EXISTS (
-                  SELECT 1
-                  FROM review_history first_review
-                  WHERE first_review.user_id = s.user_id
-                    AND first_review.word_id = s.word_id
-                    AND first_review.id = (
-                        SELECT MIN(rh.id)
-                        FROM review_history rh
-                        WHERE rh.user_id = s.user_id AND rh.word_id = s.word_id
-                    )
-                    AND first_review.is_correct = 0
-              )
-            """,
-            (user_id,),
-        ).fetchone()["total"]
-    )
-
-
-def new_word_count(conn, user_id: int) -> int:
-    """Visible words this learner has never reviewed."""
-    selected_lists = selected_vocabulary_list_ids(conn, user_id)
-    list_filter = ""
-    list_params: tuple[str, ...] = ()
-    if selected_lists:
-        placeholders = ",".join("?" for _ in selected_lists)
-        list_filter = f"""
-            OR (w.owner_id IS NULL AND EXISTS (
-                SELECT 1 FROM word_list_memberships m
-                WHERE m.word_id = w.id AND m.list_id IN ({placeholders})
-            ))
-        """
-        list_params = tuple(selected_lists)
-    return int(
-        conn.execute(
-            f"""
-            SELECT COUNT(*) AS total
-            FROM words w
-            LEFT JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
-            WHERE s.word_id IS NULL
-              AND length(trim(w.example_sentence)) > 0
-              AND (w.owner_id = ? {list_filter})
-            """,
-            (user_id, user_id, *list_params),
-        ).fetchone()["total"]
-    )
-
-
-def learning_due_count(conn, user_id: int, today: date) -> int:
-    return int(
-        conn.execute(
-            """
-            SELECT COUNT(*) AS total
-            FROM srs_state s JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ? AND s.status = 'Learning' AND s.next_review_date <= ?
-              AND length(trim(w.example_sentence)) > 0
-            """,
-            (user_id, today.isoformat()),
-        ).fetchone()["total"]
-    )
-
-
-def card_from_word(word: dict[str, Any], remaining_today: int) -> dict[str, Any]:
-    return {
-        "id": word["id"],
-        "word": word["word"],
-        "part_of_speech": word["part_of_speech"],
-        "definition_cn": word["definition_cn"],
-        "definition_en": word["definition_en"],
-        "cloze_sentence": mask_sentence(word["example_sentence"], word["word"]),
-        "example_sentence": word["example_sentence"],
-        "example_translation_cn": word["example_translation_cn"],
-        "status": word.get("status") or "New",
-        "remaining_today": remaining_today,
-    }
 
 
 @app.get("/api/health")
@@ -261,40 +134,7 @@ def stats(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
             """,
             (user_id, day_start, day_end),
         ).fetchone()
-        learned = conn.execute(
-            """
-            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ? AND length(trim(w.example_sentence)) > 0
-            """,
-            (user_id,),
-        ).fetchone()["total"]
-        learning = conn.execute(
-            """
-            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ? AND s.status = 'Learning' AND length(trim(w.example_sentence)) > 0
-            """,
-            (user_id,),
-        ).fetchone()["total"]
-        reviewing = conn.execute(
-            """
-            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ? AND s.status IN ('Reviewing', 'Mature')
-              AND length(trim(w.example_sentence)) > 0
-            """,
-            (user_id,),
-        ).fetchone()["total"]
-        mature = conn.execute(
-            """
-            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
-            WHERE s.user_id = ? AND s.status = 'Mature' AND length(trim(w.example_sentence)) > 0
-            """,
-            (user_id,),
-        ).fetchone()["total"]
-
-        due = due_lapse_count(conn, user_id, today)
-        new_words = new_word_count(conn, user_id)
-        learning_due = learning_due_count(conn, user_id, today)
-        lapse_words = lapse_word_count(conn, user_id)
+        metrics = learning_metrics(conn,user_id,today)
 
         streak_cutoff = utc_iso_from(datetime.now(timezone.utc) - timedelta(days=STREAK_LOOKBACK_DAYS))
         history_rows = conn.execute(
@@ -322,168 +162,22 @@ def stats(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {
         "today_learning": total_today,
         "today_accuracy": round((correct_today / total_today) * 100) if total_today else 0,
-        "total_learned": int(learned),
-        "due_review": due,
-        "new_words": new_words,
-        "learning": int(learning),
-        "learning_due": learning_due,
-        "lapse_words": lapse_words,
-        "due_lapses": due,
-        "mastered": int(reviewing),
-        "mature": int(mature),
+        **metrics,
         "streak_days": streak,
     }
 
 
 @app.get("/api/next")
 def next_card(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    user_id = int(user["id"])
-    today = user_today(user).isoformat()
-
     with connect() as conn:
-        remaining = due_lapse_count(conn, user_id, user_today(user))
-        row = conn.execute(
-            """
-            SELECT w.*, s.status
-            FROM words w
-            JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
-            WHERE s.status = 'Learning' AND s.next_review_date <= ?
-              AND length(trim(w.example_sentence)) > 0
-            ORDER BY s.next_review_date ASC, s.lapse_count DESC, w.id ASC
-            LIMIT 1
-            """,
-            (user_id, today),
-        ).fetchone()
-        if row is None:
-            row = conn.execute(
-                """
-                SELECT w.*, s.status
-                FROM words w
-                JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
-                WHERE s.status = 'Reviewing' AND s.next_review_date <= ?
-                  AND length(trim(w.example_sentence)) > 0
-                ORDER BY s.next_review_date ASC, s.interval_days ASC, w.id ASC
-                LIMIT 1
-                """,
-                (user_id, today),
-            ).fetchone()
-        if row is None:
-            row = conn.execute(
-                """
-                SELECT w.*, 'New' AS status
-                FROM words w
-                LEFT JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
-                WHERE s.word_id IS NULL
-                  AND length(trim(w.example_sentence)) > 0
-                  AND (w.owner_id = ? OR (w.owner_id IS NULL AND EXISTS (
-                    SELECT 1 FROM word_list_memberships m
-                    JOIN user_vocabulary_lists uvl ON uvl.list_id = m.list_id
-                    WHERE m.word_id = w.id AND uvl.user_id = ? AND uvl.selected = 1
-                  )))
-                ORDER BY w.id ASC
-                LIMIT 1
-                """,
-                (user_id, user_id, user_id),
-            ).fetchone()
-
-    if row is None:
-        return {"card": None, "message": "No due cards for today."}
-    return {"card": card_from_word(row_to_dict(row), remaining)}
+        return next_sense_card(conn,int(user["id"]),user_today(user))
 
 
 @app.post("/api/review")
-def review(
-    payload: ReviewInput,
-    user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
-    user_id = int(user["id"])
-    today = user_today(user)
-    now = utc_now_iso()
-
+def review(payload: ReviewInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     with connect() as conn:
-        word = row_to_dict(
-            conn.execute(
-                "SELECT * FROM words WHERE id = ? AND (owner_id IS NULL OR owner_id = ?)",
-                (payload.word_id, user_id),
-            ).fetchone()
-        )
-        if word is None or not str(word.get("example_sentence") or "").strip():
-            raise HTTPException(status_code=404, detail="Word not found")
-
-        user_answer = payload.user_answer.strip()
-        is_correct = normalize_answer(user_answer) == normalize_answer(word["word"])
-        conn.execute(
-            """
-            INSERT INTO review_history(user_id, word_id, review_time, user_answer, is_correct)
-            VALUES(?, ?, ?, ?, ?)
-            """,
-            (user_id, payload.word_id, now, user_answer, int(is_correct)),
-        )
-
-        current = row_to_dict(
-            conn.execute(
-                "SELECT * FROM srs_state WHERE user_id = ? AND word_id = ?",
-                (user_id, payload.word_id),
-            ).fetchone()
-        )
-        if current is not None:
-            # The scheduler only wants the counters, not the row's identity.
-            current.pop("user_id", None)
-            current.pop("word_id", None)
-
-        cutoff = utc_iso_from(datetime.now(timezone.utc) - timedelta(days=LAPSE_LOOKBACK_DAYS))
-        had_wrong_recently = (
-            int(
-                conn.execute(
-                    """
-                    SELECT COUNT(*) AS total
-                    FROM review_history
-                    WHERE user_id = ? AND word_id = ? AND is_correct = 0 AND review_time >= ?
-                    """,
-                    (user_id, payload.word_id, cutoff),
-                ).fetchone()["total"]
-            )
-            > 0
-        )
-        updated = next_state(current, is_correct, had_wrong_recently, today)
-        conn.execute(
-            """
-            INSERT INTO srs_state(
-                user_id, word_id, review_count, correct_count, wrong_count, lapse_count,
-                easiness_factor, interval_days, next_review_date, status
-            )
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(user_id, word_id) DO UPDATE SET
-                review_count = excluded.review_count,
-                correct_count = excluded.correct_count,
-                wrong_count = excluded.wrong_count,
-                lapse_count = excluded.lapse_count,
-                easiness_factor = excluded.easiness_factor,
-                interval_days = excluded.interval_days,
-                next_review_date = excluded.next_review_date,
-                status = excluded.status
-            """,
-            (
-                user_id,
-                payload.word_id,
-                updated["review_count"],
-                updated["correct_count"],
-                updated["wrong_count"],
-                updated["lapse_count"],
-                updated["easiness_factor"],
-                updated["interval_days"],
-                updated["next_review_date"],
-                updated["status"],
-            ),
-        )
-
-    return {
-        "is_correct": is_correct,
-        "is_blank": user_answer == "",
-        "correct_answer": word["word"],
-        "example_sentence": word["example_sentence"],
-        "srs_state": updated,
-    }
+        return record_sense_review(conn,int(user["id"]),user_today(user),payload.word_id,
+                                   payload.sense_id,payload.example_id,payload.user_answer)
 
 
 @app.get("/api/settings")
@@ -544,7 +238,7 @@ def dictionary_lookup(
             conn.execute(
                 """
                 SELECT word, part_of_speech, definition_cn, definition_en,
-                       example_sentence, pronunciation
+                       example_sentence, pronunciation, id
                 FROM words
                 WHERE lower(word) = lower(?) AND length(trim(example_sentence)) > 0
                   AND (owner_id IS NULL OR owner_id = ?)
@@ -554,6 +248,14 @@ def dictionary_lookup(
                 (word.strip(), int(user["id"]), int(user["id"])),
             ).fetchone()
         )
+        if entry is not None:
+            entry["senses"] = senses_for_word(conn,entry["id"],int(user["id"]))
+            if not entry["senses"]:
+                entry = None
+            else:
+                primary = entry["senses"][0]
+                entry.update({key:primary[key] for key in ("part_of_speech","definition_cn","definition_en")})
+                entry["example_sentence"] = primary["examples"][0]["sentence"]
     return {
         "word": word,
         "source": "本地词库",
@@ -583,6 +285,7 @@ def add_word(
         except Exception as exc:
             raise HTTPException(status_code=409, detail="Word already exists or is invalid") from exc
         word = row_to_dict(conn.execute("SELECT * FROM words WHERE id = ?", (cursor.lastrowid,)).fetchone())
+        save_senses(conn, word["id"], authored_sense(word))
     return {"word": word}
 
 
@@ -606,6 +309,9 @@ def import_words(
                 (user_id, *_word_values(item)),
             )
             inserted += cursor.rowcount
+            if cursor.rowcount:
+                word = row_to_dict(conn.execute("SELECT * FROM words WHERE id=?", (cursor.lastrowid,)).fetchone())
+                save_senses(conn, word["id"], authored_sense(word))
     return {"inserted": inserted}
 
 

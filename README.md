@@ -1,6 +1,6 @@
 # Context Vocabulary Trainer
 
-语境单词训练器。系统用英文例句挖空让用户根据上下文和中文释义回忆单词，并用 SQLite 持久化保存学习记录与 SRS 状态。支持多用户，每人有各自独立的学习进度。
+语境单词训练器。系统用英文例句挖空让用户根据上下文和当前义项的解释回忆单词，并用 SQLite 持久化保存学习记录与义项级 SRS 状态。支持多用户，每人有各自独立的学习进度。
 
 ## 技术栈
 
@@ -22,13 +22,18 @@ backend/
     migrations.py    # 版本化 schema 迁移
     database.py      # 连接管理与查询
     srs.py           # SRS scheduling
+    senses.py        # 义项、例句、旧进度迁移
+    sense_learning.py # 按义项选卡、评分与统计
   data/
     seed_words.json  # 小型内置示例词库
     source_word_lists.json # 词表分类与词头快照
-    vocabulary_catalog.json # 本地化词条，所有可学单词均有例句
+    vocabulary_catalog.json # 单词、义项及配套例句（format_version=2）
+    vocabulary_export_report.json # 覆盖数、英文释义义项数、未配对词清单
     example_fallbacks.json # 本地化备用例句快照
   scripts/
     build_vocab_bundle.py # 仅在 Mac 上运行的一次性词典导出器
+    dictionary_senses.py # 保留原词典中的义项/词性/例句关系
+    sense_overrides.json # 人工核对的跨词典义项对应关系
 frontend/
   src/
     App.tsx          # 认证网关 + 训练界面
@@ -168,7 +173,28 @@ python3 -m venv .venv-vocab-export
 .venv-vocab-export/bin/python scripts/build_vocab_bundle.py --source-dir /path/to/wordlist-sources
 ```
 
-构建器读取 Mac 已安装的英汉词典和 New Oxford American Dictionary，优先使用其中的释义、音标和例句；缺少例句时才尝试本地附带的备用例句来源。例句必须是完整句、包含目标词；没有合格例句的词不会进入可学习词库，并会按词表报告。设置页会显示“可学词数 / 原词表词数”。重新生成后，把 `source_word_lists.json`、`vocabulary_catalog.json` 和 `example_fallbacks.json` 一起部署即可；Linux 服务器及访问者设备都不需要 Mac 词典。
+构建器读取 Mac 已安装的英汉词典和 New Oxford American Dictionary，按原文义项分组提取词性、解释及例句。英汉词典中的同组数据优先；只有人工核对的映射或词性一致且例句完全相同的唯一匹配，才跨词典合并。`sense_overrides.json` 保存人工映射及预期英文解释，源解释变化时导出会要求重新核对。没有可靠中文对应的词使用原义项的英文解释，不拼接整词的中文释义。
+
+每个可学义项都必须有实际词典例句。构建器排除带 sb/sth 的模板和过短示例；词典省略的句末标点会被补齐。支持词典索引中明确记录的常见变形，例如 address → addressed；每条例句保存 `target_form`，卡片挖空与评分采用句中词形。独立的 Tatoeba 备用句没有义项对应关系，因此保留快照供人工核对，不会自动配给某个意思。
+
+设置页显示“可学词数 / 原词表词数”，未找到可靠配对的词列在 `vocabulary_export_report.json` 中。重新生成后部署 `source_word_lists.json`、`vocabulary_catalog.json` 和导出报告即可，服务器及访问者设备不需要 Mac 词典或导出依赖。
+
+## 一词多义学习与进度迁移
+
+每张卡只显示当前例句所属义项的解释和词性。答题后可展开“其他意思与用法”，查看它们的解释、例句和学习状态。展开后暂停自动跳题，方便阅读。已有多个例句的义项会按当前用户的练习历史轮换例句。
+
+SRS 按 `(user_id, sense_id)` 独立记录：答对“地址”不会改变 address 的“处理”义项进度。到期义项先复习，然后学习所选词表中的新词和未学义项；同一个义项跨四级/六级共用进度。旧词的其他意思显示为“新义项”，不重复统计为新单词。首页分别显示单词数和义项数，“已掌握单词”要求该词全部可学义项进入间隔复习。
+
+数据库 v5 升级前会生成备份，并保留旧的单词级 SRS 和全部答题历史。只有旧例句与新词库中的唯一义项完全匹配时，才把旧计划转给那个义项；其他意思保持未学习。无法匹配的旧记录继续保留在累计学词数中，界面提示需要确认具体义项。重新导出保留稳定义项标识，取消的义项归档，不删除其历史。
+
+`GET /api/next` 的卡片包含 `sense_id`、`example_id`、`answer_form`。提交 `POST /api/review` 时须传入 `word_id`、`sense_id`、`example_id` 和 `user_answer`，后端校验三者属于同一可访问记录。仅有一个义项且只有一个例句时，兼容旧的 word_id-only 请求；多义或多例句请求缺少标识会返回 422。本地词典接口同时返回结构化 `senses`。
+
+Mac 导出器的结构解析验证可在安装了导出依赖的环境中单独运行：
+
+```bash
+cd backend
+.venv-vocab-export/bin/python -m unittest discover -s tests -p test_dictionary_export.py -v
+```
 
 当前 TOEFL、IELTS、GRE 分类来自 ECDICT 的社区考试标签，并非考试机构发布的官方封闭词表；NGSL/NAWL/TSL/BSL 是按通用、学术、TOEIC、商务等用途组织，不是 CEFR 难度级别。CET-6 词表包含四级基础词及六级增补词。
 

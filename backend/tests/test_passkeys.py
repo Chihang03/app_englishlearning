@@ -71,7 +71,8 @@ class PasskeyTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         directory = Path(temporary.name)
-        for name, value in [("DATA_DIR", directory), ("DB_PATH", directory / "test.db")]:
+        for name, value in [("DATA_DIR", directory), ("DB_PATH", directory / "test.db"),
+                            ("VOCABULARY_CATALOG_PATH", directory / "unused-catalog.json")]:
             patcher = patch.object(database, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)

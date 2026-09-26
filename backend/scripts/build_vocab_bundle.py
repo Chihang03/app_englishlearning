@@ -14,26 +14,15 @@ import csv
 import importlib
 import json
 import re
-import tarfile
 import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+
+from dictionary_senses import parse_record
 
 
 WORD_RE = re.compile(r"^[A-Za-z][A-Za-z'-]*$")
-TOKEN_RE = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)*")
-POS_MAP = {
-    "n": "名词", "noun": "名词", "v": "动词", "verb": "动词",
-    "vt": "及物动词", "vi": "不及物动词", "adj": "形容词",
-    "adjective": "形容词", "a": "形容词", "adv": "副词",
-    "adverb": "副词", "r": "副词", "prep": "介词",
-    "preposition": "介词", "conj": "连词", "conjunction": "连词",
-    "pron": "代词", "pronoun": "代词", "art": "冠词",
-    "article": "冠词", "num": "数词", "numeral": "数词",
-    "int": "感叹词", "interjection": "感叹词", "abbr": "缩写",
-    "determiner": "限定词", "auxiliary verb": "助动词",
-}
 EXAM_TAG_PACKS = {"TOEFL": "toefl", "IELTS": "ielts", "GRE": "gre"}
 DICTIONARY_ASSETS = Path(
     "/System/Library/AssetsV2/com_apple_MobileAsset_DictionaryServices_dictionary3macOS"
@@ -194,198 +183,8 @@ def read_source_word_lists(path: Path, entries: dict[str, dict[str, Any]]) -> No
             add_membership(entries, str(word), pack_id, position)
 
 
-def iter_tar_member(path: Path, member_name: str) -> Iterable[str]:
-    with tarfile.open(path, mode="r:bz2") as archive:
-        member = archive.getmember(member_name)
-        stream = archive.extractfile(member)
-        if stream is None:
-            return
-        for raw_line in stream:
-            yield raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
 
 
-def contains_headword(sentence: str, word: str) -> bool:
-    pattern = re.compile(rf"(?<![A-Za-z'-]){re.escape(word)}(?![A-Za-z'-])", re.IGNORECASE)
-    for match in pattern.finditer(sentence):
-        matched = match.group(0)
-        if matched == word or word.casefold() == "i":
-            return True
-        if matched[:1].isupper():
-            prefix = sentence[:match.start()]
-            last_sentence_break = max(prefix.rfind("."), prefix.rfind("!"), prefix.rfind("?"))
-            if not prefix[last_sentence_break + 1:].strip():
-                return True
-    return False
-
-
-def is_example_sentence(sentence: str, word: str) -> bool:
-    sentence = clean_text(sentence)
-    return (
-        len(TOKEN_RE.findall(sentence)) >= 4
-        and bool(re.search(r"[.!?][\"')\]]*$", sentence))
-        and contains_headword(sentence, word)
-    )
-
-
-def read_tatoeba_cc0(path: Path, entries: dict[str, dict[str, Any]]) -> None:
-    """Keep only real CC0 English sentences as a fallback for dictionary gaps."""
-    by_word: dict[str, list[str]] = defaultdict(list)
-    targets = set(entries)
-    for line in iter_tar_member(path, "sentences_CC0.csv"):
-        columns = line.split("\t", 3)
-        if len(columns) < 3 or columns[1] != "eng":
-            continue
-        sentence = clean_text(columns[2])
-        if not 18 <= len(sentence) <= 180:
-            continue
-        matched = {normalize(token) for token in TOKEN_RE.findall(sentence)}
-        for word in matched.intersection(targets):
-            if is_example_sentence(sentence, word) and len(by_word[word]) < 12:
-                by_word[word].append(sentence)
-
-    for word, sentences in by_word.items():
-        sentences.sort(key=lambda sentence: (abs(len(sentence) - 75), len(sentence)))
-        if sentences:
-            entries[word]["fallback_example"] = sentences[0]
-            entries[word]["fallback_example_source"] = "Tatoeba CC0 1.0"
-
-
-def read_wordnet_examples(path: Path, entries: dict[str, dict[str, Any]]) -> None:
-    """Use WordNet examples only when the Mac dictionaries have no sentence."""
-    with tarfile.open(path, mode="r:gz") as archive:
-        for member in archive:
-            if not member.name.startswith("dict/data.") or not member.isfile():
-                continue
-            stream = archive.extractfile(member)
-            if stream is None:
-                continue
-            for raw_line in stream:
-                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
-                if not line or line.startswith("  ") or "|" not in line:
-                    continue
-                header, gloss = line.split("|", 1)
-                fields = header.split()
-                if len(fields) < 5:
-                    continue
-                try:
-                    word_count = int(fields[3], 16)
-                except ValueError:
-                    continue
-                lemmas = [fields[4 + 2 * i].replace("_", " ").casefold() for i in range(word_count)]
-                examples = re.findall(r'"([^\"]+)"', gloss)
-                for lemma in lemmas:
-                    key = normalize(lemma)
-                    entry = entries.get(key)
-                    if not entry or entry.get("fallback_example"):
-                        continue
-                    for example in examples:
-                        if is_example_sentence(example, key):
-                            entry["fallback_example"] = clean_text(example)
-                            entry["fallback_example_source"] = "Princeton WordNet 3.0"
-                            break
-
-
-def read_fallback_snapshot(path: Path, entries: dict[str, dict[str, Any]]) -> None:
-    if not path.exists():
-        return
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    for word, value in payload.items():
-        entry = entries.get(normalize(word))
-        if entry and isinstance(value, dict):
-            sentence = clean_text(value.get("sentence"))
-            if is_example_sentence(sentence, entry["word"]):
-                entry["fallback_example"] = sentence
-                entry["fallback_example_source"] = clean_text(value.get("source")) or "本地备用例句"
-def clean_text(value: str | None, limit: int = 1000) -> str:
-    return re.sub(r"\s+", " ", value or "").strip()[:limit]
-
-
-def _class_nodes(root: Any, class_name: str) -> list[Any]:
-    return root.xpath(
-        ".//*[contains(concat(' ', normalize-space(@class), ' '), $class_name)]",
-        class_name=f" {class_name} ",
-    )
-
-
-def _has_class(node: Any, class_name: str) -> bool:
-    return class_name in (node.get("class") or "").split()
-
-
-def _node_text(node: Any) -> str:
-    return clean_text("".join(node.itertext()))
-
-
-def parse_mac_record(definition_html: str, word: str, language: str) -> dict[str, Any]:
-    from lxml import html
-
-    try:
-        root = html.fromstring(definition_html)
-    except (TypeError, ValueError):
-        return {}
-
-    result: dict[str, Any] = {}
-    pos_classes = ("ps", "pos")
-    for class_name in pos_classes:
-        nodes = _class_nodes(root, class_name)
-        if nodes:
-            result["part_of_speech"] = POS_MAP.get(_node_text(nodes[0]).casefold(), _node_text(nodes[0]))
-            break
-
-    pronunciations = _class_nodes(root, "ph")
-    if pronunciations:
-        def pronunciation_rank(node: Any) -> tuple[int, int]:
-            parent = node.getparent()
-            dialect = parent.get("dialect", "") if parent is not None else ""
-            return (0 if dialect == "AmE" else 1, len(_node_text(node)))
-
-        preferred = sorted(pronunciations, key=pronunciation_rank)[0]
-        result["pronunciation"] = _node_text(preferred)
-
-    if language == "zh":
-        meanings: list[str] = []
-        for meaning_group in _class_nodes(root, "semb"):
-            for translation_group in meaning_group:
-                if not _has_class(translation_group, "trg"):
-                    continue
-                for translation in _class_nodes(translation_group, "trans"):
-                    if _has_class(translation, "ty_pinyin"):
-                        continue
-                    value = _node_text(translation)
-                    if value and value not in meanings:
-                        meanings.append(value)
-        if meanings:
-            result["definition_cn"] = "；".join(meanings[:8])
-
-        examples: list[dict[str, str]] = []
-        for example_group in _class_nodes(root, "exg"):
-            example_nodes = [node for node in _class_nodes(example_group, "ex") if node is not example_group]
-            if not example_nodes:
-                continue
-            sentence = _node_text(example_nodes[0])
-            if not is_example_sentence(sentence, word):
-                continue
-            translations = [
-                _node_text(node) for node in _class_nodes(example_group, "trans")
-                if not _has_class(node, "ty_pinyin")
-            ]
-            examples.append({
-                "sentence": sentence,
-                "translation": next((item for item in translations if item), ""),
-            })
-        if examples:
-            result["examples"] = examples
-    else:
-        definitions = [_node_text(node) for node in _class_nodes(root, "df")]
-        if definitions:
-            result["definition_en"] = "; ".join(dict.fromkeys(item for item in definitions if item))
-        examples = []
-        for example_group in _class_nodes(root, "eg"):
-            sentence = _node_text(example_group)
-            if is_example_sentence(sentence, word):
-                examples.append({"sentence": sentence, "translation": ""})
-        if examples:
-            result["examples"] = examples
-    return result
 
 
 def _pyglossary_class(cache_dir: Path):
@@ -430,10 +229,15 @@ def read_mac_dictionary(
                 entry = entries.get(key)
                 if not entry or key not in targets:
                     continue
-                details = parse_mac_record(record.defi, key, language)
+                # Aliases include inflections and derivatives. Only the actual
+                # headword owns these senses, not every alias in the search index.
+                aliases = re.split(r"\s*[|;]\s*", str(raw_terms))
+                if normalize(aliases[0]) != key:
+                    continue
+                details = parse_record(record.defi, key, language, aliases)
                 bucket = entry.setdefault("mac_zh" if language == "zh" else "mac_en", {})
                 for field, value in details.items():
-                    if field == "examples":
+                    if field in ("examples", "senses"):
                         bucket.setdefault(field, []).extend(value)
                     elif value and not bucket.get(field):
                         bucket[field] = value
@@ -455,54 +259,47 @@ def find_dictionary(root: Path, dictionary_name: str) -> Path:
     return matches[0]
 
 
-def dictionary_fields(entry: dict[str, Any]) -> dict[str, Any]:
-    ecdict = entry.get("ecdict") or {}
-    mac_zh = entry.get("mac_zh") or {}
-    mac_en = entry.get("mac_en") or {}
 
-    translation = clean_text((ecdict.get("translation") or "").replace("\n", " / "), 500)
-    english_definition = clean_text((ecdict.get("definition") or "").replace("\n", " / "), 1000)
-    pos_key = ""
-    pos_match = re.match(
-        r"^\s*(vt|vi|adj|adv|prep|conj|pron|art|num|abbr|n|v|a|r)\.?(?=\s)",
-        translation,
-        re.I,
-    )
-    if pos_match:
-        pos_key = pos_match.group(1).casefold()
-    example = next(
-        (item for item in mac_en.get("examples", []) if is_example_sentence(item.get("sentence", ""), entry["word"])),
-        None,
-    )
-    if example is None:
-        example = next(
-            (item for item in mac_zh.get("examples", []) if is_example_sentence(item.get("sentence", ""), entry["word"])),
-            None,
-        )
 
-    fallback_example = entry.get("fallback_example")
-    if example:
-        example_sentence = clean_text(example["sentence"])
-        example_translation = clean_text(example.get("translation")) or None
-        example_source = "macOS Dictionary"
-    elif fallback_example and is_example_sentence(fallback_example, entry["word"]):
-        example_sentence = clean_text(fallback_example)
-        example_translation = None
-        example_source = entry.get("fallback_example_source")
-    else:
-        example_sentence = ""
-        example_translation = None
-        example_source = None
+def aligned_senses(entry: dict[str, Any], overrides: dict[str, Any]) -> list[dict[str, Any]]:
+    """Use bilingual senses, then verified mappings; English-only is a fallback.
 
-    return {
-        "part_of_speech": mac_zh.get("part_of_speech") or mac_en.get("part_of_speech") or POS_MAP.get(pos_key) or "词汇",
-        "definition_cn": clean_text(mac_zh.get("definition_cn") or translation, 500) or "词义待补充",
-        "definition_en": clean_text(mac_en.get("definition_en") or english_definition, 1000) or None,
-        "pronunciation": clean_text(mac_zh.get("pronunciation") or mac_en.get("pronunciation") or ecdict.get("phonetic")) or entry["word"],
-        "example_sentence": example_sentence,
-        "example_translation_cn": example_translation,
-        "example_source": example_source,
-    }
+    Never assign a headword's merged Chinese translations to an English example.
+    The same sentence can establish a cross-dictionary link only if it belongs to
+    exactly one bilingual sense. Other links must be reviewed in the override file.
+    """
+    zh = {s["key"]: s for s in (entry.get("mac_zh") or {}).get("senses", [])}
+    en = list({s["key"]:s for s in (entry.get("mac_en") or {}).get("senses", [])}.values())
+    for sense in en:
+        override = overrides.get(sense["key"])
+        destination = None
+        if override and override["word"] == entry["word"]:
+            if sense["definition_en"] != override["expected_definition_en"]:
+                raise ValueError(f"Dictionary changed: review override {sense['key']}")
+            destination = zh.get(override.get("merge_into"))
+            sense = {**sense, "definition_cn": override["definition_cn"]}
+        if destination is None and not override:
+            sentences = {e["sentence"].casefold() for e in sense["examples"]}
+            def family(pos: str) -> str:
+                return "动词" if "动词" in pos else pos
+            matches = [s for s in zh.values() if family(s["part_of_speech"]) == family(sense["part_of_speech"])
+                       and sentences.intersection(e["sentence"].casefold() for e in s["examples"])]
+            if len(matches) == 1:
+                destination = matches[0]
+        if destination is not None:
+            destination["definition_en"] = destination.get("definition_en") or sense["definition_en"]
+            for ex in sense["examples"]:
+                if not any(e["sentence"] == ex["sentence"] for e in destination["examples"]):
+                    destination["examples"].append(ex)
+        elif override:
+            zh[sense["key"]] = sense
+    chosen = [s for s in zh.values() if s["examples"]]
+    if not chosen:
+        chosen = [s for s in en if s["examples"]]
+    # Every exported learning sense has its own gloss and real dictionary example.
+    for position, sense in enumerate(chosen):
+        sense["position"] = position
+    return chosen
 
 
 def _headword_export(entries: dict[str, dict[str, Any]], output: Path) -> None:
@@ -537,17 +334,6 @@ def build(
     else:
         read_source_word_lists(source_lists, entries)
 
-    fallback_path = output.with_name("example_fallbacks.json")
-    read_fallback_snapshot(fallback_path, entries)
-
-    # Open fallback corpora first; Mac Dictionary examples take precedence.
-    if source_dir is not None:
-        cc0_path = source_dir / "tatoeba_sentences_CC0.tar.bz2"
-        if cc0_path.exists():
-            read_tatoeba_cc0(cc0_path, entries)
-        wordnet_path = source_dir / "wordnet_db.tar.gz"
-        if wordnet_path.exists():
-            read_wordnet_examples(wordnet_path, entries)
 
     if english_dictionary is None:
         english_dictionary = find_dictionary(dictionary_root, "New Oxford American Dictionary.dictionary")
@@ -559,23 +345,31 @@ def build(
         read_mac_dictionary(chinese_dictionary, entries, "zh", glossary_class)
         read_mac_dictionary(english_dictionary, entries, "en", glossary_class)
 
+    override_path = Path(__file__).with_name("sense_overrides.json")
+    overrides = json.loads(override_path.read_text(encoding="utf-8")) if override_path.exists() else {}
+
     words: list[dict[str, Any]] = []
     missing: dict[str, list[str]] = defaultdict(list)
-    used_fallbacks: dict[str, dict[str, str]] = {}
     for entry in entries.values():
-        fields = dictionary_fields(entry)
-        if not fields["example_sentence"]:
+        senses = aligned_senses(entry, overrides)
+        if not senses:
             for list_id in entry["packs"]:
                 missing[list_id].append(entry["word"])
             continue
-        if fields["example_source"] != "macOS Dictionary":
-            used_fallbacks[entry["word"]] = {
-                "sentence": fields["example_sentence"],
-                "source": str(fields["example_source"] or ""),
-            }
+        first = senses[0]
+        first_example = first["examples"][0]
+        fields = {
+            "part_of_speech": first["part_of_speech"], "definition_cn": first["definition_cn"],
+            "definition_en": first.get("definition_en"),
+            "pronunciation": (entry.get("mac_zh") or entry.get("mac_en") or {}).get("pronunciation", entry["word"]),
+            "example_sentence": first_example["sentence"],
+            "example_translation_cn": first_example.get("translation_cn"),
+            "example_source": first_example["source"],
+        }
         words.append({
             "word": entry["word"],
             **fields,
+            "senses": senses,
             "memberships": [
                 {"list_id": list_id, "position": position}
                 for list_id, position in sorted(
@@ -610,18 +404,23 @@ def build(
         })
 
     _headword_export(entries, output.with_name("source_word_lists.json"))
-    fallback_path.write_text(
-        json.dumps(used_fallbacks, ensure_ascii=False, separators=(",", ":")) + "\n",
-        encoding="utf-8",
-    )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps({"lists": list_metadata, "words": words}, ensure_ascii=False, separators=(",", ":")) + "\n",
+        json.dumps({"format_version": 2, "lists": list_metadata, "words": words}, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     print(f"Wrote {len(words):,} learnable words across {len(PACKS)} lists to {output}")
     print(f"Saved headword-only source lists to {output.with_name('source_word_lists.json')}")
-    print(f"Saved {len(used_fallbacks):,} localized fallback examples to {fallback_path}")
+    sense_count = sum(len(w["senses"]) for w in words)
+    example_count = sum(len(s["examples"]) for w in words for s in w["senses"])
+    report = {
+        "word_count": len(words), "sense_count": sense_count, "example_count": example_count,
+        "english_only_senses": sum(not s["definition_cn"] for w in words for s in w["senses"]),
+        "unpaired_words_by_list": missing,
+    }
+    output.with_name("vocabulary_export_report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Saved {sense_count:,} paired senses and {example_count:,} examples")
     for pack in list_metadata:
         print(
             f"  {pack['id']}: {pack['word_count']:,}/{pack['source_word_count']:,} "

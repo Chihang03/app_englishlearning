@@ -1,0 +1,90 @@
+{
+  "en:m_en_gbus0071450.008": {
+    "word": "bank",
+    "expected_definition_en": "the land alongside or sloping down to a river or lake",
+    "definition_cn": "岸",
+    "merge_into": "zh:b-en-zh_hans0002647.002"
+  },
+  "en:m_en_gbus0071460.005": {
+    "word": "bank",
+    "expected_definition_en": "a financial establishment that invests money deposited by customers, pays it out when required, makes loans at interest, and exchanges currency",
+    "definition_cn": "银行",
+    "merge_into": "zh:b-en-zh_hans0002648.002"
+  },
+  "en:m_en_gbus0071460.015": {
+    "word": "bank",
+    "expected_definition_en": "deposit (money or valuables) in a bank",
+    "definition_cn": "把……存入银行",
+    "merge_into": "zh:b-en-zh_hans0002648.006"
+  },
+  "en:m_en_gbus0169930.006": {
+    "word": "charge",
+    "expected_definition_en": "demand (an amount) as a price from someone for a service rendered or goods supplied",
+    "definition_cn": "收取费用",
+    "merge_into": "zh:b-en-zh_hans0005750.002"
+  },
+  "en:m_en_gbus0169930.014": {
+    "word": "charge",
+    "expected_definition_en": "accuse (someone) of something, especially an offense under law",
+    "definition_cn": "指控",
+    "merge_into": "zh:b-en-zh_hans0005750.005"
+  },
+  "en:m_en_gbus0581170.007": {
+    "word": "light",
+    "expected_definition_en": "the natural agent that stimulates sight and makes things visible",
+    "definition_cn": "光"
+  },
+  "en:m_en_gbus0581170.009": {
+    "word": "light",
+    "expected_definition_en": "a source of illumination, especially an electric lamp",
+    "definition_cn": "灯"
+  },
+  "en:m_en_gbus0581180.008": {
+    "word": "light",
+    "expected_definition_en": "of little weight; not heavy",
+    "definition_cn": "轻的",
+    "merge_into": "zh:b-en-zh_hans0020964.002"
+  },
+  "en:m_en_gbus0873500.043": {
+    "word": "right",
+    "expected_definition_en": "a moral or legal entitlement to have or obtain something or to act in a certain way",
+    "definition_cn": "权利",
+    "merge_into": "zh:b-en-zh_hans0031672.003"
+  },
+  "en:m_en_gbus0873500.049": {
+    "word": "right",
+    "expected_definition_en": "the right-hand part, side, or direction",
+    "definition_cn": "右侧",
+    "merge_into": "zh:b-en-zh_hans0031672.004"
+  },
+  "en:m_en_gbus0009480.013": {
+    "word": "address",
+    "expected_definition_en": "the place where someone lives or an organization is situated",
+    "definition_cn": "地址",
+    "merge_into": "zh:b-en-zh_hans0000401.002"
+  },
+  "en:m_en_gbus0009480.017": {
+    "word": "address",
+    "expected_definition_en": "a formal speech delivered to an audience",
+    "definition_cn": "演说",
+    "merge_into": "zh:b-en-zh_hans0000401.003"
+  },
+  "en:m_en_gbus0009480.026": {
+    "word": "address",
+    "expected_definition_en": "write the name and address of the intended recipient on (an envelope, letter, or package)",
+    "definition_cn": "在……上写姓名地址",
+    "merge_into": "zh:b-en-zh_hans0000401.007"
+  },
+  "en:m_en_gbus0009480.033": {
+    "word": "address",
+    "expected_definition_en": "speak to (a person or an assembly), typically in a formal way",
+    "definition_cn": "向……发表讲话",
+    "merge_into": "zh:b-en-zh_hans0000401.008"
+  },
+  "en:m_en_gbus0009480.037": {
+    "word": "address",
+    "expected_definition_en": "think about and begin to deal with (an issue or problem)",
+    "definition_cn": "处理",
+    "merge_into": "zh:b-en-zh_hans0000401.010"
+  }
+}
