@@ -276,7 +276,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       void guarded(loadNext);
     } : undefined, advanceAfterReading ? () => {
       if (!mountedRef.current || pageRef.current !== "study") return;
-      setMessage("整句朗读未能完成，请按回车重播或点击下一题继续。");
+      setMessage("整句朗读未能完成，请按回车重播，或在右上角菜单中进入下一题。");
     } : undefined);
   }
 
@@ -350,7 +350,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    void submitAnswer(answer);
+    handleEnter();
   }
 
   function handleEnter() {
@@ -521,26 +521,48 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             <span className="eyebrow">专注学习</span>
             <span>今日已答 {statsReady ? stats.today_learning : "—"} 次</span>
           </div>
-          <details ref={menuRef} className="study-menu">
+          <details ref={menuRef} className="study-menu" onToggle={(event) => {
+            otherSensesOpenRef.current = event.currentTarget.open && Boolean(event.currentTarget.querySelector(".other-senses[open]"));
+          }}>
             <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
             <div className="study-menu-panel">
               <button type="button" onClick={() => navigate("settings")}>学习设置</button>
               <button type="button" onClick={() => navigate("home")}>回到首页</button>
+              {result?.is_correct ? <button type="button" disabled={loading} onClick={() => {
+                if (menuRef.current) menuRef.current.open = false;
+                void guarded(loadNext);
+              }}>下一题</button> : null}
+              {result && result.other_senses.length > 0 ? (
+                <details className="other-senses" key={`${card?.sense_id}-${card?.example_id}`}
+                  onToggle={(event) => { otherSensesOpenRef.current = Boolean(menuRef.current?.open) && event.currentTarget.open; }}>
+                  <summary>其他意思与用法（{result.other_senses.length}）</summary>
+                  {result.other_senses.map((sense) => (
+                    <div className="other-sense" key={sense.id}>
+                      <span className="part-of-speech">{sense.part_of_speech} · {sense.status === "New" ? "尚未学习" : sense.status === "Mature" ? "长期熟记" : "已开始学习"}</span>
+                      <p>{sense.definition_cn || sense.definition_en}</p>
+                      {sense.examples.map((example) => <p className="other-sense-example" key={example.id}>{example.sentence}{settings.show_sentence_translation && example.translation_cn ? <span>{example.translation_cn}</span> : null}</p>)}
+                    </div>
+                  ))}
+                </details>
+              ) : null}
             </div>
           </details>
         </header>
 
         {card ? (
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
-            <div ref={questionRef} className="question-content" tabIndex={0} aria-label="题目内容">
-              <div className="question-heading">
+            <div className="question-heading">
+              <div className="question-labels">
                 <span className="pill">{card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
-                <button type="button" className="icon-button pronunciation-button"
-                  onClick={() => speak(result?.correct_answer ?? card.word)}
-                  disabled={!speechSupported} aria-label="朗读单词" title="朗读单词">
-                  <Icon name="sound" />
-                </button>
+                <span className="part-of-speech">{card.part_of_speech}</span>
               </div>
+              <button type="button" className="icon-button pronunciation-button"
+                onClick={() => speak(result?.correct_answer ?? card.word)}
+                disabled={!speechSupported} aria-label="朗读单词" title="朗读单词">
+                <Icon name="sound" />
+              </button>
+            </div>
+            <div ref={questionRef} className="question-content" tabIndex={0} aria-label="英文句子">
               <p className="english-sentence">
                 {sentenceParts.flatMap((part, index) => [
                   <span key={`text-${index}`}>{part}</span>,
@@ -560,46 +582,20 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                   ) : null
                 ])}
               </p>
-              <div className="meaning-block">
-                <span className="part-of-speech">{card.part_of_speech}</span>
-                <p className="word-meaning">{card.definition_cn || card.definition_en}</p>
-                <p className="sense-hint">本句中的意思{card.answer_form.toLowerCase() !== card.word.toLowerCase() ? " · 请填写句中所需词形" : ""}</p>
-                {settings.show_sentence_translation && card.example_translation_cn ? (
-                  <p className="sentence-translation">{card.example_translation_cn}</p>
-                ) : null}
-              </div>
-              {result && result.other_senses.length > 0 ? (
-                <details className="other-senses" key={`${card.sense_id}-${card.example_id}`}
-                  onToggle={(event) => { otherSensesOpenRef.current = event.currentTarget.open; }}>
-                  <summary>其他意思与用法（{result.other_senses.length}）</summary>
-                  {result.other_senses.map((sense) => (
-                    <div className="other-sense" key={sense.id}>
-                      <span className="part-of-speech">{sense.part_of_speech} · {sense.status === "New" ? "尚未学习" : sense.status === "Mature" ? "长期熟记" : "已开始学习"}</span>
-                      <p>{sense.definition_cn || sense.definition_en}</p>
-                      {sense.examples.map((example) => <p className="other-sense-example" key={example.id}>{example.sentence}{settings.show_sentence_translation && example.translation_cn ? <span>{example.translation_cn}</span> : null}</p>)}
-                    </div>
-                  ))}
-                </details>
+            </div>
+            <div className="meaning-block" tabIndex={0} aria-label="单词释义与句子翻译">
+              <p className="word-meaning">{card.definition_cn || card.definition_en}</p>
+              {settings.show_sentence_translation && card.example_translation_cn ? (
+                <p className="sentence-translation">{card.example_translation_cn}</p>
               ) : null}
-              <div id="answer-feedback" className={result && !result.is_correct ? "sr-only" : "answer-feedback"} aria-live="polite" aria-atomic="true">
-                {result?.is_correct ? <p className="feedback-correct">✓ 答对了 · 这个意思下次复习：{result.srs_state.next_review_date}</p> : result ? (
-                  <span>正确答案已在句中显示：{result.correct_answer}。重新输入可重试。</span>
-                ) : <p className="question-hint">回车提交；再次回车重播完整句子。</p>}
-              </div>
-              {message ? <p role="alert" className="error-notice">{message}</p> : null}
             </div>
-            <div className="study-actions">
-              <span className="study-action-status" role="status">{loading ? "正在加载下一题…" : readingCorrectAnswer ? "整句朗读中，结束后自动进入下一题…" : ""}</span>
-              <div className="study-action-buttons">
-                {result?.is_correct && !loading ? (
-                  <button type="button" className="text-button" onClick={() => { void guarded(loadNext); }}>下一题 <Icon name="arrow" /></button>
-                ) : null}
-                <button type="submit" className="primary-button" disabled={busy}
-                  onPointerDown={(event) => event.preventDefault()}>
-                  {submitting ? "提交中" : loading ? "加载中" : "提交"}
-                </button>
-              </div>
+            <div id="answer-feedback" className="sr-only" aria-live="polite" aria-atomic="true">
+              {result?.is_correct ? <p className="feedback-correct">✓ 答对了 · 这个意思下次复习：{result.srs_state.next_review_date}</p> : result ? (
+                <span>正确答案已在句中显示：{result.correct_answer}。重新输入可重试。</span>
+              ) : null}
             </div>
+            {message ? <p role="alert" className="error-notice">{message}</p> : null}
+            <span className="sr-only" role="status">{submitting ? "提交中" : loading ? "正在加载下一题…" : readingCorrectAnswer ? "整句朗读中，结束后自动进入下一题…" : ""}</span>
           </form>
         ) : (
           <div className="study-empty panel" role="status">

@@ -91,21 +91,23 @@ h1, h2, p { margin: 0; }
 .nav-study-icon svg { width: 26px; height: 26px; }
 .trainer-shell.is-studying { padding-bottom: 0; }
 .study-page { position: fixed; top: var(--viewport-top, 0px); left: 0; right: 0; height: var(--viewport-height, 100svh); max-width: 740px; margin: 0 auto; padding: env(safe-area-inset-top, 0px) 18px 0; min-height: var(--viewport-height, 100svh); display: flex; flex-direction: column; }
-.study-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 0 20px; }
+.study-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0 10px; }
 .study-progress { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
 .study-progress .eyebrow { font-size: 13px; letter-spacing: .07em; }
 .study-menu { position: relative; }
 .study-menu summary { list-style: none; cursor: pointer; }
-.study-menu-panel { position: absolute; z-index: 5; right: 0; top: 48px; width: 156px; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 8px 30px #233c3312; }
+.study-menu-panel { position: absolute; z-index: 5; right: 0; top: 48px; width: 220px; max-width: calc(100vw - 36px); max-height: calc(var(--viewport-height, 100svh) - 115px); overflow-y: auto; overscroll-behavior-y: contain; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 8px 30px #233c3312; }
 .study-menu-panel button { width: 100%; min-height: 46px; font-size: 14px; text-align: left; padding: 8px 13px; border-radius: 10px; }
 .study-menu-panel button:hover { background: #eef1e9; }
-.question-card { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; overflow: hidden; padding: 20px 22px 15px; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 24px; }
-.question-heading { margin-bottom: 23px; }
+.question-card { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; overflow: hidden; padding: 14px 18px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 8px; }
+.question-heading { flex-shrink: 0; margin-bottom: 10px; }
+.question-labels { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .pill { display: inline-flex; align-items: center; border-radius: 20px; background: #edf1e6; color: var(--accent); font-size: 12px; padding: 5px 12px; }
 .pronunciation-button { background: #f2f3ec; color: var(--accent); }
-.english-sentence { font-size: clamp(24px, 6.6vw, 34px); font-weight: 550; line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }
-/* The actual answer field lives at the blank, with stable keys across cards. */
-.question-content { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 2px; }
+.english-sentence { font-size: clamp(22px, 6vw, 28px); font-weight: 550; line-height: 1.45; letter-spacing: -.025em; overflow-wrap: anywhere; }
+/* Only the English sentence scrolls when it exceeds the visible space. The
+   heading and meanings stay outside that scroll area, above the keyboard. */
+.question-content { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 2px; }
 .sentence-blank { display: inline-block; position: relative; width: 5ch; max-width: calc(100% - 4px); margin: 0 2px; vertical-align: -.3em; }
 .sentence-measurer { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; user-select: none; }
 .sentence-measure { display: block; width: max-content; white-space: pre; font: inherit; letter-spacing: inherit; }
@@ -115,26 +117,17 @@ h1, h2, p { margin: 0; }
 .sentence-input.is-retry { background: #fff0ed; color: #b42318; border-bottom-color: #b42318; }
 .sentence-input.is-retry:focus { background: #fff0ed; box-shadow: 0 2px 0 #b42318; }
 .sentence-input.is-retry::selection { background: #f9d0ca; color: #b42318; }
-.study-actions { flex-shrink: 0; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
-.study-action-status { display: block; min-height: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
-.study-action-status:empty { display: none; }
-.study-action-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
-.study-action-buttons .text-button { font-size: 12px; }
-.study-action-buttons .primary-button { min-width: 88px; }
-
-.meaning-block { border-top: 1px solid var(--line); padding-top: 21px; margin-top: 25px; }
+.meaning-block { flex-shrink: 0; max-height: 160px; overflow-y: auto; overscroll-behavior-y: contain; border-top: 1px solid var(--line); padding: 10px 2px 2px; margin-top: 10px; }
 .part-of-speech { color: var(--muted); font-size: 12px; }
-.word-meaning { margin-top: 4px; font-size: 20px; font-weight: 550; line-height: 1.55; overflow-wrap: anywhere; }
+.word-meaning { font-size: 18px; font-weight: 550; line-height: 1.5; overflow-wrap: anywhere; }
 .sense-hint { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.other-senses { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
-.other-senses summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.other-senses { padding: 0 13px 8px; }
+.other-senses summary { display: flex; align-items: center; min-height: 46px; cursor: pointer; color: var(--muted); font-size: 14px; }
 .other-sense { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
 .other-sense p { margin-top: 5px; overflow-wrap: anywhere; }
 .other-sense-example { color: var(--muted); font-size: 14px; line-height: 1.5; }
 .other-sense-example span { display: block; }
-.sentence-translation { font-size: 15px; color: #697369; line-height: 1.75; margin-top: 14px; }
-.answer-feedback { min-height: 78px; padding-top: 21px; font-size: 14px; line-height: 1.6; }
-.question-hint { color: var(--muted); font-size: 12px; }
+.sentence-translation { font-size: 14px; color: #697369; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
 .feedback-correct { color: var(--accent); font-weight: 600; }
 .primary-button { min-height: 48px; padding: 11px 21px; background: var(--accent); color: white; border: 1px solid var(--accent); border-radius: 14px; font-size: 15px; font-weight: 600; }
 .primary-button:hover:not(:disabled) { background: #2c614c; }
@@ -194,8 +187,6 @@ h1, h2, p { margin: 0; }
   .today-metrics { padding-top: 30px; }
   .today-metrics strong { font-size: 48px; }
   .study-page { padding-left: 25px; padding-right: 25px; }
-  .study-header { padding-top: 25px; }
-  .question-card { padding: 28px 32px 23px; }
   .bottom-nav { border-radius: 24px 24px 0 0; border: 1px solid var(--line); border-bottom: 0; }
 }
 @media (max-width: 360px) {
@@ -205,6 +196,7 @@ h1, h2, p { margin: 0; }
   .study-page { padding-left: 12px; padding-right: 12px; }
   .question-card { padding-left: 18px; padding-right: 18px; }
 }
+.question-card > .error-notice { flex-shrink: 0; max-height: 80px; overflow-y: auto; margin-top: 8px; padding: 7px 10px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
