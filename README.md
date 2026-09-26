@@ -22,9 +22,13 @@ backend/
     migrations.py    # 版本化 schema 迁移
     database.py      # 连接管理与查询
     srs.py           # SRS scheduling
-    dictionary.py    # macOS 系统词典查询（仅 macOS 可用）
   data/
-    seed_words.json  # 初始示例词库（公共词库）
+    seed_words.json  # 小型内置示例词库
+    source_word_lists.json # 词表分类与词头快照
+    vocabulary_catalog.json # 本地化词条，所有可学单词均有例句
+    example_fallbacks.json # 本地化备用例句快照
+  scripts/
+    build_vocab_bundle.py # 仅在 Mac 上运行的一次性词典导出器
 frontend/
   src/
     App.tsx          # 认证网关 + 训练界面
@@ -90,7 +94,7 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## 数据
 
-首次启动后端时会自动创建 `$DATA_DIR/vocabulary.db`（默认 `backend/data/vocabulary.db`），并导入 `backend/data/seed_words.json` 中的示例单词。后续学习记录、SRS 状态和设置都会写入同一个 SQLite 数据库。
+首次启动后端时会自动创建 `$DATA_DIR/vocabulary.db`（默认 `backend/data/vocabulary.db`），并导入 `seed_words.json` 与本地化的 `vocabulary_catalog.json`。没有合格例句的源词不会导入为可学记录。后续学习记录、SRS 状态、词库选择和显示设置写入同一个 SQLite 数据库。
 
 ## API 摘要
 
@@ -112,9 +116,10 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `POST /api/auth/passkeys/login/options` 获取登录选项（公开）
 - `POST /api/auth/passkeys/login/verify` 验证签名并建立原有 Cookie 会话（公开）
 - `DELETE /api/auth/passkeys/{id}` 确认当前密码并删除自己的通行密钥
-- `GET /api/settings` 获取显示设置
-- `PATCH /api/settings` 更新显示设置
-- `GET /api/dictionary/{word}` 尝试通过 macOS DictionaryServices 查询系统词典
+- `GET /api/settings` 获取显示设置和选中的词库
+- `PATCH /api/settings` 更新显示设置和选中的词库
+- `GET /api/word-lists` 获取可选词库及可学习数量
+- `GET /api/dictionary/{word}` 查询服务器自带的本地词库
 - `POST /api/words` 新增单词
 - `POST /api/words/import` 批量导入单词
 
@@ -148,9 +153,24 @@ cd backend
 
 测试使用临时数据库及软件生成的签名，验证注册、登录、账号隔离、挑战过期和重放、用户验证和删除行为，不会修改运行中的学习数据库。真实 Touch ID / Face ID、密码管理器同步和正式域名仍需在实际设备上验证。
 
-## macOS Dictionary
+## 本地词库与 Mac 导出
 
-后端提供 `GET /api/dictionary/{word}`，优先尝试调用 macOS 的 `DictionaryServices` 本地框架。该框架是否能返回内容取决于当前系统已安装并启用的词典；如果系统不返回词条，接口会返回 `available: false`。学习用词条仍可通过 `seed_words.json`、`POST /api/words` 或 `POST /api/words/import` 导入，确保应用不依赖网络。
+学习词库分为两层：`source_word_lists.json` 只保存 NGSL、四/六级、托福、雅思、GRE 等词表的词头分类；`vocabulary_catalog.json` 保存可直接学习的本地释义、发音和例句。服务器只读取这些随项目部署的静态文件，不调用 Mac 词典，也不需要安装导出依赖。
+
+在 Mac 上生成或更新本地词库时，需先安装希望使用的系统词典。默认会读取仓库内已本地化的词头清单；如果要刷新考试/用途词表，再传入包含源文件的 `--source-dir`：
+
+```bash
+cd backend
+python3 -m venv .venv-vocab-export
+.venv-vocab-export/bin/pip install -r requirements-vocabulary-export.txt
+.venv-vocab-export/bin/python scripts/build_vocab_bundle.py
+# 可选：从新的源快照重建词头分类
+.venv-vocab-export/bin/python scripts/build_vocab_bundle.py --source-dir /path/to/wordlist-sources
+```
+
+构建器读取 Mac 已安装的英汉词典和 New Oxford American Dictionary，优先使用其中的释义、音标和例句；缺少例句时才尝试本地附带的备用例句来源。例句必须是完整句、包含目标词；没有合格例句的词不会进入可学习词库，并会按词表报告。设置页会显示“可学词数 / 原词表词数”。重新生成后，把 `source_word_lists.json`、`vocabulary_catalog.json` 和 `example_fallbacks.json` 一起部署即可；Linux 服务器及访问者设备都不需要 Mac 词典。
+
+当前 TOEFL、IELTS、GRE 分类来自 ECDICT 的社区考试标签，并非考试机构发布的官方封闭词表；NGSL/NAWL/TSL/BSL 是按通用、学术、TOEIC、商务等用途组织，不是 CEFR 难度级别。CET-6 词表包含四级基础词及六级增补词。
 
 ## 发音
 

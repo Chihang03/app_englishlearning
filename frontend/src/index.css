@@ -164,6 +164,13 @@ h1, h2, p { margin: 0; }
 .setting-switch:checked { background: var(--accent); }
 .setting-switch:checked::after { transform: translateX(18px); }
 .settings-hint { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.7; }
+.word-list-picker { display: grid; gap: 0; margin-top: 10px; }
+.word-list-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid #edf0e9; cursor: pointer; }
+.word-list-copy { display: grid; gap: 4px; min-width: 0; }
+.word-list-copy strong { font-size: 14px; font-weight: 600; }
+.word-list-copy small { color: var(--muted); font-size: 12px; line-height: 1.55; }
+.word-list-option input { width: 19px; height: 19px; flex: 0 0 auto; accent-color: var(--accent); }
+.word-list-option input:disabled { cursor: wait; }
 .speech-controls { margin-top: 20px; }
 .setting-field { display: flex; flex-direction: column; gap: 10px; color: var(--ink); font-size: 14px; }
 .setting-field select { border: 1px solid #d8dfd1; border-radius: 12px; width: 100%; min-width: 0; height: 48px; font-size: 16px; background: var(--surface); padding: 0 10px; color: var(--ink); text-overflow: ellipsis; }

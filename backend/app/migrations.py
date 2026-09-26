@@ -13,7 +13,7 @@ from .security import DEFAULT_TIMEZONE, hash_password, resolve_timezone, utc_iso
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def run_migrations(db_path: Path) -> None:
@@ -57,6 +57,13 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("PRAGMA user_version = 3")
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 3 (passkeys)")
+
+        if version < 4:
+            conn.execute("BEGIN")
+            _migrate_to_v4(conn)
+            conn.execute("PRAGMA user_version = 4")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 4 (local vocabulary lists)")
 
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -103,6 +110,56 @@ def _migrate_to_v3(conn: sqlite3.Connection) -> None:
         )
         """,
         "CREATE INDEX idx_webauthn_challenges_expiry ON webauthn_challenges(expires_at)"
+    ])
+
+
+def _migrate_to_v4(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        """
+        CREATE TABLE vocabulary_lists (
+            list_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            source_word_count INTEGER NOT NULL DEFAULT 0,
+            word_count INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 1000,
+            default_selected INTEGER NOT NULL DEFAULT 0 CHECK (default_selected IN (0, 1))
+        )
+        """,
+        """
+        CREATE TABLE word_list_memberships (
+            list_id TEXT NOT NULL REFERENCES vocabulary_lists(list_id) ON DELETE CASCADE,
+            word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            position INTEGER NOT NULL,
+            PRIMARY KEY (list_id, word_id)
+        )
+        """,
+        "CREATE INDEX idx_word_list_memberships_word ON word_list_memberships(word_id, list_id)",
+        """
+        CREATE TABLE user_vocabulary_lists (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            list_id TEXT NOT NULL REFERENCES vocabulary_lists(list_id) ON DELETE CASCADE,
+            selected INTEGER NOT NULL DEFAULT 0 CHECK (selected IN (0, 1)),
+            PRIMARY KEY (user_id, list_id)
+        )
+        """,
+        """
+        CREATE TRIGGER words_example_required_insert
+        BEFORE INSERT ON words
+        WHEN length(trim(NEW.example_sentence)) = 0
+        BEGIN
+            SELECT RAISE(ABORT, 'example sentence is required');
+        END
+        """,
+        """
+        CREATE TRIGGER words_example_required_update
+        BEFORE UPDATE OF example_sentence ON words
+        WHEN length(trim(NEW.example_sentence)) = 0
+        BEGIN
+            SELECT RAISE(ABORT, 'example sentence is required');
+        END
+        """,
     ])
 
 

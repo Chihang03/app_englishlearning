@@ -136,6 +136,13 @@ def register(payload: RegisterInput, response: Response) -> dict[str, Any]:
             (payload.username, hash_password(payload.password), timezone_name, utc_now_iso()),
         )
         user_id = int(cursor.lastrowid)
+        conn.execute(
+            """
+            INSERT INTO user_vocabulary_lists(user_id, list_id, selected)
+            SELECT ?, list_id, default_selected FROM vocabulary_lists
+            """,
+            (user_id,),
+        )
         _start_session(conn, user_id, response)
         user = row_to_dict(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
 

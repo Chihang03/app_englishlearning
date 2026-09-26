@@ -18,6 +18,16 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = Path(os.environ["DATA_DIR"]).expanduser().resolve() if os.environ.get("DATA_DIR") else BASE_DIR / "data"
 DB_PATH = DATA_DIR / "vocabulary.db"
 SEED_PATH = BASE_DIR / "data" / "seed_words.json"
+VOCABULARY_CATALOG_PATH = BASE_DIR / "data" / "vocabulary_catalog.json"
+STARTER_LIST = {
+    "list_id": "starter_examples",
+    "title": "内置例词",
+    "description": "应用自带的示例词，可随时取消选择。",
+    "source_url": "",
+    "source_word_count": 0,
+    "sort_order": 0,
+    "default_selected": 1,
+}
 
 # With several people reviewing at once, a writer can find the database briefly
 # locked. Waiting beats failing the request.
@@ -49,6 +59,7 @@ def init_database() -> None:
     _enable_wal()
     run_migrations(DB_PATH)
     seed_words()
+    seed_vocabulary_catalog()
 
 
 def _enable_wal() -> None:
@@ -93,6 +104,173 @@ def seed_words() -> None:
         )
 
 
+def seed_vocabulary_catalog() -> None:
+    """Copy the bundled, example-complete catalog into SQLite for fast queries."""
+    if VOCABULARY_CATALOG_PATH.exists():
+        catalog = json.loads(VOCABULARY_CATALOG_PATH.read_text(encoding="utf-8"))
+    else:
+        catalog = {"lists": [], "words": []}
+
+    lists = [STARTER_LIST, *catalog.get("lists", [])]
+    words = catalog.get("words", [])
+    list_ids = {item["id"] for item in lists}
+    for item in words:
+        example = str(item.get("example_sentence") or "").strip()
+        if not example:
+            raise ValueError(f"Vocabulary catalog word {item.get('word')!r} has no example sentence")
+        for membership in item.get("memberships", []):
+            if membership.get("list_id") not in list_ids:
+                raise ValueError(f"Unknown vocabulary list {membership.get('list_id')!r}")
+
+    with connect() as conn:
+        for item in lists:
+            conn.execute(
+                """
+                INSERT INTO vocabulary_lists(
+                    list_id, title, description, source_url, source_word_count,
+                    word_count, sort_order, default_selected
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(list_id) DO UPDATE SET
+                    title = excluded.title,
+                    description = excluded.description,
+                    source_url = excluded.source_url,
+                    source_word_count = excluded.source_word_count,
+                    sort_order = excluded.sort_order,
+                    default_selected = excluded.default_selected
+                """,
+                (
+                    item["id"] if "id" in item else item["list_id"],
+                    item["title"],
+                    item.get("description", ""),
+                    item.get("source_url", ""),
+                    int(item.get("source_word_count", 0)),
+                    int(item.get("word_count", 0)),
+                    int(item.get("sort_order", 1000)),
+                    int(bool(item.get("default_selected", False))),
+                ),
+            )
+
+        # Memberships are a materialized view of the shipped catalog. Refresh
+        # them without touching learners' SRS history or selected-list choices.
+        catalog_list_ids = [item["id"] for item in catalog.get("lists", [])]
+        if catalog_list_ids:
+            placeholders = ",".join("?" for _ in catalog_list_ids)
+            conn.execute(
+                f"DELETE FROM word_list_memberships WHERE list_id IN ({placeholders})",
+                catalog_list_ids,
+            )
+
+        for item in words:
+            word = str(item["word"]).strip()
+            example = str(item["example_sentence"]).strip()
+            existing = conn.execute(
+                "SELECT id FROM words WHERE owner_id IS NULL AND word = ?", (word,)
+            ).fetchone()
+            values = (
+                str(item.get("part_of_speech") or "词汇").strip(),
+                str(item.get("definition_cn") or "词义待补充").strip(),
+                str(item.get("definition_en") or "").strip() or None,
+                example,
+                str(item.get("example_translation_cn") or "").strip() or None,
+                str(item.get("pronunciation") or word).strip(),
+            )
+            if existing is None:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO words(
+                        owner_id, word, part_of_speech, definition_cn, definition_en,
+                        example_sentence, example_translation_cn, pronunciation
+                    ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (word, *values),
+                )
+                word_id = int(cursor.lastrowid)
+            else:
+                word_id = int(existing["id"])
+                conn.execute(
+                    """
+                    UPDATE words SET part_of_speech = ?, definition_cn = ?, definition_en = ?,
+                        example_sentence = ?, example_translation_cn = ?, pronunciation = ?
+                    WHERE id = ?
+                    """,
+                    (*values, word_id),
+                )
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO word_list_memberships(list_id, word_id, position)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (membership["list_id"], word_id, int(membership["position"]))
+                    for membership in item.get("memberships", [])
+                ],
+            )
+
+        # The original sample entries remain selectable even before a generated
+        # catalog is present, and stay available as a small fallback collection.
+        if SEED_PATH.exists():
+            seed_words = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+            for position, seed in enumerate(seed_words, start=1):
+                row = conn.execute(
+                    "SELECT id FROM words WHERE owner_id IS NULL AND word = ?",
+                    (seed["word"],),
+                ).fetchone()
+                if row is not None:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO word_list_memberships(list_id, word_id, position)
+                        VALUES (?, ?, ?)
+                        """,
+                        (STARTER_LIST["list_id"], int(row["id"]), position),
+                    )
+
+        conn.execute(
+            """
+            UPDATE vocabulary_lists
+            SET word_count = (
+                SELECT COUNT(*) FROM word_list_memberships m
+                WHERE m.list_id = vocabulary_lists.list_id
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO user_vocabulary_lists(user_id, list_id, selected)
+            SELECT users.id, vocabulary_lists.list_id, vocabulary_lists.default_selected
+            FROM users CROSS JOIN vocabulary_lists
+            """
+        )
+
+
+def selected_vocabulary_list_ids(conn: sqlite3.Connection, user_id: int) -> list[str]:
+    rows = conn.execute(
+        "SELECT list_id FROM user_vocabulary_lists WHERE user_id = ? AND selected = 1 ORDER BY list_id",
+        (user_id,),
+    ).fetchall()
+    if rows:
+        return [row["list_id"] for row in rows]
+    has_preferences = conn.execute(
+        "SELECT 1 FROM user_vocabulary_lists WHERE user_id = ? LIMIT 1", (user_id,)
+    ).fetchone()
+    if has_preferences:
+        return []
+    defaults = conn.execute(
+        "SELECT list_id FROM vocabulary_lists WHERE default_selected = 1 ORDER BY list_id"
+    ).fetchall()
+    return [row["list_id"] for row in defaults]
+
+
+def get_vocabulary_lists(user_id: int) -> list[dict[str, Any]]:
+    with connect() as conn:
+        selected = set(selected_vocabulary_list_ids(conn, user_id))
+        rows = conn.execute(
+            """
+            SELECT list_id, title, description, source_url, source_word_count, word_count
+            FROM vocabulary_lists
+            ORDER BY sort_order, title
+            """
+        ).fetchall()
+    return [{**row_to_dict(row), "selected": row["list_id"] in selected} for row in rows]
 def get_settings(user_id: int) -> dict[str, str]:
     with connect() as conn:
         rows = conn.execute(

@@ -342,7 +342,7 @@ class MigrationTests(unittest.TestCase):
                 migrations.run_migrations(path)
                 migrations.run_migrations(path)
                 with closing(sqlite3.connect(path)) as upgraded:
-                    self.assertEqual(upgraded.execute("PRAGMA user_version").fetchone()[0], 3)
+                    self.assertEqual(upgraded.execute("PRAGMA user_version").fetchone()[0], migrations.SCHEMA_VERSION)
                     self.assertEqual(upgraded.execute("SELECT username, password_hash FROM users").fetchone(), ("existing", "existing-hash"))
                     self.assertEqual(upgraded.execute("SELECT user_answer FROM review_history").fetchone()[0], "test")
                     self.assertEqual(upgraded.execute("PRAGMA foreign_key_check").fetchall(), [])

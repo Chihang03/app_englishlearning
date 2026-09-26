@@ -47,6 +47,17 @@ export type Stats = {
 
 export type Settings = {
   show_sentence_translation: boolean;
+  selected_word_list_ids: string[];
+};
+
+export type WordList = {
+  list_id: string;
+  title: string;
+  description: string;
+  source_url: string;
+  source_word_count: number;
+  word_count: number;
+  selected: boolean;
 };
 
 export type SpeechSettings = {

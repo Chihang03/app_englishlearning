@@ -10,12 +10,19 @@ from typing import Any, AsyncIterator
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, conlist
+from pydantic import BaseModel, Field, conlist, root_validator, validator
 
 from .auth import get_current_user
 from .auth import router as auth_router
-from .database import connect, get_settings, init_database, row_to_dict, update_settings
-from .dictionary import lookup_system_definition
+from .database import (
+    connect,
+    get_settings,
+    get_vocabulary_lists,
+    init_database,
+    row_to_dict,
+    selected_vocabulary_list_ids,
+    update_settings,
+)
 from .passkeys import router as passkeys_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
 from .srs import next_state
@@ -68,6 +75,21 @@ class WordInput(BaseModel):
     example_translation_cn: str | None = Field(default=None, max_length=1000)
     pronunciation: str | None = Field(default=None, max_length=200)
 
+    @validator("example_sentence")
+    def example_sentence_must_not_be_blank(cls, value: str) -> str:
+        sentence = value.strip()
+        if not sentence:
+            raise ValueError("example sentence is required")
+        return sentence
+
+    @root_validator(skip_on_failure=True)
+    def example_sentence_must_contain_word(cls, values: dict[str, Any]) -> dict[str, Any]:
+        word = str(values.get("word") or "").strip()
+        sentence = str(values.get("example_sentence") or "")
+        if word and not re.search(rf"(?<![A-Za-z'-]){re.escape(word)}(?![A-Za-z'-])", sentence, re.I):
+            raise ValueError("example sentence must contain the target word")
+        return values
+
 
 class ReviewInput(BaseModel):
     word_id: int
@@ -76,6 +98,7 @@ class ReviewInput(BaseModel):
 
 class SettingsInput(BaseModel):
     show_sentence_translation: bool | None = None
+    selected_word_list_ids: list[str] | None = Field(default=None, max_length=50)
 
 
 def normalize_answer(value: str) -> str:
@@ -84,10 +107,7 @@ def normalize_answer(value: str) -> str:
 
 def mask_sentence(sentence: str, word: str) -> str:
     escaped = re.escape(word)
-    if re.fullmatch(r"[A-Za-z]+", word):
-        pattern = re.compile(rf"\b{escaped}\b", re.IGNORECASE)
-    else:
-        pattern = re.compile(escaped, re.IGNORECASE)
+    pattern = re.compile(rf"(?<![A-Za-z'-]){escaped}(?![A-Za-z'-])", re.IGNORECASE)
     return pattern.sub("_______", sentence)
 
 
@@ -110,8 +130,10 @@ def due_lapse_count(conn, user_id: int, today: date) -> int:
             """
             SELECT COUNT(*) AS total
             FROM srs_state s
+            JOIN words w ON w.id = s.word_id
             WHERE s.user_id = ?
               AND s.status != 'Mature'
+              AND length(trim(w.example_sentence)) > 0
               AND s.next_review_date <= ?
               AND EXISTS (
                   SELECT 1
@@ -138,8 +160,10 @@ def lapse_word_count(conn, user_id: int) -> int:
             """
             SELECT COUNT(*) AS total
             FROM srs_state s
+            JOIN words w ON w.id = s.word_id
             WHERE s.user_id = ?
               AND s.status != 'Mature'
+              AND length(trim(w.example_sentence)) > 0
               AND EXISTS (
                   SELECT 1
                   FROM review_history first_review
@@ -160,16 +184,29 @@ def lapse_word_count(conn, user_id: int) -> int:
 
 def new_word_count(conn, user_id: int) -> int:
     """Visible words this learner has never reviewed."""
+    selected_lists = selected_vocabulary_list_ids(conn, user_id)
+    list_filter = ""
+    list_params: tuple[str, ...] = ()
+    if selected_lists:
+        placeholders = ",".join("?" for _ in selected_lists)
+        list_filter = f"""
+            OR (w.owner_id IS NULL AND EXISTS (
+                SELECT 1 FROM word_list_memberships m
+                WHERE m.word_id = w.id AND m.list_id IN ({placeholders})
+            ))
+        """
+        list_params = tuple(selected_lists)
     return int(
         conn.execute(
-            """
+            f"""
             SELECT COUNT(*) AS total
             FROM words w
             LEFT JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
             WHERE s.word_id IS NULL
-              AND (w.owner_id IS NULL OR w.owner_id = ?)
+              AND length(trim(w.example_sentence)) > 0
+              AND (w.owner_id = ? {list_filter})
             """,
-            (user_id, user_id),
+            (user_id, user_id, *list_params),
         ).fetchone()["total"]
     )
 
@@ -179,8 +216,9 @@ def learning_due_count(conn, user_id: int, today: date) -> int:
         conn.execute(
             """
             SELECT COUNT(*) AS total
-            FROM srs_state
-            WHERE user_id = ? AND status = 'Learning' AND next_review_date <= ?
+            FROM srs_state s JOIN words w ON w.id = s.word_id
+            WHERE s.user_id = ? AND s.status = 'Learning' AND s.next_review_date <= ?
+              AND length(trim(w.example_sentence)) > 0
             """,
             (user_id, today.isoformat()),
         ).fetchone()["total"]
@@ -224,18 +262,32 @@ def stats(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
             (user_id, day_start, day_end),
         ).fetchone()
         learned = conn.execute(
-            "SELECT COUNT(*) AS total FROM srs_state WHERE user_id = ?", (user_id,)
+            """
+            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
+            WHERE s.user_id = ? AND length(trim(w.example_sentence)) > 0
+            """,
+            (user_id,),
         ).fetchone()["total"]
         learning = conn.execute(
-            "SELECT COUNT(*) AS total FROM srs_state WHERE user_id = ? AND status = 'Learning'",
+            """
+            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
+            WHERE s.user_id = ? AND s.status = 'Learning' AND length(trim(w.example_sentence)) > 0
+            """,
             (user_id,),
         ).fetchone()["total"]
         reviewing = conn.execute(
-            "SELECT COUNT(*) AS total FROM srs_state WHERE user_id = ? AND status IN ('Reviewing', 'Mature')",
+            """
+            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
+            WHERE s.user_id = ? AND s.status IN ('Reviewing', 'Mature')
+              AND length(trim(w.example_sentence)) > 0
+            """,
             (user_id,),
         ).fetchone()["total"]
         mature = conn.execute(
-            "SELECT COUNT(*) AS total FROM srs_state WHERE user_id = ? AND status = 'Mature'",
+            """
+            SELECT COUNT(*) AS total FROM srs_state s JOIN words w ON w.id = s.word_id
+            WHERE s.user_id = ? AND s.status = 'Mature' AND length(trim(w.example_sentence)) > 0
+            """,
             (user_id,),
         ).fetchone()["total"]
 
@@ -296,6 +348,7 @@ def next_card(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any
             FROM words w
             JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
             WHERE s.status = 'Learning' AND s.next_review_date <= ?
+              AND length(trim(w.example_sentence)) > 0
             ORDER BY s.next_review_date ASC, s.lapse_count DESC, w.id ASC
             LIMIT 1
             """,
@@ -308,6 +361,7 @@ def next_card(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any
                 FROM words w
                 JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
                 WHERE s.status = 'Reviewing' AND s.next_review_date <= ?
+                  AND length(trim(w.example_sentence)) > 0
                 ORDER BY s.next_review_date ASC, s.interval_days ASC, w.id ASC
                 LIMIT 1
                 """,
@@ -320,11 +374,16 @@ def next_card(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any
                 FROM words w
                 LEFT JOIN srs_state s ON s.word_id = w.id AND s.user_id = ?
                 WHERE s.word_id IS NULL
-                  AND (w.owner_id IS NULL OR w.owner_id = ?)
+                  AND length(trim(w.example_sentence)) > 0
+                  AND (w.owner_id = ? OR (w.owner_id IS NULL AND EXISTS (
+                    SELECT 1 FROM word_list_memberships m
+                    JOIN user_vocabulary_lists uvl ON uvl.list_id = m.list_id
+                    WHERE m.word_id = w.id AND uvl.user_id = ? AND uvl.selected = 1
+                  )))
                 ORDER BY w.id ASC
                 LIMIT 1
                 """,
-                (user_id, user_id),
+                (user_id, user_id, user_id),
             ).fetchone()
 
     if row is None:
@@ -348,7 +407,7 @@ def review(
                 (payload.word_id, user_id),
             ).fetchone()
         )
-        if word is None:
+        if word is None or not str(word.get("example_sentence") or "").strip():
             raise HTTPException(status_code=404, detail="Word not found")
 
         user_answer = payload.user_answer.strip()
@@ -429,9 +488,12 @@ def review(
 
 @app.get("/api/settings")
 def settings(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    values = get_settings(int(user["id"]))
+    user_id = int(user["id"])
+    values = get_settings(user_id)
+    lists = get_vocabulary_lists(user_id)
     return {
         "show_sentence_translation": values.get("show_sentence_translation", "false") == "true",
+        "selected_word_list_ids": [item["list_id"] for item in lists if item["selected"]],
     }
 
 
@@ -445,7 +507,31 @@ def patch_settings(
         values["show_sentence_translation"] = "true" if payload.show_sentence_translation else "false"
     if values:
         update_settings(int(user["id"]), values)
+    if payload.selected_word_list_ids is not None:
+        user_id = int(user["id"])
+        requested = set(payload.selected_word_list_ids)
+        with connect() as conn:
+            available = {
+                row["list_id"]
+                for row in conn.execute("SELECT list_id FROM vocabulary_lists").fetchall()
+            }
+            unknown = requested - available
+            if unknown:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown word lists: {', '.join(sorted(unknown))}",
+                )
+            conn.execute("DELETE FROM user_vocabulary_lists WHERE user_id = ?", (user_id,))
+            conn.executemany(
+                "INSERT INTO user_vocabulary_lists(user_id, list_id, selected) VALUES (?, ?, ?)",
+                [(user_id, list_id, int(list_id in requested)) for list_id in sorted(available)],
+            )
     return settings(user)
+
+
+@app.get("/api/word-lists")
+def word_lists(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return {"lists": get_vocabulary_lists(int(user["id"]))}
 
 
 @app.get("/api/dictionary/{word}")
@@ -453,12 +539,26 @@ def dictionary_lookup(
     word: str,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    definition = lookup_system_definition(word)
+    with connect() as conn:
+        entry = row_to_dict(
+            conn.execute(
+                """
+                SELECT word, part_of_speech, definition_cn, definition_en,
+                       example_sentence, pronunciation
+                FROM words
+                WHERE lower(word) = lower(?) AND length(trim(example_sentence)) > 0
+                  AND (owner_id IS NULL OR owner_id = ?)
+                ORDER BY CASE WHEN owner_id = ? THEN 0 ELSE 1 END
+                LIMIT 1
+                """,
+                (word.strip(), int(user["id"]), int(user["id"])),
+            ).fetchone()
+        )
     return {
         "word": word,
-        "source": "macOS DictionaryServices",
-        "available": definition is not None,
-        "definition": definition,
+        "source": "本地词库",
+        "available": entry is not None,
+        "definition": entry,
     }
 
 

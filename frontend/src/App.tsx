@@ -3,7 +3,7 @@ import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { InlineAnswer } from "./InlineAnswer";
 import { errorMessage, isUnauthorized, request } from "./api";
-import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User } from "./types";
+import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
 // The old backend shelled out to macOS `say -r`, which took words per minute and
 // defaulted to 175. SpeechSynthesisUtterance instead takes a multiplier where 1
@@ -126,7 +126,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [statsReady, setStatsReady] = useState(false);
-  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false });
+  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
+  const [wordLists, setWordLists] = useState<WordList[]>([]);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(false);
@@ -285,6 +286,11 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     if (mountedRef.current) setSettings(payload);
   }
 
+  async function loadWordLists() {
+    const payload = await request<{ lists: WordList[] }>("/api/word-lists");
+    if (mountedRef.current) setWordLists(payload.lists);
+  }
+
   async function loadNext() {
     if (loadingRef.current) return;
     cancelSpeechRef.current?.();
@@ -379,6 +385,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           method: "PATCH", body: JSON.stringify(next)
         });
         if (mountedRef.current) setSettings(payload);
+        if ("selected_word_list_ids" in next) void guarded(loadStats);
       } catch (caught) {
         if (mountedRef.current) setSettings(previous);
         throw caught;
@@ -387,6 +394,13 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         if (mountedRef.current) setSettingsSaving(false);
       }
     });
+  }
+
+  function toggleWordList(listId: string, selected: boolean) {
+    const next = new Set(settings.selected_word_list_ids);
+    if (selected) next.add(listId);
+    else next.delete(listId);
+    updateSetting({ selected_word_list_ids: [...next] });
   }
 
   function signOut() {
@@ -409,7 +423,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     };
     window.addEventListener("popstate", syncPage);
     window.addEventListener("hashchange", syncPage);
-    void guarded(async () => { await Promise.all([loadStats(), loadSettings()]); });
+    void guarded(async () => { await Promise.all([loadStats(), loadSettings(), loadWordLists()]); });
     return () => {
       mountedRef.current = false;
       window.removeEventListener("popstate", syncPage);
@@ -577,10 +591,11 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       </section>
 
       {page === "settings" ? (
-        <SettingsPage user={user} settings={settings} speech={speech} voices={voices}
+        <SettingsPage user={user} settings={settings} wordLists={wordLists} speech={speech} voices={voices}
           settingsSaving={settingsSaving}
           speechSupported={speechSupported} onBack={() => navigate("home")}
-          onSetting={updateSetting} onSpeech={updateSpeech} onSignOut={signOut} onSessionExpired={onSignedOut} />
+          onSetting={updateSetting} onToggleWordList={toggleWordList} onSpeech={updateSpeech}
+          onSignOut={signOut} onSessionExpired={onSignedOut} />
       ) : null}
 
       {message && page !== "study" ? <p role="alert" className="global-error error-notice">{message}</p> : null}
@@ -658,10 +673,11 @@ function Metric({ icon, label, value, caption }: { icon: IconName; label: string
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span><span className="metric-caption">{caption}</span></div>;
 }
 
-function SettingsPage({ user, settings, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onSpeech, onSignOut, onSessionExpired }: {
-  user: User; settings: Settings; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
+function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onToggleWordList, onSpeech, onSignOut, onSessionExpired }: {
+  user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
+  onToggleWordList: (listId: string, selected: boolean) => void;
   onSpeech: (next: Partial<SpeechSettings>) => void; onSignOut: () => void; onSessionExpired: () => void;
 }) {
   return (
@@ -671,6 +687,24 @@ function SettingsPage({ user, settings, settingsSaving, speech, voices, speechSu
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习显示</h2>
         <label className="setting-row"><span><strong>句子中文翻译</strong><small>在单词释义下显示完整句子的翻译</small></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.show_sentence_translation} onChange={(event) => onSetting({ show_sentence_translation: event.target.checked })} /></label>
+      </section>
+      <section className="settings-group panel">
+        <h2><Icon name="book" /> 学习词库</h2>
+        <p className="settings-hint">勾选后，这些词库中的新词会进入学习队列。已开始学习的复习卡仍会保留。</p>
+        {wordLists.length === 0 ? <p className="settings-hint">本地词库尚未生成。</p> : (
+          <div className="word-list-picker">
+            {wordLists.map((list) => (
+              <label className="word-list-option" key={list.list_id}>
+                <span className="word-list-copy">
+                  <strong>{list.title}</strong>
+                  <small>{list.description}</small>
+                  <small>可学 {list.word_count.toLocaleString()} 词{list.source_word_count > list.word_count ? ` · 原表 ${list.source_word_count.toLocaleString()} 词` : ""}</small>
+                </span>
+                <input type="checkbox" disabled={settingsSaving} checked={settings.selected_word_list_ids.includes(list.list_id)} onChange={(event) => onToggleWordList(list.list_id, event.target.checked)} />
+              </label>
+            ))}
+          </div>
+        )}
       </section>
       <section className="settings-group panel">
         <h2><Icon name="sound" /> 发音</h2>
