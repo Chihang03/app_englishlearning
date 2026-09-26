@@ -119,7 +119,7 @@ h1, h2, p { margin: 0; }
 .study-actions { flex-shrink: 0; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .study-action-status { display: block; min-height: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .study-action-status:empty { display: none; }
-.study-action-buttons { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.study-action-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
 .study-action-buttons .text-button { font-size: 12px; }
 .study-action-buttons .primary-button { min-width: 88px; }
 

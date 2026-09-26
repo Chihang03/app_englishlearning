@@ -471,7 +471,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                     <p>{result.is_blank ? "没关系，再记一次" : "再试一次"}</p>
                     <p>正确答案：<strong>{result.correct_answer}</strong></p>
                   </div>
-                ) : <p className="question-hint">在句子空白处输入单词，回车即可提交。</p>}
+                ) : <p className="question-hint">回车提交；留空回车可查看答案。</p>}
               </div>
               {message ? <p role="alert" className="error-notice">{message}</p> : null}
             </div>
@@ -480,10 +480,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               <div className="study-action-buttons">
                 {result?.is_correct && !loading ? (
                   <button type="button" className="text-button" onClick={() => { void guarded(loadNext); }}>下一题 <Icon name="arrow" /></button>
-                ) : (
-                  <button type="button" className="text-button" disabled={busy || Boolean(result)}
-                    onPointerDown={(event) => event.preventDefault()} onClick={() => { void submitAnswer(""); }}>不会，查看答案</button>
-                )}
+                ) : null}
                 <button type="submit" className="primary-button" disabled={busy}
                   onPointerDown={(event) => event.preventDefault()}>
                   {submitting ? "提交中" : loading ? "加载中" : "提交"}
