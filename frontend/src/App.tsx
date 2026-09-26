@@ -495,8 +495,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   return (
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : ""}`}>
       {page === "home" ? (
-        <Home user={user} stats={stats} ready={statsReady} hasStarted={hasStarted}
-          onStudy={() => navigate("study")} onSettings={() => navigate("settings")}
+        <Home user={user} stats={stats} ready={statsReady}
+          onSettings={() => navigate("settings")}
           onRefresh={() => { setMessage(""); void guarded(loadStats); }} />
       ) : null}
 
@@ -617,9 +617,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   );
 }
 
-function Home({ user, stats, ready, hasStarted, onStudy, onSettings, onRefresh }: {
-  user: User; stats: Stats; ready: boolean; hasStarted: boolean;
-  onStudy: () => void; onSettings: () => void; onRefresh: () => void;
+function Home({ user, stats, ready, onSettings, onRefresh }: {
+  user: User; stats: Stats; ready: boolean;
+  onSettings: () => void; onRefresh: () => void;
 }) {
   const value = (count: number) => ready ? count.toLocaleString() : "—";
   return (
@@ -629,23 +629,14 @@ function Home({ user, stats, ready, hasStarted, onStudy, onSettings, onRefresh }
         <button type="button" className="icon-button header-settings" aria-label="打开设置" onClick={onSettings}><Icon name="settings" /></button>
       </header>
       <div className="home-intro"><p>每天一点，让英语更熟悉。</p><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
-      <div className="home-main-grid">
-        <section className="today-panel panel">
-          <div className="section-heading"><h2>今日学习</h2><span className="subtle-label">{ready && stats.today_learning > 0 ? "每一次练习都算数" : "从一个句子开始"}</span></div>
-          <div className="today-metrics">
-            <div><strong>{value(stats.today_learning)}</strong><span>答题次数</span></div>
-            <div><strong>{ready && stats.today_learning > 0 ? `${stats.today_accuracy}%` : "—"}</strong><span>今日正确率</span></div>
-          </div>
-          <p className="metric-note">答题次数包含复习和重试。</p>
-        </section>
-        <section className="learning-plan panel">
-          <span className="plan-icon"><Icon name="book" /></span>
-          <span className="eyebrow">在句子里记住单词</span>
-          <h2>{hasStarted ? "接着上次，继续练习" : "你的下一次进步，从这里开始"}</h2>
-          <p>读英文，想中文，写下答案。<br />复习安排会随你的学习进度更新。</p>
-          <button type="button" className="plan-start text-button" onClick={onStudy}>{hasStarted ? "继续学习" : "开始学习"}<Icon name="arrow" /></button>
-        </section>
-      </div>
+      <section className="today-panel panel">
+        <div className="section-heading"><h2>今日学习</h2><span className="subtle-label">{ready && stats.today_learning > 0 ? "每一次练习都算数" : "从一个句子开始"}</span></div>
+        <div className="today-metrics">
+          <div><strong>{value(stats.today_learning)}</strong><span>答题次数</span></div>
+          <div><strong>{ready && stats.today_learning > 0 ? `${stats.today_accuracy}%` : "—"}</strong><span>今日正确率</span></div>
+        </div>
+        <p className="metric-note">答题次数包含复习和重试。</p>
+      </section>
       <section className="overview-section">
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} aria-label="刷新学习数据"><Icon name="refresh" /> 刷新</button></div>
         <div className="overview-grid">

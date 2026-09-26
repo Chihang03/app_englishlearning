@@ -51,7 +51,6 @@ h1, h2, p { margin: 0; }
 .streak-badge { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--accent); background: #e9eee3; padding: 6px 10px; border-radius: 20px; }
 .streak-badge svg { width: 16px; height: 16px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; }
-.home-main-grid { display: grid; gap: 16px; }
 .today-panel { padding: 22px; }
 .section-heading h2 { font-size: 17px; font-weight: 650; }
 .subtle-label { font-size: 11px; color: var(--muted); }
@@ -61,14 +60,8 @@ h1, h2, p { margin: 0; }
 .today-metrics strong { font-size: 39px; line-height: 1.2; font-weight: 550; letter-spacing: -.045em; }
 .today-metrics span { color: var(--muted); font-size: 13px; }
 .metric-note { font-size: 11px; color: var(--muted); }
-.learning-plan { position: relative; padding: 23px; background: #e8eedf; border-color: #dce5d3; }
-.learning-plan .eyebrow { display: block; padding-right: 30px; }
-.learning-plan h2 { font-size: 20px; font-weight: 650; line-height: 1.5; margin: 11px 0 8px; max-width: 270px; }
-.learning-plan p { color: #65745f; font-size: 13px; line-height: 1.8; }
-.plan-icon { position: absolute; right: 22px; top: 21px; color: #6d8962; }
 .text-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; font-weight: 550; color: var(--accent); min-height: 44px; }
 .text-button svg { width: 17px; height: 17px; }
-.plan-start { margin-top: 8px; }
 .overview-section { margin-top: 24px; }
 .overview-section .section-heading { margin-bottom: 9px; }
 .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -189,8 +182,7 @@ h1, h2, p { margin: 0; }
 @media (min-width: 640px) {
   .page-container { padding-top: 40px; }
   .home-intro { justify-content: space-between; margin-bottom: 30px; }
-  .home-main-grid { grid-template-columns: 1fr 1fr; }
-  .today-panel, .learning-plan { padding: 27px; }
+  .today-panel { padding: 27px; }
   .overview-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .today-metrics { padding-top: 30px; }
   .today-metrics strong { font-size: 48px; }
@@ -201,7 +193,7 @@ h1, h2, p { margin: 0; }
 }
 @media (max-width: 360px) {
   .page-container { padding-left: 16px; padding-right: 16px; }
-  .today-panel, .learning-plan, .settings-group { padding: 18px; }
+  .today-panel, .settings-group { padding: 18px; }
   .subtle-label { max-width: 100px; text-align: right; }
   .study-page { padding-left: 12px; padding-right: 12px; }
   .question-card { padding-left: 18px; padding-right: 18px; }
