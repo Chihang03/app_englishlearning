@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "version:update": "node scripts/update-version.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
     "preview": "vite preview"

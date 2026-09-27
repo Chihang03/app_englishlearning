@@ -3,6 +3,7 @@ import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { InlineAnswer } from "./InlineAnswer";
 import { ApiError, errorMessage, isUnauthorized, request } from "./api";
+import { version } from "./version.json";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
 // The old backend shelled out to macOS `say -r`, which took words per minute and
@@ -864,6 +865,7 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
         <PasswordForm />
       </section>
       <button type="button" className="sign-out-button secondary-button" onClick={onSignOut}>退出登录</button>
+      <p className="app-version">版本 {version}</p>
     </section>
   );
 }

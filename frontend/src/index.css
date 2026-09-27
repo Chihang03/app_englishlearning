@@ -135,6 +135,7 @@ h1, h2, p { margin: 0; }
 .study-empty p { color: var(--muted); font-size: 14px; line-height: 1.8; margin-top: 12px; overflow-wrap: anywhere; }
 .empty-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 25px; }
 .settings-page { max-width: 620px; }
+.app-version { margin-top: 24px; text-align: center; font-size: 12px; color: var(--muted); }
 .settings-header { margin-bottom: 25px; }
 .settings-header h1 { font-size: 21px; font-weight: 650; }
 .header-spacer { width: 46px; }
