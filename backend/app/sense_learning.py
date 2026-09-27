@@ -241,7 +241,7 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
         raise HTTPException(status_code=404,detail="Sense/example pair not found")
     if conn.execute("SELECT 1 FROM user_muted_words WHERE user_id=? AND word=lower(trim(?))",
                     (user_id,row["word"])).fetchone():
-        raise HTTPException(status_code=409,detail="此单词已消音，请加载下一题。")
+        raise HTTPException(status_code=409,detail="此单词已设为不再学习，请加载下一题。")
     day_start,day_end = local_day_bounds(today,learner_timezone)
     if conn.execute("""SELECT 1 FROM review_history WHERE user_id=? AND sense_id=?
         AND is_independent=1 AND review_time>=? AND review_time<? LIMIT 1""",
