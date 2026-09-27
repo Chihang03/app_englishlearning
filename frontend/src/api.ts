@@ -1,4 +1,15 @@
 const API_BASE = "";
+const writeListeners = new Set<() => void>();
+let pendingWrites = 0;
+
+export function onApiWrite(listener: () => void) {
+  writeListeners.add(listener);
+  return () => { writeListeners.delete(listener); };
+}
+
+export function hasPendingWrites() {
+  return pendingWrites > 0;
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -26,25 +37,42 @@ function readDetail(body: unknown, fallback: string): string {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    // The session lives in a cookie, which must ride along even when the
-    // frontend is served from a different origin than the API.
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...init
-  });
+  const writing = !["GET", "HEAD"].includes((init?.method ?? "GET").toUpperCase());
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, 15000);
+  init?.signal?.addEventListener("abort", abort, { once: true });
+  if (init?.signal?.aborted) abort();
+  if (writing) pendingWrites++;
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      ...init,
+      signal: controller.signal,
+      cache: "no-store"
+    });
 
-  if (!response.ok) {
-    let message = response.statusText;
-    try {
-      message = readDetail(await response.json(), message);
-    } catch {
-      // A non-JSON error body leaves the status text as the message.
+    if (!response.ok) {
+      let message = response.statusText;
+      try {
+        message = readDetail(await response.json(), message);
+      } catch {
+        // A non-JSON error body leaves the status text as the message.
+      }
+      throw new ApiError(response.status, message);
     }
-    throw new ApiError(response.status, message);
+    return await response.json() as T;
+  } finally {
+    clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abort);
+    if (writing) {
+      pendingWrites--;
+      // Even a lost response may have reached the server. Invalidate on all
+      // write completions, including speech settings saved by another component.
+      for (const listener of writeListeners) listener();
+    }
   }
-
-  return response.json() as Promise<T>;
 }
 
 export function isUnauthorized(error: unknown): boolean {

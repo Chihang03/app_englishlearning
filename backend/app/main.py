@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from contextlib import asynccontextmanager
@@ -9,6 +10,7 @@ from typing import Any, AsyncIterator, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, conlist, root_validator, validator
 
@@ -28,6 +30,7 @@ from .sense_learning import learning_metrics, next_sense_card, record_sense_revi
 from .senses import authored_sense, save_senses, senses_for_word
 from .study_tools import report_content, word_meanings
 from .muted_words import mute_word, restore_word
+from .http_cache import CachePolicyMiddleware
 
 
 # The streak walks back day by day from today, so history older than this cannot
@@ -45,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Context Vocabulary Trainer", lifespan=lifespan)
+app.add_middleware(CachePolicyMiddleware)
 
 # Cross-origin requests are only needed when the frontend is served from a
 # different origin than the API. The default deployment serves both from the
@@ -410,5 +414,21 @@ STATIC_DIR = (
     else Path(__file__).resolve().parents[2] / "frontend" / "dist"
 )
 
+
+@app.get("/api/version")
+def frontend_version() -> dict[str, str | None]:
+    # Read the active build, so the marker always describes the served assets.
+    path = STATIC_DIR / "version.json"
+    if not STATIC_DIR.is_dir():
+        path = Path(__file__).resolve().parents[2] / "frontend" / "src" / "version.json"
+    try:
+        value = json.loads(path.read_text())["version"]
+        return {"version": value if isinstance(value, str) else None}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {"version": None}
+
+
 if STATIC_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
+    # Compress public files only; auth and personalized APIs are never compressed.
+    app.mount("/", GZipMiddleware(StaticFiles(directory=STATIC_DIR, html=True),
+                                  minimum_size=1024, compresslevel=6), name="frontend")
