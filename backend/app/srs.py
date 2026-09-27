@@ -5,6 +5,7 @@ from typing import Any
 
 
 INITIAL_INTERVALS = [1, 3, 7, 15, 30, 90, 180]
+RELEARNING_DELAY_SECONDS = 20 * 60
 
 
 def next_state(

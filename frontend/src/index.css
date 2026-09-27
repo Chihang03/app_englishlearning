@@ -129,6 +129,7 @@ h1, h2, p { margin: 0; }
 .other-sense-example span { display: block; }
 .sentence-translation { font-size: 14px; color: #697369; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
 .feedback-correct { color: var(--accent); font-weight: 600; }
+.study-feedback { color: var(--muted); font-size: 13px; line-height: 1.7; margin-top: 16px; }
 .primary-button { min-height: 48px; padding: 11px 21px; background: var(--accent); color: white; border: 1px solid var(--accent); border-radius: 14px; font-size: 15px; font-weight: 600; }
 .primary-button:hover:not(:disabled) { background: #2c614c; }
 .study-empty { min-height: 0; overflow-y: auto; text-align: center; padding: 38px 24px; margin-top: 40px; }

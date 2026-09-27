@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { InlineAnswer } from "./InlineAnswer";
-import { errorMessage, isUnauthorized, request } from "./api";
+import { ApiError, errorMessage, isUnauthorized, request } from "./api";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
 // The old backend shelled out to macOS `say -r`, which took words per minute and
@@ -24,6 +24,11 @@ const SPEECH_START_TIMEOUT_MS = 8000;
 const emptyStats: Stats = {
   today_learning: 0,
   today_accuracy: 0,
+  today_success: 0,
+  today_success_senses: 0,
+  today_independent_accuracy: null,
+  pending_relearning: 0,
+  pending_relearning_senses: 0,
   total_learned: 0,
   due_review: 0,
   new_words: 0,
@@ -141,6 +146,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [readingCorrectAnswer, setReadingCorrectAnswer] = useState(false);
   const [message, setMessage] = useState("");
   const [queueMessage, setQueueMessage] = useState("");
+  const [retryAt, setRetryAt] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
@@ -156,6 +162,17 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const cancelSpeechRef = useRef<(() => void) | null>(null);
   const voices = useEnglishVoices();
   const speechSupported = "speechSynthesis" in window;
+
+  useEffect(() => {
+    if (retryAt === null || page !== "study") return;
+    // Normally new words fill the gap. If a selected catalog is exhausted,
+    // retry silently when a pending word becomes available, without a countdown.
+    const timer = window.setTimeout(() => {
+      setRetryAt(null);
+      void guarded(loadNext);
+    }, Math.max(0, retryAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [retryAt, page]);
 
   const sentenceParts = useMemo(() => {
     const parts = (card?.cloze_sentence ?? "").split("_______");
@@ -305,7 +322,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     setLoading(true);
     setMessage("");
     try {
-      const payload = await request<{ card: Card | null; message?: string }>("/api/next");
+      const payload = await request<{ card: Card | null; message?: string; retry_after_seconds?: number }>("/api/next");
       if (!mountedRef.current) return;
       cancelSpeechRef.current?.();
       setReadingCorrectAnswer(false);
@@ -314,8 +331,11 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       setCard(payload.card);
       setResult(null);
       otherSensesOpenRef.current = false;
-      setAnswer("");
+      // A resumed failed round still needs correction; it is never a clean test.
+      setAnswer(payload.card?.needs_correction ? payload.card.answer_form : "");
       setQueueMessage(payload.message ?? "");
+      const delay = payload.retry_after_seconds ?? 0;
+      setRetryAt(delay > 0 ? Date.now() + delay * 1000 : null);
     } finally {
       loadingRef.current = false;
       if (mountedRef.current) setLoading(false);
@@ -329,12 +349,24 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     setSubmitting(true);
     setMessage("");
     await guarded(async () => {
-      const review = await request<ReviewResult>("/api/review", {
-        method: "POST",
-        body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value })
-      });
+      let review: ReviewResult;
+      try {
+        review = await request<ReviewResult>("/api/review", {
+          method: "POST",
+          body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id })
+        });
+      } catch (caught) {
+        // Another device or a lost response may already have completed this round.
+        if (caught instanceof ApiError && caught.status === 409) {
+          await loadNext();
+          void guarded(loadStats);
+          return;
+        }
+        throw caught;
+      }
       if (!mountedRef.current) return;
       setResult(review);
+      if (!review.is_correct) setCard({ ...card, needs_correction: true });
       if (!review.is_correct) setAnswer("");
       if (pageRef.current === "study") {
         if (readSentence) playSentence(review.example_sentence, review.is_correct);
@@ -519,7 +551,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           </button>
           <div className="study-progress">
             <span className="eyebrow">专注学习</span>
-            <span>今日已答 {statsReady ? stats.today_learning : "—"} 次</span>
+            <span>今日独立通过 {statsReady ? stats.today_success_senses : "—"} 个义项 · 待巩固 {statsReady ? stats.pending_relearning_senses : "—"}</span>
           </div>
           <details ref={menuRef} className="study-menu" onToggle={(event) => {
             otherSensesOpenRef.current = event.currentTarget.open && Boolean(event.currentTarget.querySelector(".other-senses[open]"));
@@ -553,7 +585,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
             <div className="question-heading">
               <div className="question-labels">
-                <span className="pill">{card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
+                <span className="pill">{card.needs_correction ? "纠正练习" : card.is_relearning ? "独立巩固" : card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
                 <span className="part-of-speech">{card.part_of_speech}</span>
               </div>
               <button type="button" className="icon-button pronunciation-button"
@@ -589,10 +621,16 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                 <p className="sentence-translation">{card.example_translation_cn}</p>
               ) : null}
             </div>
-            <div id="answer-feedback" className="sr-only" aria-live="polite" aria-atomic="true">
-              {result?.is_correct ? <p className="feedback-correct">✓ 答对了 · 这个意思下次复习：{result.srs_state.next_review_date}</p> : result ? (
-                <span>正确答案已在句中显示：{result.correct_answer}。重新输入可重试。</span>
-              ) : null}
+            <div id="answer-feedback" className="study-feedback" aria-live="polite" aria-atomic="true">
+              {result?.is_correct ? result.is_independent ? (
+                <p className="feedback-correct">✓ 今日独立通过 · 下次复习：{result.srs_state.next_review_date}</p>
+              ) : (
+                <p>已完成纠正 · 尚未计入今日成功，稍后会再次独立拼写。</p>
+              ) : result ? (
+                <p>答案已显示：{result.correct_answer}。请重新输入纠正，稍后再独立巩固。</p>
+              ) : card.needs_correction ? (
+                <p>本轮已看过答案，请输入纠正；稍后独立答对才计入今日成功。</p>
+              ) : card.is_relearning ? <p>请独立拼写，答对后计入今日成功。</p> : null}
             </div>
             {message ? <p role="alert" className="error-notice">{message}</p> : null}
             <span className="sr-only" role="status">{submitting ? "提交中" : loading ? "正在加载下一题…" : readingCorrectAnswer ? "整句朗读中，结束后自动进入下一题…" : ""}</span>
@@ -600,8 +638,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         ) : (
           <div className="study-empty panel" role="status">
             <span className="empty-icon"><Icon name={loading ? "book" : message ? "more" : "check"} /></span>
-            <h1>{loading ? "准备好，开始学习" : message ? "题目暂时没有加载成功" : "今天的复习已完成"}</h1>
-            <p>{loading ? "正在准备你的第一道题…" : message || (queueMessage ? "目前没有到期复习或可学习的新词，稍后再来看看。" : "正在准备题目。")}</p>
+            <h1>{loading ? "准备好，开始学习" : message ? "题目暂时没有加载成功" : retryAt !== null ? "当前没有可学习题目" : "今天的复习已完成"}</h1>
+            <p>{loading ? "正在准备你的第一道题…" : message || queueMessage || "正在准备题目。"}</p>
             {!loading ? <div className="empty-actions">
               <button type="button" className="primary-button" onClick={() => navigate("home")}>返回首页</button>
               <button type="button" className="secondary-button" onClick={() => { void guarded(loadNext); }}>重新检查</button>
@@ -650,12 +688,13 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
       </header>
       <div className="home-intro"><p>每天一点，让英语更熟悉。</p><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
       <section className="today-panel panel">
-        <div className="section-heading"><h2>今日学习</h2><span className="subtle-label">{ready && stats.today_learning > 0 ? "每一次练习都算数" : "从一个句子开始"}</span></div>
+        <div className="section-heading"><h2>今日学习</h2><span className="subtle-label">独立拼写通过才算成功</span></div>
         <div className="today-metrics">
-          <div><strong>{value(stats.today_learning)}</strong><span>答题次数</span></div>
-          <div><strong>{ready && stats.today_learning > 0 ? `${stats.today_accuracy}%` : "—"}</strong><span>今日正确率</span></div>
+          <div><strong>{value(stats.today_success)}</strong><span>今日成功单词</span></div>
+          <div><strong>{value(stats.pending_relearning)}</strong><span>待巩固单词</span></div>
         </div>
-        <p className="metric-note">答题次数包含复习和重试。</p>
+        <p className="metric-note">今日独立通过 {value(stats.today_success_senses)} 个义项；成功单词按词去重，不表示全部意思已掌握。提示后纠正不计成功。</p>
+        <p className="metric-note">答题 {value(stats.today_learning)} 次（含纠正） · 独立作答正确率 {ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</p>
       </section>
       <section className="overview-section">
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} aria-label="刷新学习数据"><Icon name="refresh" /> 刷新</button></div>
@@ -676,6 +715,7 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
           <div><dt>已学义项</dt><dd>{value(stats.learned_senses)}</dd></div>
           <div><dt>尚未学习的义项</dt><dd>{value(stats.new_senses)}</dd></div>
           <div><dt>今日到期义项</dt><dd>{value(stats.due_senses)}</dd></div>
+          <div><dt>待巩固义项</dt><dd>{value(stats.pending_relearning_senses)}</dd></div>
           <div><dt>进入间隔复习的义项</dt><dd>{value(stats.mastered_senses)}</dd></div>
         </dl>
         {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">已保留 {stats.legacy_unmapped_words} 个单词的旧学习记录，它们的具体义项需要重新确认。</p> : null}

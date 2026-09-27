@@ -4,16 +4,17 @@ import logging
 import os
 import secrets
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from contextlib import closing
 from pathlib import Path
 
 from .security import DEFAULT_TIMEZONE, hash_password, resolve_timezone, utc_iso_from, utc_now_iso
+from .srs import RELEARNING_DELAY_SECONDS
 
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def run_migrations(db_path: Path) -> None:
@@ -72,12 +73,47 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 5 (sense-level learning)")
 
+        if version < 6:
+            conn.execute("BEGIN")
+            _migrate_to_v6(conn)
+            conn.execute("PRAGMA user_version = 6")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 6 (independent recall)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v6(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        """CREATE TABLE study_attempts (
+            id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sense_id INTEGER NOT NULL REFERENCES word_senses(id) ON DELETE CASCADE,
+            example_id INTEGER NOT NULL REFERENCES sense_examples(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL, hint_used INTEGER NOT NULL DEFAULT 0 CHECK(hint_used IN (0,1)),
+            completed_at TEXT
+        )""",
+        "CREATE UNIQUE INDEX idx_open_study_attempt ON study_attempts(user_id,sense_id) WHERE completed_at IS NULL",
+        """CREATE TABLE relearning_queue (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sense_id INTEGER NOT NULL REFERENCES word_senses(id) ON DELETE CASCADE,
+            queued_at TEXT NOT NULL, ready_at TEXT NOT NULL, queue_order INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(user_id,sense_id)
+        )""",
+        "CREATE INDEX idx_relearning_order ON relearning_queue(user_id,queued_at)",
+        "ALTER TABLE review_history ADD COLUMN attempt_id TEXT REFERENCES study_attempts(id)",
+        # NULL means old history whose hint usage cannot be reconstructed.
+        "ALTER TABLE review_history ADD COLUMN is_independent INTEGER CHECK(is_independent IN (0,1))",
+        "ALTER TABLE review_history ADD COLUMN is_first_attempt INTEGER CHECK(is_first_attempt IN (0,1))",
+    ])
+    now = utc_now_iso()
+    ready = utc_iso_from(datetime.now(timezone.utc)+timedelta(seconds=RELEARNING_DELAY_SECONDS+1))
+    conn.execute("""INSERT INTO relearning_queue(user_id,sense_id,queued_at,ready_at,queue_order)
+        SELECT user_id,sense_id,?,?,sense_id FROM sense_srs_state WHERE status='Learning'""", (now,ready))
 
 
 def _migrate_to_v5(conn: sqlite3.Connection) -> None:

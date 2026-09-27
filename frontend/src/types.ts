@@ -5,6 +5,9 @@ export type User = {
 };
 
 export type Card = {
+  attempt_id: string;
+  needs_correction: boolean;
+  is_relearning: boolean;
   id: number;
   sense_id: number;
   example_id: number;
@@ -37,6 +40,8 @@ export type ReviewResult = {
   word: string;
   other_senses: Sense[];
   is_correct: boolean;
+  is_independent: boolean;
+  outcome: "independent" | "corrected" | "incorrect";
   is_blank: boolean;
   correct_answer: string;
   example_sentence: string;
@@ -51,6 +56,11 @@ export type ReviewResult = {
 export type Stats = {
   today_learning: number;
   today_accuracy: number;
+  today_success: number;
+  today_success_senses: number;
+  today_independent_accuracy: number | null;
+  pending_relearning: number;
+  pending_relearning_senses: number;
   total_learned: number;
   due_review: number;
   new_words: number;
