@@ -1,7 +1,7 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
-import { InlineAnswer } from "./InlineAnswer";
+import { StudyCard } from "./StudyCard";
 import { StudyDeck } from "./StudyDeck";
 import type { PreviousQuestion } from "./StudyDeck";
 import { StudyTools } from "./StudyTools";
@@ -146,11 +146,11 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [reviewMessage, setReviewMessage] = useState("");
   const reviewingRef = useRef(false);
   const deckMovingRef = useRef(false);
-  const currentQuestionRef = useRef({ card, result });
-  currentQuestionRef.current = { card, result };
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [statsReady, setStatsReady] = useState(false);
   const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
+  const currentQuestionRef = useRef({ card, result, showTranslation: settings.show_sentence_translation });
+  currentQuestionRef.current = { card, result, showTranslation: settings.show_sentence_translation };
   const [wordLists, setWordLists] = useState<WordList[]>([]);
   const [wordListsReady, setWordListsReady] = useState(false);
   const studyToolsOpenRef = useRef(false);
@@ -218,12 +218,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     }, Math.max(0, retryAt - Date.now()));
     return () => window.clearTimeout(timer);
   }, [retryAt, page, reviewing]);
-
-  const sentenceParts = useMemo(() => {
-    const parts = (card?.cloze_sentence ?? "").split("_______");
-    // An imported sentence without a matching word can still be answered.
-    return parts.length > 1 ? parts : [...parts, ""];
-  }, [card]);
 
   function focusAnswer() {
     if (reviewingRef.current || deckMovingRef.current) return;
@@ -376,6 +370,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   async function loadNext() {
     if (loadingRef.current || mutePendingRef.current || reviewingRef.current) return;
+    const old = currentQuestionRef.current;
     cancelSpeechRef.current?.();
     setReadingCorrectAnswer(false);
     loadingRef.current = true;
@@ -388,9 +383,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       setReadingCorrectAnswer(false);
       // Do not remove the old input while fetching: mobile keyboards depend on
       // the focused DOM node surviving the transition to the next card.
-      const old = currentQuestionRef.current;
       if (old.card && old.result?.is_correct && old.card.attempt_id !== payload.card?.attempt_id) {
-        setPreviousQuestion({ card: old.card, sentence: old.result.example_sentence, answer: old.result.correct_answer });
+        setPreviousQuestion({ card: old.card, result: old.result, showTranslation: old.showTranslation });
       }
       closeStudyTool();
       setCard(payload.card);
@@ -568,7 +562,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function readPreviousQuestion() {
     if (!previousQuestion || !reviewingRef.current || pageRef.current !== "study") return;
     setReviewMessage("");
-    speak(previousQuestion.sentence, undefined, () => {
+    speak(previousQuestion.result.example_sentence, undefined, () => {
       if (reviewingRef.current && pageRef.current === "study") setReviewMessage("上一题朗读未能完成，请点击朗读按钮重播。");
     });
   }
@@ -744,54 +738,22 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
         <StudyDeck currentId={card?.attempt_id ?? null} previous={previousQuestion} reviewing={reviewing}
           blocked={loading || submitting || hintPending || mutePending || Boolean(studyTool)} canAdvance={Boolean(card && result?.is_correct)}
-          showTranslation={settings.show_sentence_translation} speechSupported={speechSupported} reviewMessage={reviewMessage}
-          onReviewChange={changeReview} onReviewReady={readPreviousQuestion} onReplay={readPreviousQuestion}
+          previousContent={previousQuestion ? <StudyCard key={previousQuestion.card.attempt_id} card={previousQuestion.card} result={previousQuestion.result}
+            answer={previousQuestion.result.correct_answer} showTranslation={previousQuestion.showTranslation} readOnly
+            marks={previousQuestion.result.memory.known_candidate ? <div className="confirmation-row"><ConfirmationMarks count={previousQuestion.result.memory.confirmations} /></div> : null}
+            soundIcon={<Icon name="sound" />} message={reviewMessage} wordHintDisabled={!speechSupported}
+            onWordHint={readPreviousQuestion} /> : null}
+          onReviewChange={changeReview} onReviewReady={readPreviousQuestion}
           onAdvance={() => { void guarded(loadNext); }} onMotionChange={deckMotionChanged}
           onInteraction={() => { cancelSpeechRef.current?.(); }}>
         {card ? (
-          <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
-            {confirmationCount !== null ? <div className="confirmation-row"><ConfirmationMarks count={confirmationCount} /></div> : null}
-            <div className="question-heading">
-              <div className="question-labels">
-                <span className="pill">{card.status === "New" && !card.needs_correction ? (card.is_new_word ? "新词" : "新用法") : "复习"}</span>
-                <span className="part-of-speech">{card.part_of_speech}</span>
-              </div>
-              <button type="button" className="icon-button pronunciation-button"
-                onClick={() => { void playWordHint(); }}
-                disabled={!speechSupported || hintPending || loading || submitting || mutePending} aria-label="朗读单词" title="朗读单词">
-                <Icon name="sound" />
-              </button>
-            </div>
-            <div ref={questionRef} className="question-content" tabIndex={0} aria-label="英文句子">
-              <p className="english-sentence">
-                {sentenceParts.flatMap((part, index) => [
-                  <span key={`text-${index}`}>{part}</span>,
-                  index < sentenceParts.length - 1 ? (
-                    <InlineAnswer key={`blank-${index}`} id={index === 0 ? "study-answer" : undefined}
-                      ref={index === 0 ? inputRef : undefined}
-                      className={`sentence-input ${result?.is_correct ? "is-correct" : result || card.needs_correction ? "is-retry" : ""}`}
-                      value={result ? result.correct_answer : answer}
-                      onEnter={handleEnter}
-                      onChange={(event) => { if (!busy) handleAnswerChange(event.target.value.replace(/[\r\n]+/g, " ")); }}
-                      onFocus={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
-                      onClick={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
-                      aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
-                      aria-busy={busy} aria-invalid={!result?.is_correct && (Boolean(result) || card.needs_correction)}
-                      autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
-                      enterKeyHint="send" inputMode="text" />
-                  ) : null
-                ])}
-              </p>
-            </div>
-            <div className="meaning-block" tabIndex={0} aria-label="单词释义与句子翻译">
-              <p className="word-meaning">{card.definition_cn || card.definition_en}</p>
-              {settings.show_sentence_translation && card.example_translation_cn ? (
-                <p className="sentence-translation">{card.example_translation_cn}</p>
-              ) : null}
-            </div>
-            {message ? <p role="alert" className="error-notice">{message}</p> : null}
-            <span className="sr-only" role="status">{submitting ? "提交中" : loading ? "正在加载下一题…" : readingCorrectAnswer ? "整句朗读中，结束后自动进入下一题…" : ""}</span>
-          </form>
+          <StudyCard card={card} result={result} answer={answer} showTranslation={settings.show_sentence_translation}
+            marks={confirmationCount !== null ? <div className="confirmation-row"><ConfirmationMarks count={confirmationCount} /></div> : null}
+            soundIcon={<Icon name="sound" />} message={message} loading={loading} submitting={submitting}
+            readingCorrectAnswer={readingCorrectAnswer} busy={busy}
+            wordHintDisabled={!speechSupported || hintPending || loading || submitting || mutePending}
+            inputRef={inputRef} questionRef={questionRef} onSubmit={submit} onEnter={handleEnter}
+            onWordHint={() => { void playWordHint(); }} onAnswerChange={handleAnswerChange} />
         ) : (
           <div className="study-empty panel" role="status">
             <span className="empty-icon"><Icon name={loading ? "book" : message ? "more" : "check"} /></span>
