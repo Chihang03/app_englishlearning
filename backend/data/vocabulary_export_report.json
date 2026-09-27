@@ -2,7 +2,7 @@
   "word_count": 12891,
   "sense_count": 30538,
   "example_count": 42122,
-  "english_only_senses": 15235,
+  "english_only_senses": 12434,
   "unpaired_words_by_list": {
     "ngsl_core": [
       "upon",
@@ -2883,5 +2883,18 @@
       "workbook",
       "wristwatch"
     ]
+  },
+  "chinese_supplements": 2801,
+  "assistant_reviewed_supplements": 201,
+  "dictionary_supplements": 2600,
+  "chinese_supplements_by_method": {
+    "assistant_reviewed": 201,
+    "dictionary_exact_example": 7,
+    "dictionary_single_sense": 2538,
+    "dictionary_exact_definition": 55
+  },
+  "chinese_supplements_by_dictionary": {
+    "macOS Simplified Chinese - English": 2177,
+    "macOS Traditional Chinese - English (Dr. Eye)": 423
   }
 }

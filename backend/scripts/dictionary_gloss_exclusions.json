@@ -1,0 +1,140 @@
+{
+  "format_version": 1,
+  "entries": [
+    {
+      "word": "piano",
+      "sense_key": "en:m_en_gbus0777960.029",
+      "expected_definition_en": "performed softly",
+      "expected_part_of_speech": "形容词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "以弱拍彈奏的",
+      "reason": "词典使用弱拍描述，不能对应音量较轻"
+    },
+    {
+      "word": "obligate",
+      "sense_key": "en:m_en_gbus0708870.018",
+      "expected_definition_en": "restricted to a particular function or mode of life.",
+      "expected_part_of_speech": "形容词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "有義務的、必要的",
+      "reason": "普通义务用法不能对应生物学限定用法"
+    },
+    {
+      "word": "tangible",
+      "sense_key": "en:m_en_gbus1029730.009",
+      "expected_definition_en": "a thing that is perceptible by touch",
+      "expected_part_of_speech": "名词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "有形資產",
+      "reason": "资产用法不能对应所有可触物"
+    },
+    {
+      "word": "definitive",
+      "sense_key": "en:m_en_gbus0259880.012",
+      "expected_definition_en": "a definitive postage stamp",
+      "expected_part_of_speech": "名词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "限定詞",
+      "reason": "限定词不能对应普通邮票"
+    },
+    {
+      "word": "rapture",
+      "sense_key": "en:m_en_gbus0845450.015",
+      "expected_definition_en": "(according to some millenarian teaching) transport (a believer) from earth to heaven at the Second Coming of Christ",
+      "expected_part_of_speech": "动词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "使狂喜，使歡天喜地",
+      "reason": "使狂喜不能对应宗教升天用法"
+    },
+    {
+      "word": "tingle",
+      "sense_key": "en:m_en_gbus1055750.005",
+      "expected_definition_en": "experience or cause to experience a slight prickling or stinging sensation",
+      "expected_part_of_speech": "动词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "震顫、激動",
+      "reason": "震颤或激动不能准确描述针刺感"
+    },
+    {
+      "word": "vantage",
+      "sense_key": "en:m_en_gbus1120440.004",
+      "expected_definition_en": "a place or position affording a good view of something",
+      "expected_part_of_speech": "名词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "優勢、優越的位置",
+      "reason": "优势不能可靠对应观景位置"
+    },
+    {
+      "word": "lax",
+      "sense_key": "en:m_en_gbus0569410.005",
+      "expected_definition_en": "lacrosse",
+      "expected_part_of_speech": "名词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "鬆弛的母音",
+      "reason": "元音术语不能对应长曲棍球"
+    },
+    {
+      "word": "anodyne",
+      "sense_key": "en:m_en_gbus0035460.005",
+      "expected_definition_en": "not likely to provoke dissent or offense; inoffensive, often deliberately so",
+      "expected_part_of_speech": "形容词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "止痛的",
+      "reason": "止痛义不能对应不冒犯人的用法"
+    },
+    {
+      "word": "balky",
+      "sense_key": "en:m_en_gbus0068820.011",
+      "expected_definition_en": "reluctant; uncooperative",
+      "expected_part_of_speech": "形容词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "有停蹄不前之癖的",
+      "reason": "马不前进的解释不能用于一般不合作行为"
+    },
+    {
+      "word": "bard",
+      "sense_key": "en:m_en_gbus0073140.009",
+      "expected_definition_en": "cover (meat or game) with slices of bacon",
+      "expected_part_of_speech": "动词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "給（戰馬等）披鎧甲",
+      "reason": "披铠甲不能对应用培根包裹食物"
+    },
+    {
+      "word": "endemic",
+      "sense_key": "en:m_en_gbus0323120.012",
+      "expected_definition_en": "a plant or animal that is native and restricted to a certain place",
+      "expected_part_of_speech": "名词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "地方病",
+      "reason": "地方病不能对应特有动植物"
+    },
+    {
+      "word": "instate",
+      "sense_key": "en:m_en_gbus0513140.007",
+      "expected_definition_en": "set up in position; install or establish",
+      "expected_part_of_speech": "动词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "擔任、銓敘、安置",
+      "reason": "担任和任命行为不完全相同"
+    },
+    {
+      "word": "lair",
+      "sense_key": "en:m_en_gbus0561580.007",
+      "expected_definition_en": "dress or behave in a flashy manner",
+      "expected_part_of_speech": "动词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "進窩、在穴中休息",
+      "reason": "进窝不能对应华丽打扮的方言用法"
+    },
+    {
+      "word": "potentiate",
+      "sense_key": "en:m_en_gbus0804640.005",
+      "expected_definition_en": "increase the power, effect, or likelihood of (something, especially a drug or physiological reaction)",
+      "expected_part_of_speech": "动词",
+      "dictionary": "macOS Traditional Chinese - English (Dr. Eye)",
+      "definition_cn": "使成為可能",
+      "reason": "使可能不能准确对应增强作用"
+    }
+  ]
+}

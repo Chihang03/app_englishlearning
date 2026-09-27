@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from dictionary_senses import parse_record
+from chinese_glosses import apply_supplements
 
 
 WORD_RE = re.compile(r"^[A-Za-z][A-Za-z'-]*$")
@@ -385,6 +386,9 @@ def build(
     if not words:
         raise RuntimeError("No words had a real example sentence; refusing to write an empty catalog.")
 
+    supplement_count = apply_supplements(words)
+    print(f"Applied {supplement_count:,} saved Chinese sense supplements")
+
     words.sort(key=lambda item: (
         min(next(pack["sort_order"] for pack in PACKS if pack["id"] == member["list_id"])
             for member in item["memberships"]),
@@ -416,6 +420,7 @@ def build(
     report = {
         "word_count": len(words), "sense_count": sense_count, "example_count": example_count,
         "english_only_senses": sum(not s["definition_cn"] for w in words for s in w["senses"]),
+        "chinese_supplements": supplement_count,
         "unpaired_words_by_list": missing,
     }
     output.with_name("vocabulary_export_report.json").write_text(

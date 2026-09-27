@@ -10,6 +10,41 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 
 @unittest.skipUnless(importlib.util.find_spec('lxml'), 'optional Mac export dependencies are not installed')
 class DictionaryExportTests(unittest.TestCase):
+    def test_plural_variant_inside_sense_does_not_hide_headword(self):
+        from dictionary_senses import parse_record
+        markup = '''<div><span class="gramb"><span class="ps">noun</span>
+          <span class="semb" lexid="lodging"><span class="frmg">
+            <span class="frm">accommodations</span></span>
+            <span class="trans">住所</span><span class="exg">
+            <span class="ex">The office had accommodation for many clerks</span>
+            </span></span></span></div>'''
+        senses = parse_record(markup, 'accommodation', 'zh', ['accommodation', 'accommodations'])['senses']
+        self.assertEqual(senses[0]['key'], 'zh:lodging')
+        self.assertEqual(senses[0]['definition_cn'], '住所')
+        self.assertEqual(len(senses[0]['examples']), 1)
+
+    def test_grammatical_block_for_phrasal_verb_is_still_excluded(self):
+        from dictionary_senses import parse_record
+        markup = '''<div><span class="gramb"><span class="ps">verb</span>
+          <span class="frm">take off</span><span class="semb" lexid="flight">
+          <span class="trans">起飞</span></span></span></div>'''
+        self.assertEqual(parse_record(markup, 'take', 'zh', ['take'])['senses'], [])
+
+    def test_traditional_groups_keep_only_own_gloss_and_examples(self):
+        from traditional_dictionary_senses import parse_traditional_record
+        markup = '''<div><span class="se1"><span class="pos">n.</span>
+          <span class="se2"><span class="msDict"><span class="trans">廣告</span></span>
+            <span class="eg"><span class="ex">I saw the ad yesterday.</span>
+              <span class="trans">我昨天看到了廣告。</span></span></span></span>
+          <span class="subEntry"><span class="se1"><span class="pos">n.</span>
+            <span class="se2"><span class="trans">不應加入的片語</span></span>
+          </span></span></div>'''
+        senses = parse_traditional_record(markup, 'ad', ['ad', 'ads'])
+        self.assertEqual(len(senses), 1)
+        self.assertEqual(senses[0]['definition_cn'], '廣告')
+        self.assertEqual(senses[0]['part_of_speech'], '名词')
+        self.assertEqual(senses[0]['examples'][0]['sentence'], 'I saw the ad yesterday.')
+
     def test_bilingual_group_keeps_its_own_gloss_pos_and_translation(self):
         from dictionary_senses import parse_record
         markup='''<div><span class="gramb"><span class="ps">noun</span>
