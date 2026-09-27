@@ -119,15 +119,15 @@ h1, h2, p { margin: 0; }
 .study-deck-current > .question-card { margin-bottom: 0; }
 .study-deck-previous { position: absolute; inset: 0; display: flex; min-height: 0; transform: translateX(calc(-100% + var(--drag-x, 0px))); transition: transform .25s ease; }
 .previous-question { width: 100%; margin-bottom: 0; }
-.previous-answer { font-size: 14px; color: var(--accent); margin-bottom: 6px; }
+.previous-question textarea { pointer-events: none; caret-color: transparent; }
 .study-deck-viewport.is-reviewing .study-deck-current { position: absolute; inset: 0; transform: translateX(calc(100% + var(--drag-x, 0px))); }
 .study-deck-viewport.is-reviewing .study-deck-previous { position: relative; width: 100%; min-width: 0; flex: 0 1 auto; transform: translateX(var(--drag-x, 0px)); }
 .study-deck-viewport.is-dragging { user-select: none; }
 .study-deck-viewport.is-dragging > div { transition: none; }
 .study-deck-viewport.is-advancing .study-deck-current { animation: card-enter .25s ease both; }
 .study-deck-viewport.is-advancing .study-deck-previous { animation: card-leave .25s ease both; }
-.study-deck-controls { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 4px; font-size: 12px; color: var(--muted); }
-.study-deck-controls button { min-height: 44px; color: var(--accent); font-size: 13px; padding: 0 8px; }
+.study-deck-navigation:focus-within { position: static; width: auto; height: auto; clip: auto; white-space: normal; margin: 0; overflow: visible; display: flex; justify-content: space-between; }
+.study-deck-navigation button { min-height: 44px; color: var(--accent); padding: 0 8px; }
 @keyframes card-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes card-leave { from { transform: translateX(0); } to { transform: translateX(-100%); } }
 @media (prefers-reduced-motion: reduce) { .study-deck-viewport > div { animation: none !important; } }

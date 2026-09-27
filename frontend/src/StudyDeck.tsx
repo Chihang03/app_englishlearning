@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent, ReactNode } from "react";
-import type { Card } from "./types";
+import type { Card, ReviewResult } from "./types";
 
-export type PreviousQuestion = { card: Card; sentence: string; answer: string };
+export type PreviousQuestion = { card: Card; result: ReviewResult; showTranslation: boolean };
 
 type Props = {
   currentId: string | null;
@@ -10,13 +10,10 @@ type Props = {
   reviewing: boolean;
   blocked: boolean;
   canAdvance: boolean;
-  showTranslation: boolean;
-  speechSupported: boolean;
-  reviewMessage: string;
+  previousContent: ReactNode;
   children: ReactNode;
   onReviewChange: (reviewing: boolean) => void;
   onReviewReady: () => void;
-  onReplay: () => void;
   onAdvance: () => void;
   onMotionChange: (moving: boolean) => void;
   onInteraction: () => void;
@@ -57,12 +54,12 @@ export function StudyDeck(props: Props) {
 
   useLayoutEffect(() => {
     if (currentId.current === props.currentId) return;
-    const hadQuestion = currentId.current !== null;
+    const oldId = currentId.current;
     currentId.current = props.currentId;
     gesture.current = null;
     setOffset(0);
     setDragging(false);
-    if (hadQuestion && props.previous) {
+    if (oldId !== null && props.previous?.card.attempt_id === oldId) {
       setAdvancing(true);
       motion();
     }
@@ -151,26 +148,13 @@ export function StudyDeck(props: Props) {
         {props.children}
       </div>
       {previous ? <div className="study-deck-previous" inert={!reviewing} aria-hidden={!reviewing || undefined}>
-        <section className="question-card previous-question" aria-label="上一题，仅回看">
-          <div className="question-heading">
-            <div className="question-labels"><span className="pill">上一题 · 仅回看</span><span className="part-of-speech">{previous.card.part_of_speech}</span></div>
-            <button type="button" className="icon-button pronunciation-button" disabled={!props.speechSupported || !interactive}
-              onClick={props.onReplay} aria-label="重新朗读上一题句子"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Z" /><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" /></svg></button>
-          </div>
-          <div className="question-content" tabIndex={reviewing ? 0 : -1} aria-label="上一题完整英文句子"><p className="english-sentence">{previous.sentence}</p></div>
-          <div className="meaning-block" tabIndex={reviewing ? 0 : -1} aria-label="上一题释义与翻译">
-            <p className="previous-answer">正确答案：{previous.answer}</p>
-            <p className="word-meaning">{previous.card.definition_cn || previous.card.definition_en}</p>
-            {props.showTranslation && previous.card.example_translation_cn ? <p className="sentence-translation">{previous.card.example_translation_cn}</p> : null}
-          </div>
-          {props.reviewMessage ? <p role="alert" className="error-notice">{props.reviewMessage}</p> : null}
-        </section>
+        {props.previousContent}
       </div> : null}
     </div>
-    <div className="study-deck-controls" aria-label="切换学习卡片">
-      {reviewing ? <><span>仅保留上一题</span><button type="button" disabled={!interactive} onClick={() => changeView(false)}>返回当前题 →</button></> : <>
+    <div className="study-deck-navigation sr-only" aria-label="切换学习卡片">
+      {reviewing ? <button type="button" disabled={!interactive} onClick={() => changeView(false)}>返回当前题 →</button> : <>
         <button type="button" disabled={!previous || !interactive} onClick={() => changeView(true)}>← 上一题</button>
-        {canAdvance ? <button type="button" disabled={!interactive} onClick={props.onAdvance}>下一题 →</button> : <span>{previous ? "右滑回看上一题" : "完成后自动切换"}</span>}
+        {canAdvance ? <button type="button" disabled={!interactive} onClick={props.onAdvance}>下一题 →</button> : null}
       </>}
     </div>
     <span className="sr-only" role="status">{reviewing ? "正在回看上一题，左滑返回当前题" : "当前题目"}</span>
