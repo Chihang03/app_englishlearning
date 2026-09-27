@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from .security import local_day_bounds, utc_iso_from, utc_now_iso
 from .senses import contains_target, example_for_sense, senses_for_word, write_state
 from .srs import RELEARNING_DELAY_SECONDS, next_state
+from .adaptive_memory import advance_memory, maybe_calibrate, memory_summary
 
 
 # Both counters and card selection use the same due-time and visibility rules.
@@ -19,8 +20,9 @@ _DUE_SENSES_SQL = """SELECT p.*,s.word_id,q.ready_at,q.queue_order,
     FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
     JOIN words w ON w.id=s.word_id
     LEFT JOIN relearning_queue q ON q.user_id=p.user_id AND q.sense_id=p.sense_id
+    LEFT JOIN adaptive_memory m ON m.user_id=p.user_id AND m.sense_id=p.sense_id
     WHERE p.user_id=? AND s.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)
-      AND p.status!='Mature'
+      AND (p.status!='Mature' OR m.sense_id IS NOT NULL)
       AND ((q.sense_id IS NULL AND p.next_review_date<=?) OR q.ready_at<=?)
       AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)"""
 
@@ -31,7 +33,7 @@ def selected_filter(user_id: int) -> tuple[str, tuple[int, int]]:
         WHERE m.word_id=w.id AND u.user_id=? AND u.selected=1)))""", (user_id,user_id)
 
 
-def learning_metrics(conn, user_id: int, today: date) -> dict[str, int | str | None]:
+def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
     now = utc_now_iso()
     visible, args = selected_filter(user_id)
     new = conn.execute(f"""SELECT COUNT(DISTINCT w.id) AS words,COUNT(*) AS senses
@@ -81,7 +83,8 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, int | str | N
     return {"total_learned": learned, "new_words": new_words, "new_senses": new["senses"],
             "words_with_new_senses": new["words"], "due_review": due["due_senses"],
             **dict(progress), **dict(due), **dict(complete), "legacy_unmapped_words": legacy,
-            "next_relearning_at": upcoming["next_relearning_at"]}
+            "next_relearning_at": upcoming["next_relearning_at"],
+            "memory_model": memory_summary(conn,user_id)}
 
 
 def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[str, Any]:
@@ -93,6 +96,8 @@ def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[
     started = conn.execute("""SELECT 1 FROM srs_state WHERE user_id=? AND word_id=? UNION ALL
         SELECT 1 FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id WHERE p.user_id=? AND s.word_id=? LIMIT 1""",
         (user_id,sense["word_id"],user_id,sense["word_id"])).fetchone()
+    memory = conn.execute("SELECT known_candidate,confirmations FROM adaptive_memory WHERE user_id=? AND sense_id=?",
+                          (user_id,sense["id"])).fetchone()
     return {"id": sense["word_id"], "word": sense["word"], "sense_id": sense["id"],
             "example_id": example["id"], "part_of_speech": sense["part_of_speech"],
             "definition_cn": sense["definition_cn"], "definition_en": sense["definition_en"],
@@ -100,14 +105,22 @@ def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[
             "example_translation_cn": example["translation_cn"], "answer_form": example["target_form"],
             "status": sense["status"], "is_new_word": started is None, "remaining_today": remaining_today,
             "attempt_id": attempt["id"], "needs_correction": bool(attempt["hint_used"]),
+            "pronunciation_used": bool(attempt["pronunciation_used"]),
+            "answer_exposed": bool(attempt["answer_exposed"]),
+            "known_candidate": bool(memory["known_candidate"]) if memory else False,
+            "confirmations": memory["confirmations"] if memory else 0,
             "is_relearning": conn.execute("SELECT 1 FROM relearning_queue WHERE user_id=? AND sense_id=?",
                 (user_id,sense["id"])).fetchone() is not None}
 
 
 def start_attempt(conn, user_id: int, sense_id: int, example_id: int):
     attempt_id = secrets.token_urlsafe(24)
-    conn.execute("INSERT INTO study_attempts(id,user_id,sense_id,example_id,created_at) VALUES(?,?,?,?,?)",
+    conn.execute("INSERT INTO study_attempts(id,user_id,sense_id,example_id,created_at,tracking_version) VALUES(?,?,?,?,?,1)",
                  (attempt_id,user_id,sense_id,example_id,utc_now_iso()))
+    cutoff = utc_iso_from(datetime.now(timezone.utc)-timedelta(seconds=RELEARNING_DELAY_SECONDS))
+    if conn.execute("SELECT 1 FROM sense_exposures WHERE user_id=? AND sense_id=? AND exposed_at>=?",
+                    (user_id,sense_id,cutoff)).fetchone():
+        conn.execute("UPDATE study_attempts SET answer_exposed=1 WHERE id=?",(attempt_id,))
     return conn.execute("SELECT * FROM study_attempts WHERE id=?", (attempt_id,)).fetchone()
 
 
@@ -172,9 +185,37 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
     return {"card": make_card(conn,row,user_id,remaining,attempt)}
 
 
+def record_hint(conn, user_id: int, attempt_id: str, kind: str) -> dict[str, bool]:
+    conn.execute("BEGIN IMMEDIATE")
+    attempt = conn.execute("SELECT * FROM study_attempts WHERE id=? AND user_id=? AND completed_at IS NULL",
+                           (attempt_id,user_id)).fetchone()
+    if attempt is None:
+        raise HTTPException(status_code=409,detail="本轮题目已结束，请加载下一题。")
+    column = "pronunciation_used" if kind == "pronunciation" else "answer_exposed"
+    conn.execute(f"UPDATE study_attempts SET {column}=1 WHERE id=?",(attempt_id,))
+    return {"recorded": True}
+
+
+def record_related_exposure(conn, user_id: int, attempt_id: str) -> dict[str, bool]:
+    conn.execute("BEGIN IMMEDIATE")
+    source = conn.execute("""SELECT s.word_id,s.id FROM study_attempts a JOIN word_senses s ON s.id=a.sense_id
+        WHERE a.id=? AND a.user_id=?""",(attempt_id,user_id)).fetchone()
+    if source is None:
+        raise HTTPException(status_code=409,detail="题目不匹配，请加载下一题。")
+    now = utc_now_iso()
+    conn.execute("""INSERT INTO sense_exposures(user_id,sense_id,exposed_at)
+        SELECT ?,id,? FROM word_senses WHERE word_id=? AND id!=? AND active=1
+        ON CONFLICT(user_id,sense_id) DO UPDATE SET exposed_at=excluded.exposed_at""",
+        (user_id,now,source["word_id"],source["id"]))
+    conn.execute("""UPDATE study_attempts SET answer_exposed=1 WHERE user_id=? AND completed_at IS NULL
+        AND sense_id IN (SELECT id FROM word_senses WHERE word_id=? AND id!=?)""",
+        (user_id,source["word_id"],source["id"]))
+    return {"recorded": True}
+
+
 def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id: int | None,
                         example_id: int | None, answer: str, attempt_id: str | None = None,
-                        learner_timezone=timezone.utc) -> dict[str, Any]:
+                        learner_timezone=timezone.utc, active_response_ms: int | None = None) -> dict[str, Any]:
     conn.execute("BEGIN IMMEDIATE")
     if (sense_id is None) != (example_id is None):
         raise HTTPException(status_code=422,detail="Submit both sense_id and example_id")
@@ -213,23 +254,43 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
                                    (user_id,sense_id)).fetchone()
             if pending and pending["ready_at"] > utc_now_iso():
                 raise HTTPException(status_code=409,detail="待巩固词需要间隔后再独立作答。")
+            scheduled = conn.execute("SELECT next_review_date,status FROM sense_srs_state WHERE user_id=? AND sense_id=?",
+                                     (user_id,sense_id)).fetchone()
+            if not pending and scheduled and (scheduled["next_review_date"] > today.isoformat() or scheduled["status"] == "Mature"):
+                raise HTTPException(status_code=409,detail="这个义项尚未到复习时间，请加载下一题。")
             attempt = start_attempt(conn,user_id,sense_id,example_id)
     answer = answer.strip()
     correct = " ".join(answer.casefold().split()) == " ".join(row["target_form"].casefold().split())
-    independent = correct and not attempt["hint_used"]
+    assisted = bool(attempt["pronunciation_used"] or attempt["answer_exposed"])
+    independent = correct and not attempt["hint_used"] and not assisted
     now = utc_now_iso()
-    conn.execute("""INSERT INTO review_history(user_id,word_id,sense_id,example_id,review_time,user_answer,
-        is_correct,attempt_id,is_independent,is_first_attempt) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-        (user_id,word_id,sense_id,example_id,now,answer,int(correct),attempt["id"],int(independent),int(not attempt["hint_used"])))
     current = conn.execute("SELECT * FROM sense_srs_state WHERE user_id=? AND sense_id=?", (user_id,sense_id)).fetchone()
     cutoff = utc_iso_from(datetime.now(timezone.utc)-timedelta(days=180))
     had_wrong = conn.execute("SELECT 1 FROM review_history WHERE user_id=? AND sense_id=? AND is_correct=0 AND review_time>=? LIMIT 1", (user_id,sense_id,cutoff)).fetchone() is not None
+    memory = advance_memory(conn,user_id,sense_id,current,correct=correct,independent=independent,
+                            practice=bool(attempt["hint_used"]) or (correct and not independent),
+                            assisted=assisted,today=today,now=now,active_response_ms=active_response_ms,
+                            allow_known_prior=attempt["tracking_version"] == 1)
+    conn.execute("""INSERT INTO review_history(user_id,word_id,sense_id,example_id,review_time,user_answer,
+        is_correct,attempt_id,is_independent,is_first_attempt,pronunciation_used,active_response_ms,
+        base_recall_probability,predicted_recall_probability,memory_model_version)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (user_id,word_id,sense_id,example_id,now,answer,int(correct),attempt["id"],int(independent),
+         int(not attempt["hint_used"] and not assisted),int(attempt["pronunciation_used"]),active_response_ms,
+         memory["base_recall_probability"],memory["predicted_recall_probability"],memory["model_version"]))
     if correct and not independent:
         # Copying a revealed answer is practice, not another successful recall.
-        state = dict(current)
+        state = dict(current) if current else next_state(None,True,False,today)
+        if current is None:
+            state["review_count"] = 0
         state["review_count"] += 1
+        if assisted:
+            state.update(correct_count=0,interval_days=0,next_review_date=today.isoformat(),status="Learning")
     else:
         state = next_state(dict(current) if current else None,correct,had_wrong,today)
+    if independent:
+        state.update(interval_days=memory["interval_days"],next_review_date=memory["next_review_date"],
+                     status="Mature" if memory["mature"] and not had_wrong else "Reviewing")
     # The scheduler can return identity fields from the input; expose only state.
     state = {k:v for k,v in state.items() if k not in ("user_id","sense_id","last_example_id")}
     write_state(conn,user_id,sense_id,state,example_id)
@@ -247,8 +308,10 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
         conn.execute("UPDATE study_attempts SET completed_at=? WHERE id=?", (now,attempt["id"]))
     else:
         conn.execute("UPDATE study_attempts SET hint_used=1 WHERE id=?", (attempt["id"],))
+    maybe_calibrate(conn,user_id,now)
     return {"is_correct": correct,"is_independent": independent,"is_blank": not answer,
-            "outcome": "independent" if independent else "corrected" if correct else "incorrect",
+            "outcome": "independent" if independent else "assisted" if correct and assisted and not attempt["hint_used"] else "corrected" if correct else "incorrect",
+            "memory": {k:v for k,v in memory.items() if k not in ("base_recall_probability","mature")},
             "correct_answer": row["target_form"],
             "word":row["word"],"sense_id":sense_id,"example_id":example_id,
             "example_sentence":row["sentence"],"definition_cn":row["definition_cn"],

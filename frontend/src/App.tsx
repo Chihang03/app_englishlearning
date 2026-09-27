@@ -141,6 +141,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [wordLists, setWordLists] = useState<WordList[]>([]);
   const [wordListsReady, setWordListsReady] = useState(false);
   const otherSensesOpenRef = useRef(false);
+  const [exposureAttemptId, setExposureAttemptId] = useState<string | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(false);
@@ -156,6 +157,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const pageRef = useRef<Page>("home");
   const loadingRef = useRef(false);
   const submittingRef = useRef(false);
+  const hintPendingRef = useRef(false);
+  const [hintPending, setHintPending] = useState(false);
+  const activeTimeRef = useRef(0);
   const settingsSavingRef = useRef(false);
   const mountedRef = useRef(true);
   // Keeping the input mounted and the utterance referenced allows consecutive
@@ -164,6 +168,29 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const cancelSpeechRef = useRef<(() => void) | null>(null);
   const voices = useEnglishVoices();
   const speechSupported = "speechSynthesis" in window;
+
+  useEffect(() => {
+    activeTimeRef.current = 0;
+    if (!card || page !== "study" || result) return;
+    let previous = performance.now();
+    let lastActivity = previous;
+    const activity = () => { lastActivity = performance.now(); };
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const delta = now - previous;
+      if (!document.hidden && document.hasFocus() && now - lastActivity < 30000 && delta < 2000) {
+        activeTimeRef.current = Math.min(300000,activeTimeRef.current + delta);
+      }
+      previous = now;
+    }, 250);
+    window.addEventListener("keydown",activity);
+    window.addEventListener("pointerdown",activity);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("keydown",activity);
+      window.removeEventListener("pointerdown",activity);
+    };
+  }, [card?.attempt_id, page, result]);
 
   useEffect(() => {
     if (retryAt === null || page !== "study") return;
@@ -359,7 +386,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function submitAnswer(value: string, readSentence = false) {
-    if (!card || loadingRef.current || submittingRef.current || result?.is_correct) return;
+    if (!card || loadingRef.current || submittingRef.current || hintPendingRef.current || result?.is_correct) return;
     if (result && value.trim() === "") return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -369,7 +396,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       try {
         review = await request<ReviewResult>("/api/review", {
           method: "POST",
-          body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id })
+          body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id, active_response_ms: Math.round(activeTimeRef.current) })
         });
       } catch (caught) {
         // Another device or a lost response may already have completed this round.
@@ -403,14 +430,44 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   function handleEnter() {
     if (!card || pageRef.current !== "study") return;
-    if (submittingRef.current || loadingRef.current) {
-      playSentence(card.example_sentence, false);
+    if (submittingRef.current || loadingRef.current || hintPendingRef.current) {
+      return;
     } else if (result) {
       // Replaying feedback must not create another review-history entry.
       playSentence(result.example_sentence, result.is_correct);
     } else {
       void submitAnswer(answer, true);
     }
+  }
+
+  async function playWordHint() {
+    if (!card || submittingRef.current || loadingRef.current || hintPendingRef.current) return;
+    if (result || card.needs_correction) {
+      speak(result?.correct_answer ?? card.word);
+      return;
+    }
+    hintPendingRef.current = true;
+    setHintPending(true);
+    try {
+      await guarded(async () => {
+        // Persist before revealing the sound, including across refresh/devices.
+        await request("/api/study/hint", { method: "POST", body: JSON.stringify({ attempt_id: card.attempt_id, kind: "pronunciation" }) });
+        if (!mountedRef.current) return;
+        setCard((current) => current?.attempt_id === card.attempt_id ? { ...current, pronunciation_used: true } : current);
+        speak(card.word);
+      });
+    } finally {
+      hintPendingRef.current = false;
+      if (mountedRef.current) setHintPending(false);
+    }
+  }
+
+  async function recordRelatedExposure() {
+    if (!card) return;
+    await guarded(async () => {
+      await request("/api/study/related-exposure", { method: "POST", body: JSON.stringify({ attempt_id: card.attempt_id }) });
+      if (mountedRef.current) setExposureAttemptId(card.attempt_id);
+    });
   }
 
   function handleAnswerChange(value: string) {
@@ -549,7 +606,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     };
   }, []);
 
-  const busy = loading || submitting || Boolean(result?.is_correct);
+  const busy = loading || submitting || hintPending || Boolean(result?.is_correct);
   const isWordListPage = page.startsWith("word-list/");
   const currentWordList = wordLists.find((list) => page === `word-list/${encodeURIComponent(list.list_id)}`);
 
@@ -584,15 +641,18 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               }}>下一题</button> : null}
               {result && result.other_senses.length > 0 ? (
                 <details className="other-senses" key={`${card?.sense_id}-${card?.example_id}`}
-                  onToggle={(event) => { otherSensesOpenRef.current = Boolean(menuRef.current?.open) && event.currentTarget.open; }}>
+                  onToggle={(event) => {
+                    otherSensesOpenRef.current = Boolean(menuRef.current?.open) && event.currentTarget.open;
+                    if (event.currentTarget.open) void recordRelatedExposure();
+                  }}>
                   <summary>其他意思与用法（{result.other_senses.length}）</summary>
-                  {result.other_senses.map((sense) => (
+                  {exposureAttemptId === card?.attempt_id ? result.other_senses.map((sense) => (
                     <div className="other-sense" key={sense.id}>
                       <span className="part-of-speech">{sense.part_of_speech} · {sense.status === "New" ? "尚未学习" : sense.status === "Mature" ? "长期熟记" : "已开始学习"}</span>
                       <p>{sense.definition_cn || sense.definition_en}</p>
                       {sense.examples.map((example) => <p className="other-sense-example" key={example.id}>{example.sentence}{settings.show_sentence_translation && example.translation_cn ? <span>{example.translation_cn}</span> : null}</p>)}
                     </div>
-                  ))}
+                  )) : <p>正在加载其他意思与用法…</p>}
                 </details>
               ) : null}
             </div>
@@ -603,12 +663,12 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
             <div className="question-heading">
               <div className="question-labels">
-                <span className="pill">{card.needs_correction ? "纠正练习" : card.is_relearning ? "独立巩固" : card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
+                <span className="pill">{card.needs_correction ? "纠正练习" : card.is_relearning ? "独立巩固" : card.status === "Mature" ? "熟词抽查" : card.known_candidate ? `熟词确认 ${Math.min(card.confirmations + 1,3)}/3` : card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
                 <span className="part-of-speech">{card.part_of_speech}</span>
               </div>
               <button type="button" className="icon-button pronunciation-button"
-                onClick={() => speak(result?.correct_answer ?? card.word)}
-                disabled={!speechSupported} aria-label="朗读单词" title="朗读单词">
+                onClick={() => { void playWordHint(); }}
+                disabled={!speechSupported || hintPending || loading || submitting} aria-label="朗读单词" title="朗读单词（答题前使用将记为辅助作答）">
                 <Icon name="sound" />
               </button>
             </div>
@@ -641,13 +701,15 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             </div>
             <div id="answer-feedback" className="study-feedback" aria-live="polite" aria-atomic="true">
               {result?.is_correct ? result.is_independent ? (
-                <p className="feedback-correct">✓ 答对 · 下次复习：{result.srs_state.next_review_date}</p>
+                <p className="feedback-correct">{result.srs_state.status === "Mature" ? "✓ 已长期熟记 · 下次抽查：" : result.memory.known_candidate ? `✓ 熟词确认 ${result.memory.confirmations}/3 · 下次确认：` : "✓ 独立答对 · 下次复习："}{result.srs_state.next_review_date}</p>
               ) : (
-                <p>已纠正 · 稍后复习</p>
+                <p>{result.outcome === "assisted" ? "辅助答对" : "已纠正"} · 稍后独立巩固</p>
               ) : result ? (
                 <p>请重新输入正确答案</p>
               ) : card.needs_correction ? (
                 <p>请重新输入正确答案</p>
+              ) : card.pronunciation_used || card.answer_exposed ? (
+                <p>已使用答案提示 · 本轮按辅助作答记录</p>
               ) : null}
             </div>
             {message ? <p role="alert" className="error-notice">{message}</p> : null}
@@ -667,7 +729,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       </section>
 
       {page === "settings" ? (
-        <SettingsPage user={user} settings={settings} wordLists={wordLists} speech={speech} voices={voices}
+        <SettingsPage user={user} settings={settings} memoryModel={stats.memory_model} wordLists={wordLists} speech={speech} voices={voices}
           settingsSaving={settingsSaving}
           speechSupported={speechSupported} onBack={() => navigate("home")}
           onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
@@ -753,8 +815,9 @@ function Metric({ icon, label, value }: { icon: IconName; label: string; value: 
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
-function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired }: {
+function SettingsPage({ user, settings, memoryModel, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired }: {
   user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
+  memoryModel: Stats["memory_model"];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
   onOpenWordList: (listId: string) => void;
@@ -764,6 +827,12 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
     <section className="settings-page page-container" aria-label="设置">
       <header className="settings-header"><button type="button" className="icon-button" onClick={onBack} aria-label="返回首页"><Icon name="back" /></button><h1>设置</h1><span className="header-spacer" /></header>
       <div className="account-card panel"><span className="account-avatar"><Icon name="user" /></span><div><h2>{user.username}</h2><p>{user.timezone}</p></div></div>
+      <section className="settings-group panel">
+        <h2><Icon name="book" /> 智能复习</h2>
+        <p className="settings-hint">根据每个义项的独立作答表现调整复习间隔，目标到期记住率约 90%。</p>
+        <p className="settings-hint">首次独立答对优先安排较长间隔确认；达到长期熟记后，每 180 天抽查。</p>
+        <p className="settings-hint" role="status">{!memoryModel ? "正在加载复习状态…" : memoryModel.personalized ? "已根据你的答题历史校准复习间隔。" : memoryModel.evaluated_at ? "已评估个人答题历史，当前继续使用默认记忆参数。" : `正在积累个人复习数据：${memoryModel.sample_count} 次有效延迟作答；至少 ${memoryModel.minimum_samples} 次、覆盖多个义项和 30 天后评估。`}</p>
+      </section>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习显示</h2>
         <label className="setting-row"><span><strong>句子中文翻译</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.show_sentence_translation} onChange={(event) => onSetting({ show_sentence_translation: event.target.checked })} /></label>
