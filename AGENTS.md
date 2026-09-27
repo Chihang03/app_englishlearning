@@ -1,5 +1,4 @@
-相关代码修改完成后请自动提交进main。并连接服务器部署。
-
+相关代码修改完成后请自动提交进main，并推送，然后连接服务器部署。
 
 密钥，Users/hang/Downloads/LightsailDefaultKey-ap-northeast-1.pem
 公有 IPv4 地址，16.76.139.180
