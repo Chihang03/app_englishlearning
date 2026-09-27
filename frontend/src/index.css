@@ -113,6 +113,24 @@ h1, h2, p { margin: 0; }
 .muted-words-list li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .muted-words-list button { flex-shrink: 0; min-height: 42px; padding: 8px 12px; font-size: 13px; }
 .question-card { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; overflow: hidden; padding: 14px 18px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 8px; }
+.study-deck { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; }
+.study-deck-viewport { position: relative; display: flex; flex: 0 1 auto; min-height: 0; overflow: clip; touch-action: pan-y pinch-zoom; border-radius: 20px; }
+.study-deck-current { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 0; transform: translateX(var(--drag-x, 0px)); transition: transform .25s ease; }
+.study-deck-current > .question-card { margin-bottom: 0; }
+.study-deck-previous { position: absolute; inset: 0; display: flex; min-height: 0; transform: translateX(calc(-100% + var(--drag-x, 0px))); transition: transform .25s ease; }
+.previous-question { width: 100%; margin-bottom: 0; }
+.previous-answer { font-size: 14px; color: var(--accent); margin-bottom: 6px; }
+.study-deck-viewport.is-reviewing .study-deck-current { position: absolute; inset: 0; transform: translateX(calc(100% + var(--drag-x, 0px))); }
+.study-deck-viewport.is-reviewing .study-deck-previous { position: relative; width: 100%; min-width: 0; flex: 0 1 auto; transform: translateX(var(--drag-x, 0px)); }
+.study-deck-viewport.is-dragging { user-select: none; }
+.study-deck-viewport.is-dragging > div { transition: none; }
+.study-deck-viewport.is-advancing .study-deck-current { animation: card-enter .25s ease both; }
+.study-deck-viewport.is-advancing .study-deck-previous { animation: card-leave .25s ease both; }
+.study-deck-controls { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 4px; font-size: 12px; color: var(--muted); }
+.study-deck-controls button { min-height: 44px; color: var(--accent); font-size: 13px; padding: 0 8px; }
+@keyframes card-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes card-leave { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) { .study-deck-viewport > div { animation: none !important; } }
 .question-heading { flex-shrink: 0; margin-bottom: 10px; }
 .question-labels { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .pill { display: inline-flex; align-items: center; border-radius: 20px; background: #edf1e6; color: var(--accent); font-size: 12px; padding: 5px 12px; }

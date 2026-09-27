@@ -2,6 +2,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { InlineAnswer } from "./InlineAnswer";
+import { StudyDeck } from "./StudyDeck";
+import type { PreviousQuestion } from "./StudyDeck";
 import { StudyTools } from "./StudyTools";
 import { MutedWords } from "./MutedWords";
 import type { StudyTool } from "./StudyTools";
@@ -139,6 +141,13 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [card, setCard] = useState<Card | null>(null);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<ReviewResult | null>(null);
+  const [previousQuestion, setPreviousQuestion] = useState<PreviousQuestion | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const reviewingRef = useRef(false);
+  const deckMovingRef = useRef(false);
+  const currentQuestionRef = useRef({ card, result });
+  currentQuestionRef.current = { card, result };
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [statsReady, setStatsReady] = useState(false);
   const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
@@ -185,7 +194,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     const timer = window.setInterval(() => {
       const now = performance.now();
       const delta = now - previous;
-      if (!document.hidden && document.hasFocus() && !studyToolsOpenRef.current && now - lastActivity < 30000 && delta < 2000) {
+      if (!document.hidden && document.hasFocus() && !studyToolsOpenRef.current && !reviewingRef.current && !deckMovingRef.current && now - lastActivity < 30000 && delta < 2000) {
         activeTimeRef.current = Math.min(300000,activeTimeRef.current + delta);
       }
       previous = now;
@@ -200,7 +209,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, [card?.attempt_id, page, result]);
 
   useEffect(() => {
-    if (retryAt === null || page !== "study") return;
+    if (retryAt === null || page !== "study" || reviewing) return;
     // Normally new words fill the gap. If a selected catalog is exhausted,
     // retry silently when a pending word becomes available, without a countdown.
     const timer = window.setTimeout(() => {
@@ -208,7 +217,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       void guarded(loadNext);
     }, Math.max(0, retryAt - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [retryAt, page]);
+  }, [retryAt, page, reviewing]);
 
   const sentenceParts = useMemo(() => {
     const parts = (card?.cloze_sentence ?? "").split("_______");
@@ -217,6 +226,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, [card]);
 
   function focusAnswer() {
+    if (reviewingRef.current || deckMovingRef.current) return;
     inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
     if (result && !result.is_correct) inputRef.current?.select();
@@ -336,7 +346,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function playSentence(text: string, advanceAfterReading: boolean) {
     setMessage("");
     speak(text, advanceAfterReading ? () => {
-      if (!mountedRef.current || pageRef.current !== "study" || loadingRef.current || studyToolsOpenRef.current || menuRef.current?.open) return;
+      if (!mountedRef.current || pageRef.current !== "study" || reviewingRef.current || deckMovingRef.current || loadingRef.current || studyToolsOpenRef.current || menuRef.current?.open) return;
       void guarded(loadNext);
     } : undefined, advanceAfterReading ? () => {
       if (!mountedRef.current || pageRef.current !== "study") return;
@@ -365,7 +375,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function loadNext() {
-    if (loadingRef.current || mutePendingRef.current) return;
+    if (loadingRef.current || mutePendingRef.current || reviewingRef.current) return;
     cancelSpeechRef.current?.();
     setReadingCorrectAnswer(false);
     loadingRef.current = true;
@@ -378,6 +388,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       setReadingCorrectAnswer(false);
       // Do not remove the old input while fetching: mobile keyboards depend on
       // the focused DOM node surviving the transition to the next card.
+      const old = currentQuestionRef.current;
+      if (old.card && old.result?.is_correct && old.card.attempt_id !== payload.card?.attempt_id) {
+        setPreviousQuestion({ card: old.card, sentence: old.result.example_sentence, answer: old.result.correct_answer });
+      }
       closeStudyTool();
       setCard(payload.card);
       setResult(null);
@@ -394,7 +408,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function submitAnswer(value: string, readSentence = false) {
-    if (!card || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current || result?.is_correct) return;
+    if (!card || reviewingRef.current || deckMovingRef.current || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current || result?.is_correct) return;
     if (result && value.trim() === "") return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -437,7 +451,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function handleEnter() {
-    if (!card || pageRef.current !== "study") return;
+    if (!card || pageRef.current !== "study" || reviewingRef.current || deckMovingRef.current) return;
     if (submittingRef.current || loadingRef.current || hintPendingRef.current || mutePendingRef.current) {
       return;
     } else if (result) {
@@ -449,7 +463,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function playWordHint() {
-    if (!card || submittingRef.current || loadingRef.current || hintPendingRef.current || mutePendingRef.current) return;
+    if (!card || reviewingRef.current || deckMovingRef.current || submittingRef.current || loadingRef.current || hintPendingRef.current || mutePendingRef.current) return;
     if (result || card.needs_correction) {
       speak(result?.correct_answer ?? card.word);
       return;
@@ -471,7 +485,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function openStudyTool(tool: StudyTool) {
-    if (!card || loading || submitting || hintPending || mutePending) return;
+    if (!card || reviewingRef.current || deckMovingRef.current || loading || submitting || hintPending || mutePending) return;
     studyToolsOpenRef.current = true;
     if (menuRef.current) menuRef.current.open = false;
     inputRef.current?.blur();
@@ -486,7 +500,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function muteCurrentWord() {
-    if (!card || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current) return;
+    if (!card || reviewingRef.current || deckMovingRef.current || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current) return;
     mutePendingRef.current = true;
     setMutePending(true);
     setMessage("");
@@ -541,6 +555,27 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     pageRef.current = next;
     window.history.pushState(null, "", `#${next}`);
     setPage(next);
+  }
+
+  function changeReview(next: boolean) {
+    cancelSpeechRef.current?.();
+    if (menuRef.current) menuRef.current.open = false;
+    reviewingRef.current = next;
+    setReviewing(next);
+    setReviewMessage("");
+  }
+
+  function readPreviousQuestion() {
+    if (!previousQuestion || !reviewingRef.current || pageRef.current !== "study") return;
+    setReviewMessage("");
+    speak(previousQuestion.sentence, undefined, () => {
+      if (reviewingRef.current && pageRef.current === "study") setReviewMessage("上一题朗读未能完成，请点击朗读按钮重播。");
+    });
+  }
+
+  function deckMotionChanged(moving: boolean) {
+    deckMovingRef.current = moving;
+    if (!moving && !reviewingRef.current && pageRef.current === "study") focusAnswer();
   }
 
   function updateSetting(next: Partial<Settings>) {
@@ -688,12 +723,12 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <details ref={menuRef} className="study-menu">
             <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
             <div className="study-menu-panel">
-              <button type="button" disabled={!card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("meanings")}>更多词义</button>
-              <button type="button" disabled={!card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("report")}>报告错误</button>
-              <button type="button" disabled={!card || loading || submitting || hintPending || mutePending} onClick={() => { void guarded(muteCurrentWord); }}>
+              <button type="button" disabled={reviewing || !card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("meanings")}>更多词义</button>
+              <button type="button" disabled={reviewing || !card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("report")}>报告错误</button>
+              <button type="button" disabled={reviewing || !card || loading || submitting || hintPending || mutePending} onClick={() => { void guarded(muteCurrentWord); }}>
                 不再学习此单词
               </button>
-              {result?.is_correct ? <button type="button" disabled={loading || mutePending} onClick={() => {
+              {result?.is_correct && !reviewing ? <button type="button" disabled={loading || mutePending} onClick={() => {
                 if (menuRef.current) menuRef.current.open = false;
                 void guarded(loadNext);
               }}>下一题</button> : null}
@@ -707,6 +742,12 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <button type="button" aria-label="关闭提示" onClick={() => setLastMutedWord(null)}>×</button>
         </div> : null}
 
+        <StudyDeck currentId={card?.attempt_id ?? null} previous={previousQuestion} reviewing={reviewing}
+          blocked={loading || submitting || hintPending || mutePending || Boolean(studyTool)} canAdvance={Boolean(card && result?.is_correct)}
+          showTranslation={settings.show_sentence_translation} speechSupported={speechSupported} reviewMessage={reviewMessage}
+          onReviewChange={changeReview} onReviewReady={readPreviousQuestion} onReplay={readPreviousQuestion}
+          onAdvance={() => { void guarded(loadNext); }} onMotionChange={deckMotionChanged}
+          onInteraction={() => { cancelSpeechRef.current?.(); }}>
         {card ? (
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
             {confirmationCount !== null ? <div className="confirmation-row"><ConfirmationMarks count={confirmationCount} /></div> : null}
@@ -762,6 +803,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             </div> : null}
           </div>
         )}
+        </StudyDeck>
         {page === "study" && studyTool && card ? <StudyTools key={`${card.attempt_id}-${studyTool}`}
           tool={studyTool} card={card} showTranslation={settings.show_sentence_translation}
           onClose={closeStudyTool} onSignedOut={onSignedOut}
