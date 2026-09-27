@@ -10,6 +10,8 @@
 - Auth: 会话 Cookie + scrypt 口令散列 + WebAuthn 通行密钥（Passkey）
 - TTS: 浏览器 Web Speech API（`speechSynthesis`）
 
+设置页底部显示程序版本号，例如 `26.9.27.23`。每次提交 main 前，在 `frontend` 运行 `npm run version:update` 并将生成的 `src/version.json` 一起提交；脚本按北京时间及 main 主线（first-parent）当天已有提交数加一生成版本号。重新运行脚本不会额外递增，重新构建同一提交也不会改变版本号。
+
 ## 目录
 
 ```text
