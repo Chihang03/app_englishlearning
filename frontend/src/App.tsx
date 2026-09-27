@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { StudyCard } from "./StudyCard";
@@ -567,12 +568,31 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function navigate(next: Page) {
     if (next === pageRef.current) return;
     closeStudyTool();
-    inputRef.current?.blur();
+    if (next !== "study") inputRef.current?.blur();
     if (menuRef.current) menuRef.current.open = false;
     cancelSpeechRef.current?.();
     pageRef.current = next;
     window.history.pushState(null, "", `#${next}`);
-    setPage(next);
+    if (next === "study") {
+      // Mobile browsers need an editable, visible field focused within the
+      // click itself. Keep that field mounted while the first card is fetched.
+      flushSync(() => {
+        reviewingRef.current = false;
+        setReviewing(false);
+        setReviewMessage("");
+        if (!card) setLoading(true);
+        setPage(next);
+      });
+      focusAnswer();
+    } else {
+      setPage(next);
+    }
+  }
+
+  function retryStudy() {
+    flushSync(() => setLoading(true));
+    focusAnswer();
+    void guarded(loadNext);
   }
 
   function changeReview(next: boolean) {
@@ -771,12 +791,12 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           onReviewChange={changeReview} onReviewReady={readPreviousQuestion}
           onAdvance={() => { void guarded(loadNext); }} onMotionChange={deckMotionChanged}
           onInteraction={() => { cancelSpeechRef.current?.(); }}>
-        {card ? (
+        {card || loading ? (
           <StudyCard card={card} result={result} answer={answer} showTranslation={settings.show_sentence_translation}
             marks={confirmationCount !== null ? <div className="confirmation-row"><ConfirmationMarks count={confirmationCount} /></div> : null}
             soundIcon={<Icon name="sound" />} message={message} loading={loading} submitting={submitting}
-            readingCorrectAnswer={readingCorrectAnswer} busy={busy}
-            wordHintDisabled={!speechSupported || hintPending || loading || submitting || mutePending}
+            readingCorrectAnswer={readingCorrectAnswer} busy={busy || !card}
+            wordHintDisabled={!card || !speechSupported || hintPending || loading || submitting || mutePending}
             inputRef={inputRef} questionRef={questionRef} onSubmit={submit} onEnter={handleEnter}
             onWordHint={() => { void playWordHint(); }} onAnswerChange={handleAnswerChange} />
         ) : (
@@ -786,7 +806,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             {!loading && (message || queueMessage) ? <p>{message || queueMessage}</p> : null}
             {!loading ? <div className="empty-actions">
               <button type="button" className="primary-button" onClick={() => navigate("home")}>返回首页</button>
-              <button type="button" className="secondary-button" onClick={() => { void guarded(loadNext); }}>重新检查</button>
+              <button type="button" className="secondary-button" onClick={retryStudy}>重新检查</button>
             </div> : null}
           </div>
         )}
