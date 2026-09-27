@@ -180,10 +180,10 @@ python3 -m venv .venv-vocab-export
 
 `backend/data/chinese_gloss_supplements.json` 保存中文补充释义及每条记录的来源、匹配方法、稳定义项键、预期英文解释和词性；只填缺失的中文，重建词库时继续应用。`scripts/supplement_chinese_from_dictionary.py` 从本地词典提取补充：词性须一致，英文解释或例句须完全匹配；另可匹配两部原词典在该词性下都只有一个义项的单义词。单义判断包含原词典中没有可学例句的义项，不只检查学习词库。无法确定对应关系的多义词继续保留英文。词典义项中的复数/变体提示不会再被误当成短语而跳过整组解释。
 
-加入 `--include-traditional` 可同时读取 Mac 已安装的译典通英汉双向字典，并用 macOS 自带的字符转换转为简体。`dictionary_gloss_exclusions.json` 记录已发现的跨词典同形异义，防止重建时再次误配。补充提取可以单独运行，不会重建义项或例句：
+加入 `--include-traditional` 可同时读取 Mac 已安装的译典通英汉双向字典，并用 macOS 自带的字符转换转为简体。`dictionary_gloss_exclusions.json` 记录已发现的跨词典同形异义，防止重建时再次误配。补充提取可以从仓库根目录单独运行，不会重建义项或例句：
 
 ```bash
-.venv-vocab-export/bin/python scripts/supplement_chinese_from_dictionary.py \
+backend/.venv-vocab-export/bin/python backend/scripts/supplement_chinese_from_dictionary.py \
   --catalog backend/data/vocabulary_catalog.json \
   --supplements backend/data/chinese_gloss_supplements.json --include-traditional
 ```
