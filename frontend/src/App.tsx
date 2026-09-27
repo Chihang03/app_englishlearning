@@ -7,22 +7,11 @@ import { StudyDeck } from "./StudyDeck";
 import type { PreviousQuestion } from "./StudyDeck";
 import { StudyTools } from "./StudyTools";
 import { MutedWords } from "./MutedWords";
+import { BASE_WPM, SPEECH_SPEEDS, useSpeechSettings } from "./speechSettings";
 import type { StudyTool } from "./StudyTools";
 import { ApiError, errorMessage, isUnauthorized, request } from "./api";
 import { version } from "./version.json";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
-
-// The old backend shelled out to macOS `say -r`, which took words per minute and
-// defaulted to 175. SpeechSynthesisUtterance instead takes a multiplier where 1
-// is normal speed, so the slider keeps the familiar wpm range and converts on the
-// way out.
-const BASE_WPM = 175;
-const MIN_WPM = 80;
-const MAX_WPM = 320;
-
-// Voice and speed are per-browser now, so they live in localStorage rather than
-// in the server-side settings table.
-const SPEECH_SETTINGS_KEY = "cvt.speech";
 
 // If a browser never starts speech, retain the answer with a manual next-card
 // action. Once speech starts, only its end event allows automatic advancement.
@@ -53,36 +42,6 @@ const emptyStats: Stats = {
   mastered_senses: 0,
   legacy_unmapped_words: 0
 };
-
-function clampWpm(value: number) {
-  if (!Number.isFinite(value)) return BASE_WPM;
-  return Math.min(MAX_WPM, Math.max(MIN_WPM, Math.round(value)));
-}
-
-function loadSpeechSettings(): SpeechSettings {
-  try {
-    const raw = window.localStorage.getItem(SPEECH_SETTINGS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<SpeechSettings>;
-      return {
-        voiceURI: typeof parsed.voiceURI === "string" ? parsed.voiceURI : "",
-        rate: clampWpm(Number(parsed.rate))
-      };
-    }
-  } catch {
-    // Unreadable or malformed storage just falls back to the defaults.
-  }
-  return { voiceURI: "", rate: BASE_WPM };
-}
-
-function saveSpeechSettings(value: SpeechSettings) {
-  try {
-    window.localStorage.setItem(SPEECH_SETTINGS_KEY, JSON.stringify(value));
-  } catch {
-    // Storage can be unavailable (private mode, blocked site data); the setting
-    // still applies for this session.
-  }
-}
 
 // Chrome populates the voice list asynchronously, so read it now and again on
 // every change rather than once at mount.
@@ -149,7 +108,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const deckMovingRef = useRef(false);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [statsReady, setStatsReady] = useState(false);
-  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
+  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [], speech_rate: null });
   const currentQuestionRef = useRef({ card, result, showTranslation: settings.show_sentence_translation });
   currentQuestionRef.current = { card, result, showTranslation: settings.show_sentence_translation };
   const [wordLists, setWordLists] = useState<WordList[]>([]);
@@ -157,7 +116,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const studyToolsOpenRef = useRef(false);
   const [studyTool, setStudyTool] = useState<{ tool: StudyTool; card: Card; showTranslation: boolean } | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
-  const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
+  const { speech, updateSpeech } = useSpeechSettings(user.id, onSignedOut);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [readingCorrectAnswer, setReadingCorrectAnswer] = useState(false);
@@ -254,14 +213,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     }, Math.max(0, dueAt - Date.now()) + 250);
     return () => window.clearTimeout(timer);
   }, [stats.next_relearning_at, guarded]);
-
-  function updateSpeech(next: Partial<SpeechSettings>) {
-    setSpeech((current) => {
-      const merged = { ...current, ...next };
-      saveSpeechSettings(merged);
-      return merged;
-    });
-  }
 
   useEffect(() => {
     if (voices.length === 0 || voices.some((voice) => voice.voiceURI === speech.voiceURI)) return;
@@ -964,7 +915,9 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
               {voices.length === 0 ? <option value="">暂无可用英文语音</option> : voices.map((voice) => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} · {voice.lang}</option>)}
             </select></label>
             <div className="voice-shortcuts"><button type="button" className="secondary-button" disabled={voices.length === 0} onClick={() => onSpeech({ voiceURI: preferredVoice(voices, "en-US") })}>美式语音</button><button type="button" className="secondary-button" disabled={voices.length === 0} onClick={() => onSpeech({ voiceURI: preferredVoice(voices, "en-GB") })}>英式语音</button></div>
-            <label className="setting-field"><span>语速 <strong>{speech.rate}</strong></span><input type="range" min={MIN_WPM} max={MAX_WPM} value={speech.rate} onChange={(event) => onSpeech({ rate: clampWpm(Number(event.target.value)) })} /><span className="range-labels"><small>慢</small><small>快</small></span></label>
+            <div className="setting-field"><span>语速</span><div className="speech-speed" role="group" aria-label="语速">
+              {SPEECH_SPEEDS.map(({ label, rate }) => <button key={rate} type="button" className="secondary-button" aria-pressed={speech.rate === rate} onClick={() => onSpeech({ rate })}>{label}</button>)}
+            </div></div>
           </div>
         )}
       </section>
