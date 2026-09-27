@@ -51,7 +51,7 @@ export function PasskeySettings({ onSignedOut }: { onSignedOut: () => void }) {
     try {
       await addPasskey(name.trim(), password);
       setPassword("");
-      setStatus("通行密钥已添加，下次可直接使用它登录。");
+      setStatus("通行密钥已添加");
       await refresh();
     } catch (caught) { reportError(caught); }
     finally { setBusy(false); }
@@ -68,7 +68,7 @@ export function PasskeySettings({ onSignedOut }: { onSignedOut: () => void }) {
       });
       setPassword("");
       setDeleteId(null);
-      setStatus("通行密钥已删除。设备或密码管理器中的副本可自行移除。");
+      setStatus("通行密钥已删除；设备中的副本需自行移除");
       await refresh();
     } catch (caught) { reportError(caught); }
     finally { setBusy(false); }
@@ -88,7 +88,6 @@ export function PasskeySettings({ onSignedOut }: { onSignedOut: () => void }) {
         <button type="button" disabled={busy} className="text-xs text-gray-600 disabled:text-gray-400"
           onClick={() => { setOpen(false); setPassword(""); setDeleteId(null); }}>收起</button>
       </div>
-      <p className="text-xs text-gray-500">使用指纹、面容或设备 PIN 登录。建议添加备用密钥，密码登录仍可使用。</p>
       {loading ? <p className="text-xs text-gray-500">正在加载…</p> : loadFailed ? (
         <button type="button" className="text-xs underline" onClick={() => { setOpen(false); }}>加载失败，收起后可重试</button>
       ) : keys.length === 0 ? <p className="text-xs text-gray-500">尚未添加通行密钥。</p> : (

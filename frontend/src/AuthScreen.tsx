@@ -76,7 +76,6 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
     <main className="flex min-h-screen items-center justify-center bg-[#f7f7f4] px-4 py-10 text-gray-950">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-semibold">Context Vocabulary Trainer</h1>
-        <p className="mt-1 text-sm text-gray-600">通过语境回忆单词，而不是孤立背诵。</p>
 
         <div className="mt-7 flex border border-gray-300 bg-white">
           <TabButton disabled={busy} active={mode === "login"} onClick={() => switchMode("login")}>
@@ -96,9 +95,8 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
                 {passkeyBusy ? "正在验证通行密钥…" : "使用通行密钥登录"}
               </button>
               <p className="text-xs text-gray-500">{availability.ready
-                ? "无需输入用户名或密码。首次使用请先用密码登录，在账号中添加通行密钥。"
+                ? "首次使用需在设置中添加通行密钥"
                 : availability.reason}</p>
-              <p className="pt-2 text-sm text-gray-600">或使用密码登录</p>
             </div>
           ) : null}
           <Field label="用户名">
@@ -125,7 +123,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
           {mode === "register" ? (
             <>
-              <Field label="时区" hint="决定“今天”和复习到期日如何计算">
+              <Field label="时区">
                 <input
                   value={timezone}
                   onChange={(event) => setTimezone(event.target.value)}
@@ -133,7 +131,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
                   className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
                 />
               </Field>
-              <Field label="邀请码" hint="服务器未设置邀请码时留空">
+              <Field label="邀请码" hint="如无则留空">
                 <input
                   value={registrationCode}
                   onChange={(event) => setRegistrationCode(event.target.value)}
@@ -156,7 +154,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
           </button>
 
           {mode === "register" ? (
-            <p className="text-xs text-gray-500">密码至少 8 位。用户名 3–32 位，可用字母、数字、_ . -。创建账号后可添加通行密钥。</p>
+            <p className="text-xs text-gray-500">密码至少 8 位；用户名 3–32 位，支持字母、数字、_ . -。</p>
           ) : null}
         </form>
       </div>

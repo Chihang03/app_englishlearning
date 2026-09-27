@@ -550,7 +550,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             <Icon name="back" />
           </button>
           <div className="study-progress">
-            <span className="eyebrow">专注学习</span>
             <span>今日独立通过 {statsReady ? stats.today_success_senses : "—"} 个义项 · 待巩固 {statsReady ? stats.pending_relearning_senses : "—"}</span>
           </div>
           <details ref={menuRef} className="study-menu" onToggle={(event) => {
@@ -623,14 +622,14 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             </div>
             <div id="answer-feedback" className="study-feedback" aria-live="polite" aria-atomic="true">
               {result?.is_correct ? result.is_independent ? (
-                <p className="feedback-correct">✓ 今日独立通过 · 下次复习：{result.srs_state.next_review_date}</p>
+                <p className="feedback-correct">✓ 答对 · 下次复习：{result.srs_state.next_review_date}</p>
               ) : (
-                <p>已完成纠正 · 尚未计入今日成功，稍后会再次独立拼写。</p>
+                <p>已纠正 · 稍后复习</p>
               ) : result ? (
-                <p>答案已显示：{result.correct_answer}。请重新输入纠正，稍后再独立巩固。</p>
+                <p>请重新输入正确答案</p>
               ) : card.needs_correction ? (
-                <p>本轮已看过答案，请输入纠正；稍后独立答对才计入今日成功。</p>
-              ) : card.is_relearning ? <p>请独立拼写，答对后计入今日成功。</p> : null}
+                <p>请重新输入正确答案</p>
+              ) : null}
             </div>
             {message ? <p role="alert" className="error-notice">{message}</p> : null}
             <span className="sr-only" role="status">{submitting ? "提交中" : loading ? "正在加载下一题…" : readingCorrectAnswer ? "整句朗读中，结束后自动进入下一题…" : ""}</span>
@@ -638,8 +637,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         ) : (
           <div className="study-empty panel" role="status">
             <span className="empty-icon"><Icon name={loading ? "book" : message ? "more" : "check"} /></span>
-            <h1>{loading ? "准备好，开始学习" : message ? "题目暂时没有加载成功" : retryAt !== null ? "当前没有可学习题目" : "今天的复习已完成"}</h1>
-            <p>{loading ? "正在准备你的第一道题…" : message || queueMessage || "正在准备题目。"}</p>
+            <h1>{loading ? "加载中…" : message ? "加载失败" : retryAt !== null ? "暂无题目" : "今日复习完成"}</h1>
+            {!loading && (message || queueMessage) ? <p>{message || queueMessage}</p> : null}
             {!loading ? <div className="empty-actions">
               <button type="button" className="primary-button" onClick={() => navigate("home")}>返回首页</button>
               <button type="button" className="secondary-button" onClick={() => { void guarded(loadNext); }}>重新检查</button>
@@ -686,28 +685,29 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
         <div><span className="eyebrow">CONTEXT · 语境学词</span><h1>你好，{user.username}</h1></div>
         <button type="button" className="icon-button header-settings" aria-label="打开设置" onClick={onSettings}><Icon name="settings" /></button>
       </header>
-      <div className="home-intro"><p>每天一点，让英语更熟悉。</p><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
+      <div className="home-intro"><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
       <section className="today-panel panel">
-        <div className="section-heading"><h2>今日学习</h2><span className="subtle-label">独立拼写通过才算成功</span></div>
+        <div className="section-heading"><h2>今日学习</h2></div>
         <div className="today-metrics">
           <div><strong>{value(stats.today_success)}</strong><span>今日成功单词</span></div>
           <div><strong>{value(stats.pending_relearning)}</strong><span>待巩固单词</span></div>
         </div>
-        <p className="metric-note">今日独立通过 {value(stats.today_success_senses)} 个义项；成功单词按词去重，不表示全部意思已掌握。提示后纠正不计成功。</p>
-        <p className="metric-note">答题 {value(stats.today_learning)} 次（含纠正） · 独立作答正确率 {ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</p>
       </section>
       <section className="overview-section">
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} aria-label="刷新学习数据"><Icon name="refresh" /> 刷新</button></div>
         <div className="overview-grid">
-          <Metric icon="book" label="累计学过" value={value(stats.total_learned)} caption="不同单词" />
-          <Metric icon="refresh" label="待复习错词" value={value(stats.due_lapses)} caption="今天到期" />
-          <Metric icon="spark" label="可学新词" value={value(stats.new_words)} caption="慢慢积累" />
-          <Metric icon="check" label="已掌握" value={value(stats.mastered)} caption="全部可学义项进入复习" />
+          <Metric icon="book" label="累计学过" value={value(stats.total_learned)} />
+          <Metric icon="refresh" label="待复习错词" value={value(stats.due_lapses)} />
+          <Metric icon="spark" label="可学新词" value={value(stats.new_words)} />
+          <Metric icon="check" label="已掌握" value={value(stats.mastered)} />
         </div>
       </section>
       <details className="learning-details panel">
         <summary><span><Icon name="chart" /> 更多学习数据</span><Icon name="chevron" /></summary>
         <dl className="detail-metrics">
+          <div><dt>今日答题次数</dt><dd>{value(stats.today_learning)}</dd></div>
+          <div><dt>今日通过义项</dt><dd>{value(stats.today_success_senses)}</dd></div>
+          <div><dt>独立作答正确率</dt><dd>{ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</dd></div>
           <div><dt>学习中</dt><dd>{value(stats.learning)}</dd></div>
           <div><dt>学习中今日到期</dt><dd>{value(stats.learning_due)}</dd></div>
           <div><dt>有过错误的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
@@ -718,15 +718,14 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
           <div><dt>待巩固义项</dt><dd>{value(stats.pending_relearning_senses)}</dd></div>
           <div><dt>进入间隔复习的义项</dt><dd>{value(stats.mastered_senses)}</dd></div>
         </dl>
-        {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">已保留 {stats.legacy_unmapped_words} 个单词的旧学习记录，它们的具体义项需要重新确认。</p> : null}
+        {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">{stats.legacy_unmapped_words} 个旧词的义项待确认</p> : null}
       </details>
-      <p className="home-footnote">学习记录跟随账号，发音偏好保存在当前设备。</p>
     </section>
   );
 }
 
-function Metric({ icon, label, value, caption }: { icon: IconName; label: string; value: string; caption: string }) {
-  return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span><span className="metric-caption">{caption}</span></div>;
+function Metric({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
 function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onToggleWordList, onSpeech, onSignOut, onSessionExpired }: {
@@ -742,19 +741,18 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       <div className="account-card panel"><span className="account-avatar"><Icon name="user" /></span><div><h2>{user.username}</h2><p>{user.timezone}</p></div></div>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习显示</h2>
-        <label className="setting-row"><span><strong>句子中文翻译</strong><small>在单词释义下显示完整句子的翻译</small></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.show_sentence_translation} onChange={(event) => onSetting({ show_sentence_translation: event.target.checked })} /></label>
+        <label className="setting-row"><span><strong>句子中文翻译</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.show_sentence_translation} onChange={(event) => onSetting({ show_sentence_translation: event.target.checked })} /></label>
       </section>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习词库</h2>
-        <p className="settings-hint">勾选后，这些词库中的新词会进入学习队列。已开始学习的复习卡仍会保留。</p>
-        {wordLists.length === 0 ? <p className="settings-hint">本地词库尚未生成。</p> : (
+        <p className="settings-hint">取消词库不影响已有复习</p>
+        {wordLists.length === 0 ? <p className="settings-hint">暂无词库</p> : (
           <div className="word-list-picker">
             {wordLists.map((list) => (
               <label className="word-list-option" key={list.list_id}>
                 <span className="word-list-copy">
                   <strong>{list.title}</strong>
-                  <small>{list.description}</small>
-                  <small>可学 {list.word_count.toLocaleString()} 词{list.source_word_count > list.word_count ? ` · 原表 ${list.source_word_count.toLocaleString()} 词` : ""}</small>
+                  <small>{list.word_count.toLocaleString()} 词</small>
                 </span>
                 <input type="checkbox" disabled={settingsSaving} checked={settings.selected_word_list_ids.includes(list.list_id)} onChange={(event) => onToggleWordList(list.list_id, event.target.checked)} />
               </label>
@@ -764,7 +762,6 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       </section>
       <section className="settings-group panel">
         <h2><Icon name="sound" /> 发音</h2>
-        <p className="settings-hint">由当前设备的浏览器朗读，偏好仅保存在本机。</p>
         {!speechSupported ? <p className="warning-notice">当前浏览器不支持语音朗读。</p> : (
           <div className="speech-controls">
             <label className="setting-field"><span>英文语音</span><select value={speech.voiceURI} onChange={(event) => onSpeech({ voiceURI: event.target.value })} disabled={voices.length === 0}>
