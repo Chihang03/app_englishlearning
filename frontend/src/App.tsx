@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
@@ -9,8 +9,10 @@ import { StudyTools } from "./StudyTools";
 import { MutedWords } from "./MutedWords";
 import { BASE_WPM, SPEECH_SPEEDS, useSpeechSettings } from "./speechSettings";
 import type { StudyTool } from "./StudyTools";
-import { ApiError, errorMessage, isUnauthorized, request } from "./api";
+import { ApiError, errorMessage, hasPendingWrites, isUnauthorized, onApiWrite, request } from "./api";
 import { version } from "./version.json";
+import { ReadCache } from "./readCache";
+import { canReloadForUpdate, useForegroundRefresh, useVersionUpdate } from "./lifecycle";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
 // If a browser never starts speech, retain the answer with a manual next-card
@@ -64,17 +66,38 @@ function useEnglishVoices() {
 function App() {
   // undefined while the session cookie is being checked, null when signed out.
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [connectionError, setConnectionError] = useState(false);
+  const authChecking = useRef(false);
+  const signedOut = useCallback(() => setUser(null), []);
+  const updateAvailable = useVersionUpdate();
+
+  const checkSession = useCallback(async () => {
+    if (authChecking.current) return;
+    authChecking.current = true;
+    setConnectionError(false);
+    try {
+      const payload = await request<{ user: User }>("/api/auth/me");
+      setUser(payload.user);
+    } catch (caught) {
+      if (isUnauthorized(caught)) setUser(null);
+      else setConnectionError(true);
+    } finally {
+      authChecking.current = false;
+    }
+  }, []);
 
   useEffect(() => {
-    request<{ user: User }>("/api/auth/me")
-      .then((payload) => setUser(payload.user))
-      .catch(() => setUser(null));
+    void checkSession();
   }, []);
+  useForegroundRefresh(() => { if (user === undefined) void checkSession(); });
 
   if (user === undefined) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f7f4]">
-        <p className="text-gray-500">Loading...</p>
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f7f7f4]">
+        {connectionError ? <>
+          <p role="alert">暂时无法连接服务器</p>
+          <button type="button" className="secondary-button" onClick={() => { void checkSession(); }}>重试</button>
+        </> : <p className="text-gray-500">Loading...</p>}
       </main>
     );
   }
@@ -85,7 +108,8 @@ function App() {
 
   // Remounting per account keeps one learner's cards and stats from lingering
   // on screen after a different one signs in.
-  return <Trainer key={user.id} user={user} onSignedOut={() => setUser(null)} />;
+  return <Trainer key={user.id} user={user} onSignedOut={signedOut}
+    onSessionChanged={setUser} updateAvailable={updateAvailable} />;
 }
 
 type Page = "home" | "study" | "settings" | "muted-words" | `word-list/${string}`;
@@ -95,7 +119,14 @@ function pageFromHash(): Page {
   return value === "study" || value === "settings" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
 }
 
-function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
+function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
+  user: User; onSignedOut: () => void; onSessionChanged: (user: User) => void; updateAvailable: boolean;
+}) {
+  const readCache = useMemo(() => new ReadCache(request), [user.id]);
+  const [resumeRequested, setResumeRequested] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sessionEnding, setSessionEnding] = useState(false);
+  const [writeEpoch, setWriteEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
   const [hasStarted, setHasStarted] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
@@ -116,7 +147,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const studyToolsOpenRef = useRef(false);
   const [studyTool, setStudyTool] = useState<{ tool: StudyTool; card: Card; showTranslation: boolean } | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
-  const { speech, updateSpeech } = useSpeechSettings(user.id, onSignedOut);
+  const { speech, updateSpeech } = useSpeechSettings(user.id, onSignedOut,
+    () => readCache.get<Settings>("/api/settings", 30000));
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [readingCorrectAnswer, setReadingCorrectAnswer] = useState(false);
@@ -209,7 +241,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     const dueAt = Date.parse(stats.next_relearning_at);
     if (!Number.isFinite(dueAt)) return;
     const timer = window.setTimeout(() => {
-      void guarded(loadStats);
+      void guarded(() => loadStats(true));
     }, Math.max(0, dueAt - Date.now()) + 250);
     return () => window.clearTimeout(timer);
   }, [stats.next_relearning_at, guarded]);
@@ -301,20 +333,20 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     } : undefined);
   }
 
-  async function loadStats() {
-    const payload = await request<Stats>("/api/stats");
+  async function loadStats(force = false) {
+    const payload = await readCache.get<Stats>("/api/stats", 10000, force);
     if (!mountedRef.current) return;
     setStats(payload);
     setStatsReady(true);
   }
 
   async function loadSettings() {
-    const payload = await request<Settings>("/api/settings");
-    if (mountedRef.current) setSettings(payload);
+    const payload = await readCache.get<Settings>("/api/settings", 30000);
+    if (mountedRef.current && !settingsSavingRef.current) setSettings(payload);
   }
 
   async function loadWordLists() {
-    const payload = await request<{ lists: WordList[] }>("/api/word-lists");
+    const payload = await readCache.get<{ lists: WordList[] }>("/api/word-lists", 30000);
     if (mountedRef.current) {
       setWordLists(payload.lists);
       setWordListsReady(true);
@@ -331,6 +363,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     setMessage("");
     try {
       const payload = await request<{ card: Card | null; message?: string; retry_after_seconds?: number }>("/api/next");
+      readCache.clear();
       if (!mountedRef.current) return;
       cancelSpeechRef.current?.();
       setReadingCorrectAnswer(false);
@@ -363,10 +396,12 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     await guarded(async () => {
       let review: ReviewResult;
       try {
+        readCache.clear();
         review = await request<ReviewResult>("/api/review", {
           method: "POST",
           body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id, active_response_ms: Math.round(activeTimeRef.current) })
         });
+        readCache.clear();
       } catch (caught) {
         // Another device or a lost response may already have completed this round.
         if (caught instanceof ApiError && caught.status === 409) {
@@ -459,8 +494,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     if (menuRef.current) menuRef.current.open = false;
     cancelSpeechRef.current?.();
     let advance = false;
+    readCache.clear();
     try {
       const payload = await request<{ word: string }>(`/api/words/${target.id}/mute`, { method: "POST" });
+      readCache.clear();
       if (!mountedRef.current) return;
       setLastMutedWord(payload.word);
       // Muting applies to every sense and duplicate of this word. An unrelated
@@ -486,8 +523,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     if (mutePendingRef.current) throw new Error("请等待当前操作完成。");
     mutePendingRef.current = true;
     setMutePending(true);
+    readCache.clear();
     try {
       await request(`/api/muted-words/${encodeURIComponent(word)}`, { method: "DELETE" });
+      readCache.clear();
       if (!mountedRef.current) return;
       setLastMutedWord((current) => current === word ? null : current);
       void guarded(async () => { await Promise.all([loadStats(), loadWordLists()]); });
@@ -573,6 +612,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     setSettingsSaving(true);
     const previous = settings;
     setSettings({ ...previous, ...next });
+    readCache.clear();
     void guarded(async () => {
       try {
         const payload = await request<Settings>("/api/settings", {
@@ -584,6 +624,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         if (mountedRef.current) setSettings(previous);
         throw caught;
       } finally {
+        readCache.clear();
         settingsSavingRef.current = false;
         if (mountedRef.current) setSettingsSaving(false);
       }
@@ -598,9 +639,16 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function signOut() {
+    if (sessionEnding) return;
+    setSessionEnding(true);
     void guarded(async () => {
-      await request<{ status: string }>("/api/auth/logout", { method: "POST" });
-      onSignedOut();
+      try {
+        await request<{ status: string }>("/api/auth/logout", { method: "POST" });
+        readCache.clear();
+        onSignedOut();
+      } finally {
+        if (mountedRef.current) setSessionEnding(false);
+      }
     });
   }
 
@@ -618,14 +666,47 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     };
     window.addEventListener("popstate", syncPage);
     window.addEventListener("hashchange", syncPage);
+    const unsubscribe = onApiWrite(() => { readCache.clear(); setWriteEpoch((value) => value + 1); });
     void guarded(async () => { await Promise.all([loadStats(), loadSettings(), loadWordLists()]); });
     return () => {
       mountedRef.current = false;
+      unsubscribe();
+      readCache.clear();
       window.removeEventListener("popstate", syncPage);
       window.removeEventListener("hashchange", syncPage);
       cancelSpeechRef.current?.();
     };
   }, []);
+
+  useForegroundRefresh(() => setResumeRequested(true));
+  useEffect(() => {
+    if (!resumeRequested || refreshing || sessionEnding || submitting || loading || settingsSaving || mutePending || hintPending) return;
+    setResumeRequested(false);
+    setRefreshing(true);
+    void guarded(async () => {
+      try {
+        const session = await request<{ user: User }>("/api/auth/me");
+        if (!mountedRef.current) return;
+        if (session.user.id !== user.id) {
+          onSessionChanged(session.user);
+          return;
+        }
+        readCache.clear();
+        // Reconcile read-only data without replacing the current question or draft.
+        await Promise.all([loadStats(true), loadSettings(), loadWordLists()]);
+      } finally {
+        if (mountedRef.current) setRefreshing(false);
+      }
+    });
+  }, [resumeRequested, refreshing, sessionEnding, submitting, loading, settingsSaving, mutePending, hintPending]);
+
+  useEffect(() => {
+    const draft = Boolean(card && !result?.is_correct && answer.length > 0);
+    if (updateAvailable && canReloadForUpdate({ page, draft,
+      busy: hasPendingWrites() || refreshing || sessionEnding || submitting || loading || settingsSaving || mutePending || hintPending || resumeRequested || Boolean(studyTool) })) {
+      window.location.reload();
+    }
+  }, [updateAvailable, page, card, result, answer, refreshing, sessionEnding, submitting, loading, settingsSaving, mutePending, hintPending, resumeRequested, studyTool, writeEpoch]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -697,7 +778,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : page === "muted-words" ? "is-managing-words" : ""}`}>
       {page === "home" ? (
         <Home user={user} stats={stats} ready={statsReady}
-          onRefresh={() => { setMessage(""); void guarded(loadStats); }} />
+          onRefresh={() => { setMessage(""); void guarded(() => loadStats(true)); }} />
       ) : null}
 
       {/* Hidden rather than unmounted: returning Home preserves the current

@@ -37,7 +37,8 @@ function writeCache(key: string, value: unknown) {
   catch { /* Account saving still works when local storage is unavailable. */ }
 }
 
-export function useSpeechSettings(userId: number, onSignedOut: () => void) {
+export function useSpeechSettings(userId: number, onSignedOut: () => void,
+  readSettings: () => Promise<Settings> = () => request<Settings>("/api/settings")) {
   const [speech, setSpeech] = useState<SpeechSettings>(() => ({ voiceURI: readVoice(), rate: readRate(userId).rate }));
   const current = useRef(readRate(userId));
   const revision = useRef(0);
@@ -58,7 +59,7 @@ export function useSpeechSettings(userId: number, onSignedOut: () => void) {
       window.clearTimeout(retry);
       try {
         if (!loaded && !current.current.pending) {
-          const settings = await request<Settings>("/api/settings");
+          const settings = await readSettings();
           if (!active) return;
           // A selection made during loading always takes precedence.
           if (!current.current.pending) {
