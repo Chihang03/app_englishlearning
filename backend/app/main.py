@@ -5,7 +5,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +24,7 @@ from .database import (
 )
 from .passkeys import router as passkeys_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
-from .sense_learning import learning_metrics, next_sense_card, record_sense_review
+from .sense_learning import learning_metrics, next_sense_card, record_sense_review, record_hint, record_related_exposure
 from .senses import authored_sense, save_senses, senses_for_word
 
 
@@ -94,6 +94,16 @@ class ReviewInput(BaseModel):
     example_id: int | None = None
     user_answer: str = Field(default="", max_length=200)
     attempt_id: str | None = Field(default=None, max_length=100)
+    active_response_ms: int | None = Field(default=None, ge=0, le=300000)
+
+
+class HintInput(BaseModel):
+    attempt_id: str = Field(min_length=1,max_length=100)
+    kind: Literal["pronunciation", "answer"]
+
+
+class ExposureInput(BaseModel):
+    attempt_id: str = Field(min_length=1,max_length=100)
 
 
 class SettingsInput(BaseModel):
@@ -186,7 +196,19 @@ def review(payload: ReviewInput, user: dict[str, Any] = Depends(get_current_user
     with connect() as conn:
         return record_sense_review(conn,int(user["id"]),user_today(user),payload.word_id,
                                    payload.sense_id,payload.example_id,payload.user_answer,
-                                   payload.attempt_id,user_timezone(user))
+                                   payload.attempt_id,user_timezone(user),payload.active_response_ms)
+
+
+@app.post("/api/study/hint")
+def study_hint(payload: HintInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, bool]:
+    with connect() as conn:
+        return record_hint(conn,int(user["id"]),payload.attempt_id,payload.kind)
+
+
+@app.post("/api/study/related-exposure")
+def related_exposure(payload: ExposureInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, bool]:
+    with connect() as conn:
+        return record_related_exposure(conn,int(user["id"]),payload.attempt_id)
 
 
 @app.get("/api/settings")

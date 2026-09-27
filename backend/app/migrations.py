@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def run_migrations(db_path: Path) -> None:
@@ -80,12 +80,54 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 6 (independent recall)")
 
+        if version < 7:
+            conn.execute("BEGIN")
+            _migrate_to_v7(conn)
+            conn.execute("PRAGMA user_version = 7")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 7 (adaptive memory)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v7(conn: sqlite3.Connection) -> None:
+    # Preserve all existing schedules. Memory states are initialized lazily at
+    # the next actual review; old, untracked hints cannot establish prior knowledge.
+    _run(conn, [
+        "ALTER TABLE study_attempts ADD COLUMN pronunciation_used INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE study_attempts ADD COLUMN answer_exposed INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE study_attempts ADD COLUMN tracking_version INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE review_history ADD COLUMN pronunciation_used INTEGER",
+        "ALTER TABLE review_history ADD COLUMN active_response_ms INTEGER",
+        "ALTER TABLE review_history ADD COLUMN base_recall_probability REAL",
+        "ALTER TABLE review_history ADD COLUMN predicted_recall_probability REAL",
+        "ALTER TABLE review_history ADD COLUMN memory_model_version TEXT",
+        """CREATE TABLE adaptive_memory (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sense_id INTEGER NOT NULL REFERENCES word_senses(id) ON DELETE CASCADE,
+            card_json TEXT NOT NULL, known_candidate INTEGER NOT NULL DEFAULT 0,
+            confirmations INTEGER NOT NULL DEFAULT 0, first_independent_at TEXT,
+            last_independent_at TEXT, PRIMARY KEY(user_id,sense_id)
+        )""",
+        """CREATE TABLE memory_profiles (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            forgetting_multiplier REAL NOT NULL DEFAULT 1,
+            evaluated_count INTEGER NOT NULL DEFAULT 0, training_count INTEGER NOT NULL DEFAULT 0,
+            validation_count INTEGER NOT NULL DEFAULT 0, baseline_log_loss REAL,
+            candidate_log_loss REAL, adopted INTEGER NOT NULL DEFAULT 0, evaluated_at TEXT
+        )""",
+        "CREATE INDEX idx_memory_samples ON review_history(user_id,id) WHERE base_recall_probability IS NOT NULL",
+        """CREATE TABLE sense_exposures (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sense_id INTEGER NOT NULL REFERENCES word_senses(id) ON DELETE CASCADE,
+            exposed_at TEXT NOT NULL, PRIMARY KEY(user_id,sense_id)
+        )""",
+    ])
 
 
 def _migrate_to_v6(conn: sqlite3.Connection) -> None:

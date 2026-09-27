@@ -280,13 +280,18 @@ class SenseLearningTests(unittest.TestCase):
             card=self.next();self.review(card,'address')
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],1)
             self.assertEqual(self.review(card,'address').status_code,409)
+        # Force this card due to isolate the local-day boundary from the new
+        # known-word interval (which would otherwise be 30 days).
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET next_review_date='2026-01-02' WHERE sense_id=?",(card['sense_id'],))
         with patch('app.main.user_today',return_value=date(2026,1,2)), \
              patch('app.main.today_in',return_value=date(2026,1,2)), \
              patch('app.sense_learning.utc_now_iso',return_value='2026-01-01T16:00:01+00:00'):
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],0)
             card=self.next();response=self.review(card,'address').json()
             self.assertEqual(response['srs_state']['correct_count'],2)
-            self.assertEqual(response['srs_state']['next_review_date'],'2026-01-05')
+            self.assertEqual(response['srs_state']['next_review_date'],'2026-02-01')
+            self.assertEqual(response['memory']['confirmations'],1)  # Only two seconds apart.
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],1)
 
     def test_sentence_rotation_and_due_reviews_survive_list_switch(self):
@@ -363,7 +368,7 @@ class LegacySenseMigrationTests(unittest.TestCase):
                 conn.execute('PRAGMA user_version=5')
             migrations.run_migrations(path);migrations.run_migrations(path)
             with closing(sqlite3.connect(path)) as conn:
-                self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0],6)
+                self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0],migrations.SCHEMA_VERSION)
                 self.assertEqual(conn.execute('SELECT sense_id FROM relearning_queue').fetchall(),[(1,)])
                 self.assertEqual(conn.execute('SELECT correct_count,status,next_review_date FROM sense_srs_state ORDER BY sense_id').fetchall(),
                                  [(0,'Learning','2026-01-01'),(4,'Reviewing','2026-12-01')])
