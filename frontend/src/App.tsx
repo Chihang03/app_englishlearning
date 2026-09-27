@@ -626,7 +626,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             <Icon name="back" />
           </button>
           <div className="study-progress">
-            <span>今日独立通过 {statsReady ? stats.today_success_senses : "—"} 个义项 · 待巩固 {statsReady ? stats.pending_relearning_senses : "—"}</span>
+            <span>今日通过 {statsReady ? stats.today_success_senses : "—"} 题</span>
           </div>
           <details ref={menuRef} className="study-menu" onToggle={(event) => {
             otherSensesOpenRef.current = event.currentTarget.open && Boolean(event.currentTarget.querySelector(".other-senses[open]"));
@@ -663,12 +663,16 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
             <div className="question-heading">
               <div className="question-labels">
-                <span className="pill">{card.needs_correction ? "纠正练习" : card.is_relearning ? "独立巩固" : card.status === "Mature" ? "熟词抽查" : card.known_candidate ? `熟词确认 ${Math.min(card.confirmations + 1,3)}/3` : card.status === "New" ? (card.is_new_word ? "新词" : "新义项") : "义项复习"}</span>
+                {card.known_candidate && !card.needs_correction && !card.is_relearning && card.status !== "Mature" && !result ? (
+                  <ConfirmationMarks count={card.confirmations} />
+                ) : (
+                  <span className="pill">{card.status === "New" && !card.needs_correction ? (card.is_new_word ? "新词" : "新用法") : "复习"}</span>
+                )}
                 <span className="part-of-speech">{card.part_of_speech}</span>
               </div>
               <button type="button" className="icon-button pronunciation-button"
                 onClick={() => { void playWordHint(); }}
-                disabled={!speechSupported || hintPending || loading || submitting} aria-label="朗读单词" title="朗读单词（答题前使用将记为辅助作答）">
+                disabled={!speechSupported || hintPending || loading || submitting} aria-label="朗读单词" title="朗读单词">
                 <Icon name="sound" />
               </button>
             </div>
@@ -679,14 +683,14 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                   index < sentenceParts.length - 1 ? (
                     <InlineAnswer key={`blank-${index}`} id={index === 0 ? "study-answer" : undefined}
                       ref={index === 0 ? inputRef : undefined}
-                      className={`sentence-input ${result?.is_correct ? "is-correct" : result ? "is-retry" : ""}`}
+                      className={`sentence-input ${result?.is_correct ? "is-correct" : result || card.needs_correction ? "is-retry" : ""}`}
                       value={result ? result.correct_answer : answer}
                       onEnter={handleEnter}
                       onChange={(event) => { if (!busy) handleAnswerChange(event.target.value.replace(/[\r\n]+/g, " ")); }}
                       onFocus={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       onClick={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
-                      aria-busy={busy} aria-describedby="answer-feedback"
+                      aria-busy={busy} aria-invalid={!result?.is_correct && (Boolean(result) || card.needs_correction)} aria-describedby="answer-feedback"
                       autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
                       enterKeyHint="send" inputMode="text" />
                   ) : null
@@ -700,16 +704,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               ) : null}
             </div>
             <div id="answer-feedback" className="study-feedback" aria-live="polite" aria-atomic="true">
-              {result?.is_correct ? result.is_independent ? (
-                <p className="feedback-correct">{result.srs_state.status === "Mature" ? "✓ 已长期熟记 · 下次抽查：" : result.memory.known_candidate ? `✓ 熟词确认 ${result.memory.confirmations}/3 · 下次确认：` : "✓ 独立答对 · 下次复习："}{result.srs_state.next_review_date}</p>
-              ) : (
-                <p>{result.outcome === "assisted" ? "辅助答对" : "已纠正"} · 稍后独立巩固</p>
-              ) : result ? (
-                <p>请重新输入正确答案</p>
-              ) : card.needs_correction ? (
-                <p>请重新输入正确答案</p>
-              ) : card.pronunciation_used || card.answer_exposed ? (
-                <p>已使用答案提示 · 本轮按辅助作答记录</p>
+              {result?.is_correct && result.is_independent ? (
+                <p className="feedback-correct"><span aria-label="答对">✓</span>{result.memory.known_candidate ? <ConfirmationMarks count={result.memory.confirmations} /> : null}</p>
               ) : null}
             </div>
             {message ? <p role="alert" className="error-notice">{message}</p> : null}
@@ -729,7 +725,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       </section>
 
       {page === "settings" ? (
-        <SettingsPage user={user} settings={settings} memoryModel={stats.memory_model} wordLists={wordLists} speech={speech} voices={voices}
+        <SettingsPage user={user} settings={settings} wordLists={wordLists} speech={speech} voices={voices}
           settingsSaving={settingsSaving}
           speechSupported={speechSupported} onBack={() => navigate("home")}
           onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
@@ -811,13 +807,21 @@ function Home({ user, stats, ready, onSettings, onRefresh }: {
   );
 }
 
+function ConfirmationMarks({ count }: { count: number }) {
+  const completed = Math.max(0, Math.min(3, count));
+  return (
+    <span className="confirmation-marks" role="img" aria-label={`熟词确认已完成 ${completed} 次，共 3 次`}>
+      {[0, 1, 2].map((index) => <span key={index} aria-hidden="true" className={`confirmation-mark${index < completed ? " is-complete" : ""}`} />)}
+    </span>
+  );
+}
+
 function Metric({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
-function SettingsPage({ user, settings, memoryModel, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired }: {
+function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired }: {
   user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
-  memoryModel: Stats["memory_model"];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
   onOpenWordList: (listId: string) => void;
@@ -829,9 +833,7 @@ function SettingsPage({ user, settings, memoryModel, wordLists, settingsSaving, 
       <div className="account-card panel"><span className="account-avatar"><Icon name="user" /></span><div><h2>{user.username}</h2><p>{user.timezone}</p></div></div>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 智能复习</h2>
-        <p className="settings-hint">根据每个义项的独立作答表现调整复习间隔，目标到期记住率约 90%。</p>
-        <p className="settings-hint">首次独立答对优先安排较长间隔确认；达到长期熟记后，每 180 天抽查。</p>
-        <p className="settings-hint" role="status">{!memoryModel ? "正在加载复习状态…" : memoryModel.personalized ? "已根据你的答题历史校准复习间隔。" : memoryModel.evaluated_at ? "已评估个人答题历史，当前继续使用默认记忆参数。" : `正在积累个人复习数据：${memoryModel.sample_count} 次有效延迟作答；至少 ${memoryModel.minimum_samples} 次、覆盖多个义项和 30 天后评估。`}</p>
+        <p className="settings-hint">根据你的作答表现自动安排复习。</p>
       </section>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习显示</h2>
