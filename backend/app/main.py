@@ -26,6 +26,7 @@ from .passkeys import router as passkeys_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
 from .sense_learning import learning_metrics, next_sense_card, record_sense_review, record_hint, record_related_exposure
 from .senses import authored_sense, save_senses, senses_for_word
+from .study_tools import report_content, word_meanings
 
 
 # The streak walks back day by day from today, so history older than this cannot
@@ -104,6 +105,11 @@ class HintInput(BaseModel):
 
 class ExposureInput(BaseModel):
     attempt_id: str = Field(min_length=1,max_length=100)
+
+
+class ContentReportInput(ExposureInput):
+    category: Literal["definition", "sentence", "translation", "pronunciation", "other"]
+    details: str = Field(default="", max_length=2000)
 
 
 class SettingsInput(BaseModel):
@@ -209,6 +215,18 @@ def study_hint(payload: HintInput, user: dict[str, Any] = Depends(get_current_us
 def related_exposure(payload: ExposureInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, bool]:
     with connect() as conn:
         return record_related_exposure(conn,int(user["id"]),payload.attempt_id)
+
+
+@app.post("/api/study/meanings")
+def study_meanings(payload: ExposureInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    with connect() as conn:
+        return word_meanings(conn, int(user["id"]), payload.attempt_id)
+
+
+@app.post("/api/content-reports")
+def content_report(payload: ContentReportInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    with connect() as conn:
+        return report_content(conn, int(user["id"]), payload.attempt_id, payload.category, payload.details)
 
 
 @app.get("/api/settings")

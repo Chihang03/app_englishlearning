@@ -2,6 +2,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { InlineAnswer } from "./InlineAnswer";
+import { StudyTools } from "./StudyTools";
+import type { StudyTool } from "./StudyTools";
 import { ApiError, errorMessage, isUnauthorized, request } from "./api";
 import { version } from "./version.json";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
@@ -141,8 +143,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
   const [wordLists, setWordLists] = useState<WordList[]>([]);
   const [wordListsReady, setWordListsReady] = useState(false);
-  const otherSensesOpenRef = useRef(false);
-  const [exposureAttemptId, setExposureAttemptId] = useState<string | null>(null);
+  const studyToolsOpenRef = useRef(false);
+  const [studyTool, setStudyTool] = useState<StudyTool | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(false);
@@ -179,7 +181,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     const timer = window.setInterval(() => {
       const now = performance.now();
       const delta = now - previous;
-      if (!document.hidden && document.hasFocus() && now - lastActivity < 30000 && delta < 2000) {
+      if (!document.hidden && document.hasFocus() && !studyToolsOpenRef.current && now - lastActivity < 30000 && delta < 2000) {
         activeTimeRef.current = Math.min(300000,activeTimeRef.current + delta);
       }
       previous = now;
@@ -330,7 +332,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   function playSentence(text: string, advanceAfterReading: boolean) {
     setMessage("");
     speak(text, advanceAfterReading ? () => {
-      if (!mountedRef.current || pageRef.current !== "study" || loadingRef.current || otherSensesOpenRef.current) return;
+      if (!mountedRef.current || pageRef.current !== "study" || loadingRef.current || studyToolsOpenRef.current || menuRef.current?.open) return;
       void guarded(loadNext);
     } : undefined, advanceAfterReading ? () => {
       if (!mountedRef.current || pageRef.current !== "study") return;
@@ -372,9 +374,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       setReadingCorrectAnswer(false);
       // Do not remove the old input while fetching: mobile keyboards depend on
       // the focused DOM node surviving the transition to the next card.
+      closeStudyTool();
       setCard(payload.card);
       setResult(null);
-      otherSensesOpenRef.current = false;
+      studyToolsOpenRef.current = false;
       // A resumed failed round still needs correction; it is never a clean test.
       setAnswer(payload.card?.needs_correction ? payload.card.answer_form : "");
       setQueueMessage(payload.message ?? "");
@@ -463,24 +466,32 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     }
   }
 
-  async function recordRelatedExposure() {
-    if (!card) return;
-    await guarded(async () => {
-      await request("/api/study/related-exposure", { method: "POST", body: JSON.stringify({ attempt_id: card.attempt_id }) });
-      if (mountedRef.current) setExposureAttemptId(card.attempt_id);
-    });
+  function openStudyTool(tool: StudyTool) {
+    if (!card || loading || submitting || hintPending) return;
+    studyToolsOpenRef.current = true;
+    if (menuRef.current) menuRef.current.open = false;
+    inputRef.current?.blur();
+    setStudyTool(tool);
+  }
+
+  function closeStudyTool() {
+    const wasOpen = studyToolsOpenRef.current;
+    studyToolsOpenRef.current = false;
+    setStudyTool(null);
+    if (wasOpen) menuRef.current?.querySelector("summary")?.focus();
   }
 
   function handleAnswerChange(value: string) {
     if (result && !result.is_correct) {
       setResult(null);
-      otherSensesOpenRef.current = false;
+      studyToolsOpenRef.current = false;
     }
     setAnswer(value);
   }
 
   function navigate(next: Page) {
     if (next === pageRef.current) return;
+    closeStudyTool();
     inputRef.current?.blur();
     if (menuRef.current) menuRef.current.open = false;
     cancelSpeechRef.current?.();
@@ -531,6 +542,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     // Each authenticated session starts at Home, including after a reload.
     window.history.replaceState(null, "", "#home");
     const syncPage = () => {
+      closeStudyTool();
       const next = pageFromHash();
       if (next !== pageRef.current) cancelSpeechRef.current?.();
       if (menuRef.current) menuRef.current.open = false;
@@ -617,7 +629,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : ""}`}>
       {page === "home" ? (
         <Home user={user} stats={stats} ready={statsReady}
-          onSettings={() => navigate("settings")}
           onRefresh={() => { setMessage(""); void guarded(loadStats); }} />
       ) : null}
 
@@ -631,33 +642,15 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <div className="study-progress">
             <span>今日通过 {statsReady ? stats.today_success_senses : "—"} 题</span>
           </div>
-          <details ref={menuRef} className="study-menu" onToggle={(event) => {
-            otherSensesOpenRef.current = event.currentTarget.open && Boolean(event.currentTarget.querySelector(".other-senses[open]"));
-          }}>
+          <details ref={menuRef} className="study-menu">
             <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
             <div className="study-menu-panel">
-              <button type="button" onClick={() => navigate("settings")}>学习设置</button>
-              <button type="button" onClick={() => navigate("home")}>回到首页</button>
+              <button type="button" disabled={!card || loading || submitting || hintPending} onClick={() => openStudyTool("meanings")}>更多词义</button>
+              <button type="button" disabled={!card || loading || submitting || hintPending} onClick={() => openStudyTool("report")}>报告错误</button>
               {result?.is_correct ? <button type="button" disabled={loading} onClick={() => {
                 if (menuRef.current) menuRef.current.open = false;
                 void guarded(loadNext);
               }}>下一题</button> : null}
-              {result && result.other_senses.length > 0 ? (
-                <details className="other-senses" key={`${card?.sense_id}-${card?.example_id}`}
-                  onToggle={(event) => {
-                    otherSensesOpenRef.current = Boolean(menuRef.current?.open) && event.currentTarget.open;
-                    if (event.currentTarget.open) void recordRelatedExposure();
-                  }}>
-                  <summary>其他意思与用法（{result.other_senses.length}）</summary>
-                  {exposureAttemptId === card?.attempt_id ? result.other_senses.map((sense) => (
-                    <div className="other-sense" key={sense.id}>
-                      <span className="part-of-speech">{sense.part_of_speech} · {sense.status === "New" ? "尚未学习" : sense.status === "Mature" ? "长期熟记" : "已开始学习"}</span>
-                      <p>{sense.definition_cn || sense.definition_en}</p>
-                      {sense.examples.map((example) => <p className="other-sense-example" key={example.id}>{example.sentence}{settings.show_sentence_translation && example.translation_cn ? <span>{example.translation_cn}</span> : null}</p>)}
-                    </div>
-                  )) : <p>正在加载其他意思与用法…</p>}
-                </details>
-              ) : null}
             </div>
           </details>
         </header>
@@ -717,6 +710,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             </div> : null}
           </div>
         )}
+        {page === "study" && studyTool && card ? <StudyTools key={`${card.attempt_id}-${studyTool}`}
+          tool={studyTool} card={card} showTranslation={settings.show_sentence_translation}
+          onClose={closeStudyTool} onSignedOut={onSignedOut}
+          onAnswerExposed={() => setCard((current) => current?.attempt_id === card.attempt_id ? { ...current, answer_exposed: true } : current)} /> : null}
       </section>
 
       {page === "settings" ? (
@@ -752,16 +749,15 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   );
 }
 
-function Home({ user, stats, ready, onSettings, onRefresh }: {
+function Home({ user, stats, ready, onRefresh }: {
   user: User; stats: Stats; ready: boolean;
-  onSettings: () => void; onRefresh: () => void;
+  onRefresh: () => void;
 }) {
   const value = (count: number) => ready ? count.toLocaleString() : "—";
   return (
     <section className="home-page page-container" aria-label="首页">
       <header className="page-header">
         <div><span className="eyebrow">CONTEXT · 语境学词</span><h1>你好，{user.username}</h1></div>
-        <button type="button" className="icon-button header-settings" aria-label="打开设置" onClick={onSettings}><Icon name="settings" /></button>
       </header>
       <div className="home-intro"><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
       <section className="today-panel panel">

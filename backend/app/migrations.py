@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def run_migrations(db_path: Path) -> None:
@@ -87,12 +87,37 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 7 (adaptive memory)")
 
+        if version < 8:
+            conn.execute("BEGIN")
+            _migrate_to_v8(conn)
+            conn.execute("PRAGMA user_version = 8")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 8 (content reports)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v8(conn: sqlite3.Connection) -> None:
+    conn.execute("""CREATE TABLE content_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        attempt_id TEXT NOT NULL REFERENCES study_attempts(id),
+        word_id INTEGER NOT NULL REFERENCES words(id),
+        sense_id INTEGER NOT NULL REFERENCES word_senses(id),
+        example_id INTEGER NOT NULL REFERENCES sense_examples(id),
+        category TEXT NOT NULL CHECK(category IN ('definition','sentence','translation','pronunciation','other')),
+        details TEXT NOT NULL DEFAULT '',
+        content_snapshot TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','resolved')),
+        UNIQUE(user_id,attempt_id,category)
+    )""")
+    conn.execute("CREATE INDEX content_reports_status_time ON content_reports(status,created_at)")
 
 
 def _migrate_to_v7(conn: sqlite3.Connection) -> None:
