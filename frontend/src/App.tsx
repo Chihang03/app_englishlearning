@@ -689,7 +689,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
                       onFocus={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       onClick={(event) => { if (result && !result.is_correct) event.currentTarget.select(); }}
                       aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
-                      aria-busy={busy} aria-invalid={!result?.is_correct && (Boolean(result) || card.needs_correction)} aria-describedby="answer-feedback"
+                      aria-busy={busy} aria-invalid={!result?.is_correct && (Boolean(result) || card.needs_correction)}
                       autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
                       enterKeyHint="send" inputMode="text" />
                   ) : null
@@ -700,11 +700,6 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               <p className="word-meaning">{card.definition_cn || card.definition_en}</p>
               {settings.show_sentence_translation && card.example_translation_cn ? (
                 <p className="sentence-translation">{card.example_translation_cn}</p>
-              ) : null}
-            </div>
-            <div id="answer-feedback" className="study-feedback" aria-live="polite" aria-atomic="true">
-              {result?.is_correct && result.is_independent ? (
-                <p className="feedback-correct"><span aria-label="答对">✓</span></p>
               ) : null}
             </div>
             {message ? <p role="alert" className="error-notice">{message}</p> : null}
