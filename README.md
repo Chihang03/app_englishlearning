@@ -178,6 +178,18 @@ python3 -m venv .venv-vocab-export
 
 构建器读取 Mac 已安装的英汉词典和 New Oxford American Dictionary，按原文义项分组提取词性、解释及例句。英汉词典中的同组数据优先；只有人工核对的映射或词性一致且例句完全相同的唯一匹配，才跨词典合并。`sense_overrides.json` 保存人工映射及预期英文解释，源解释变化时导出会要求重新核对。没有可靠中文对应的词使用原义项的英文解释，不拼接整词的中文释义。
 
+`backend/data/chinese_gloss_supplements.json` 保存中文补充释义及每条记录的来源、匹配方法、稳定义项键、预期英文解释和词性；只填缺失的中文，重建词库时继续应用。`scripts/supplement_chinese_from_dictionary.py` 从本地词典提取补充：词性须一致，英文解释或例句须完全匹配；另可匹配两部原词典在该词性下都只有一个义项的单义词。单义判断包含原词典中没有可学例句的义项，不只检查学习词库。无法确定对应关系的多义词继续保留英文。词典义项中的复数/变体提示不会再被误当成短语而跳过整组解释。
+
+加入 `--include-traditional` 可同时读取 Mac 已安装的译典通英汉双向字典，并用 macOS 自带的字符转换转为简体。`dictionary_gloss_exclusions.json` 记录已发现的跨词典同形异义，防止重建时再次误配。补充提取可以单独运行，不会重建义项或例句：
+
+```bash
+.venv-vocab-export/bin/python scripts/supplement_chinese_from_dictionary.py \
+  --catalog backend/data/vocabulary_catalog.json \
+  --supplements backend/data/chinese_gloss_supplements.json --include-traditional
+```
+
+已有 201 条对话模型核对的补充释义保留，本次新补充直接取自词典，不调用翻译模型。原英文解释、例句、义项标识和学习进度保留。`scripts/apply_chinese_glosses_to_db.py` 用于线上增量更新：先通过 SQLite backup API 备份，再校验旧词库指纹，只更新缺失的公共中文释义和新指纹，并逐表核对其他内容及学习记录未变。
+
 每个可学义项都必须有实际词典例句。构建器排除带 sb/sth 的模板和过短示例；词典省略的句末标点会被补齐。支持词典索引中明确记录的常见变形，例如 address → addressed；每条例句保存 `target_form`，卡片挖空与评分采用句中词形。独立的 Tatoeba 备用句没有义项对应关系，因此保留快照供人工核对，不会自动配给某个意思。
 
 设置页显示“可学词数 / 原词表词数”，未找到可靠配对的词列在 `vocabulary_export_report.json` 中。重新生成后部署 `source_word_lists.json`、`vocabulary_catalog.json` 和导出报告即可，服务器及访问者设备不需要 Mac 词典或导出依赖。

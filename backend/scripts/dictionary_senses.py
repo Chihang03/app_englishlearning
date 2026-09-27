@@ -125,7 +125,10 @@ def parse_record(definition_html: str, word: str, language: str, aliases: list[s
             continue
         # Reflexive constructions/phrasal verbs deserve their own headwords;
         # their meanings cannot be assigned to the bare target word.
-        phrases = owned(block, "frm", ("gramb",)) if language == "zh" else []
+        # Forms inside a meaning group also describe plurals or variants. Only
+        # a form on the grammatical block identifies a separate construction.
+        phrases = [n for n in owned(block, "frm", ("gramb",))
+                   if ancestor(n, ("semb",)) is None] if language == "zh" else []
         if phrases and text(phrases[0]).removeprefix("to ").casefold() != word.casefold():
             continue
         ps = owned(block, "ps" if language == "zh" else "pos", ("gramb", "se1"))
