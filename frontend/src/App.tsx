@@ -630,7 +630,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, [result]);
 
   useEffect(() => {
-    if (page !== "study") return;
+    if (page !== "study" && page !== "muted-words") return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previous; };
@@ -669,7 +669,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const currentWordList = wordLists.find((list) => page === `word-list/${encodeURIComponent(list.list_id)}`);
 
   return (
-    <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : ""}`}>
+    <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : page === "muted-words" ? "is-managing-words" : ""}`}>
       {page === "home" ? (
         <Home user={user} stats={stats} ready={statsReady}
           onRefresh={() => { setMessage(""); void guarded(loadStats); }} />
@@ -776,7 +776,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} />
       ) : null}
 
-      {page === "muted-words" ? <section className="settings-page page-container" aria-label="不再学习的单词管理">
+      {page === "muted-words" ? <section className="settings-page page-container muted-words-page" aria-label="不再学习的单词管理">
         <header className="settings-header">
           <button type="button" className="icon-button" onClick={() => navigate("settings")} aria-label="返回设置"><Icon name="back" /></button>
           <h1>不再学习的单词</h1><span className="header-spacer" />
