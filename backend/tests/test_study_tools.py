@@ -104,12 +104,13 @@ class StudyToolsTests(unittest.TestCase):
     def test_v8_upgrade_preserves_existing_data_and_makes_backup(self):
         with database.connect() as conn:
             conn.execute("DROP TABLE content_reports")
+            conn.execute("DROP TABLE user_muted_words")
             conn.execute("PRAGMA user_version=7")
             before = conn.execute("SELECT * FROM study_attempts").fetchall()
         migrations.run_migrations(database.DB_PATH)
         migrations.run_migrations(database.DB_PATH)
         with database.connect() as conn:
-            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 8)
+            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], migrations.SCHEMA_VERSION)
             self.assertEqual([tuple(row) for row in conn.execute("SELECT * FROM study_attempts")], [tuple(row) for row in before])
             self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
         backups = list(self.directory.glob("test.db.bak-v7-*"))

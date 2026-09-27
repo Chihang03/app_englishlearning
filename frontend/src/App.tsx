@@ -3,6 +3,7 @@ import { AuthScreen } from "./AuthScreen";
 import { PasskeySettings } from "./PasskeySettings";
 import { InlineAnswer } from "./InlineAnswer";
 import { StudyTools } from "./StudyTools";
+import { MutedWords } from "./MutedWords";
 import type { StudyTool } from "./StudyTools";
 import { ApiError, errorMessage, isUnauthorized, request } from "./api";
 import { version } from "./version.json";
@@ -125,11 +126,11 @@ function App() {
   return <Trainer key={user.id} user={user} onSignedOut={() => setUser(null)} />;
 }
 
-type Page = "home" | "study" | "settings" | `word-list/${string}`;
+type Page = "home" | "study" | "settings" | "muted-words" | `word-list/${string}`;
 
 function pageFromHash(): Page {
   const value = window.location.hash.slice(1);
-  return value === "study" || value === "settings" || value.startsWith("word-list/") ? value as Page : "home";
+  return value === "study" || value === "settings" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
 }
 
 function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
@@ -152,6 +153,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [readingCorrectAnswer, setReadingCorrectAnswer] = useState(false);
   const [message, setMessage] = useState("");
   const [queueMessage, setQueueMessage] = useState("");
+  const [lastMutedWord, setLastMutedWord] = useState<string | null>(null);
+  const [mutePending, setMutePending] = useState(false);
+  const mutePendingRef = useRef(false);
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLElement>(null);
@@ -361,7 +365,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function loadNext() {
-    if (loadingRef.current) return;
+    if (loadingRef.current || mutePendingRef.current) return;
     cancelSpeechRef.current?.();
     setReadingCorrectAnswer(false);
     loadingRef.current = true;
@@ -390,7 +394,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function submitAnswer(value: string, readSentence = false) {
-    if (!card || loadingRef.current || submittingRef.current || hintPendingRef.current || result?.is_correct) return;
+    if (!card || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current || result?.is_correct) return;
     if (result && value.trim() === "") return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -434,7 +438,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   function handleEnter() {
     if (!card || pageRef.current !== "study") return;
-    if (submittingRef.current || loadingRef.current || hintPendingRef.current) {
+    if (submittingRef.current || loadingRef.current || hintPendingRef.current || mutePendingRef.current) {
       return;
     } else if (result) {
       // Replaying feedback must not create another review-history entry.
@@ -445,7 +449,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   async function playWordHint() {
-    if (!card || submittingRef.current || loadingRef.current || hintPendingRef.current) return;
+    if (!card || submittingRef.current || loadingRef.current || hintPendingRef.current || mutePendingRef.current) return;
     if (result || card.needs_correction) {
       speak(result?.correct_answer ?? card.word);
       return;
@@ -467,7 +471,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function openStudyTool(tool: StudyTool) {
-    if (!card || loading || submitting || hintPending) return;
+    if (!card || loading || submitting || hintPending || mutePending) return;
     studyToolsOpenRef.current = true;
     if (menuRef.current) menuRef.current.open = false;
     inputRef.current?.blur();
@@ -479,6 +483,45 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     studyToolsOpenRef.current = false;
     setStudyTool(null);
     if (wasOpen) menuRef.current?.querySelector("summary")?.focus();
+  }
+
+  async function muteCurrentWord() {
+    if (!card || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current) return;
+    mutePendingRef.current = true;
+    setMutePending(true);
+    setMessage("");
+    if (menuRef.current) menuRef.current.open = false;
+    cancelSpeechRef.current?.();
+    try {
+      const payload = await request<{ word: string }>(`/api/words/${card.id}/mute`, { method: "POST" });
+      if (!mountedRef.current) return;
+      setLastMutedWord(payload.word);
+      setCard(null);
+      setResult(null);
+      setAnswer("");
+    } finally {
+      mutePendingRef.current = false;
+      if (mountedRef.current) setMutePending(false);
+    }
+    await loadNext();
+    void guarded(async () => { await Promise.all([loadStats(), loadWordLists()]); });
+  }
+
+  async function restoreMutedWord(word: string) {
+    if (mutePendingRef.current) throw new Error("请等待当前操作完成。");
+    mutePendingRef.current = true;
+    setMutePending(true);
+    try {
+      await request(`/api/muted-words/${encodeURIComponent(word)}`, { method: "DELETE" });
+      if (!mountedRef.current) return;
+      setLastMutedWord((current) => current === word ? null : current);
+      void guarded(async () => { await Promise.all([loadStats(), loadWordLists()]); });
+    } finally {
+      mutePendingRef.current = false;
+      if (mountedRef.current) setMutePending(false);
+    }
+    // Keep an existing answer draft; resume automatically if the queue was empty.
+    if (mountedRef.current && !card && pageRef.current === "study") await loadNext();
   }
 
   function handleAnswerChange(value: string) {
@@ -564,7 +607,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     window.scrollTo(0, 0);
     if (page === "settings" || page.startsWith("word-list/")) void guarded(loadWordLists);
     if (page === "study") {
-      if (!hasStarted) {
+      if (!hasStarted || !card) {
         setHasStarted(true);
         void guarded(loadNext);
       } else {
@@ -619,7 +662,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     };
   }, []);
 
-  const busy = loading || submitting || hintPending || Boolean(result?.is_correct);
+  const busy = loading || submitting || hintPending || mutePending || Boolean(result?.is_correct);
   const confirmationCount = result ? (result.memory.known_candidate ? result.memory.confirmations : null)
     : card?.known_candidate && !card.needs_correction ? card.confirmations : null;
   const isWordListPage = page.startsWith("word-list/");
@@ -645,15 +688,24 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <details ref={menuRef} className="study-menu">
             <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
             <div className="study-menu-panel">
-              <button type="button" disabled={!card || loading || submitting || hintPending} onClick={() => openStudyTool("meanings")}>更多词义</button>
-              <button type="button" disabled={!card || loading || submitting || hintPending} onClick={() => openStudyTool("report")}>报告错误</button>
-              {result?.is_correct ? <button type="button" disabled={loading} onClick={() => {
+              <button type="button" disabled={!card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("meanings")}>更多词义</button>
+              <button type="button" disabled={!card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("report")}>报告错误</button>
+              <button type="button" disabled={!card || loading || submitting || hintPending || mutePending} onClick={() => { void guarded(muteCurrentWord); }}>
+                不再学习此单词
+              </button>
+              {result?.is_correct ? <button type="button" disabled={loading || mutePending} onClick={() => {
                 if (menuRef.current) menuRef.current.open = false;
                 void guarded(loadNext);
               }}>下一题</button> : null}
             </div>
           </details>
         </header>
+
+        {lastMutedWord ? <div className="mute-notice" role="status">
+          <span>已消音 {lastMutedWord} 的所有义项</span>
+          <button type="button" disabled={loading || submitting || hintPending || mutePending} onClick={() => { void guarded(() => restoreMutedWord(lastMutedWord)); }}>撤销</button>
+          <button type="button" aria-label="关闭消音提示" onClick={() => setLastMutedWord(null)}>×</button>
+        </div> : null}
 
         {card ? (
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
@@ -665,7 +717,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
               </div>
               <button type="button" className="icon-button pronunciation-button"
                 onClick={() => { void playWordHint(); }}
-                disabled={!speechSupported || hintPending || loading || submitting} aria-label="朗读单词" title="朗读单词">
+                disabled={!speechSupported || hintPending || loading || submitting || mutePending} aria-label="朗读单词" title="朗读单词">
                 <Icon name="sound" />
               </button>
             </div>
@@ -721,8 +773,16 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           settingsSaving={settingsSaving}
           speechSupported={speechSupported} onBack={() => navigate("home")}
           onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
-          onSignOut={signOut} onSessionExpired={onSignedOut} />
+          onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} />
       ) : null}
+
+      {page === "muted-words" ? <section className="settings-page page-container" aria-label="已消音单词管理">
+        <header className="settings-header">
+          <button type="button" className="icon-button" onClick={() => navigate("settings")} aria-label="返回设置"><Icon name="back" /></button>
+          <h1>已消音单词</h1><span className="header-spacer" />
+        </header>
+        <MutedWords onRestore={restoreMutedWord} onSignedOut={onSignedOut} />
+      </section> : null}
 
       {isWordListPage ? (
         <WordListPage list={currentWordList} ready={wordListsReady} settingsSaving={settingsSaving}
@@ -740,7 +800,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             <span className="nav-study-icon"><Icon name="arrow" /></span>
             <span>{hasStarted ? "继续学习" : "开始学习"}</span>
           </button>
-          <button type="button" onClick={() => navigate("settings")} aria-current={page === "settings" || isWordListPage ? "page" : undefined}>
+          <button type="button" onClick={() => navigate("settings")} aria-current={page === "settings" || page === "muted-words" || isWordListPage ? "page" : undefined}>
             <Icon name="settings" /><span>设置</span>
           </button>
         </nav>
@@ -811,12 +871,13 @@ function Metric({ icon, label, value }: { icon: IconName; label: string; value: 
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
-function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired }: {
+function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired, onOpenMutedWords }: {
   user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
   onOpenWordList: (listId: string) => void;
   onSpeech: (next: Partial<SpeechSettings>) => void; onSignOut: () => void; onSessionExpired: () => void;
+  onOpenMutedWords: () => void;
 }) {
   return (
     <section className="settings-page page-container" aria-label="设置">
@@ -825,6 +886,9 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       <section className="settings-group panel">
         <h2><Icon name="book" /> 智能复习</h2>
         <p className="settings-hint">根据你的作答表现自动安排复习。</p>
+        <button type="button" className="word-list-option" onClick={onOpenMutedWords}>
+          <strong>已消音单词</strong><Icon name="chevron" />
+        </button>
       </section>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习显示</h2>

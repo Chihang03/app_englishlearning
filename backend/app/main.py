@@ -27,6 +27,7 @@ from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from
 from .sense_learning import learning_metrics, next_sense_card, record_sense_review, record_hint, record_related_exposure
 from .senses import authored_sense, save_senses, senses_for_word
 from .study_tools import report_content, word_meanings
+from .muted_words import mute_word, restore_word
 
 
 # The streak walks back day by day from today, so history older than this cannot
@@ -238,6 +239,26 @@ def settings(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]
         "show_sentence_translation": values.get("show_sentence_translation", "false") == "true",
         "selected_word_list_ids": [item["list_id"] for item in lists if item["selected"]],
     }
+
+
+@app.get("/api/muted-words")
+def muted_words(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    with connect() as conn:
+        rows = conn.execute("SELECT word,muted_at FROM user_muted_words WHERE user_id=? ORDER BY muted_at DESC,word",
+                            (int(user["id"]),)).fetchall()
+        return {"words": [dict(row) for row in rows]}
+
+
+@app.post("/api/words/{word_id}/mute")
+def mute(word_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    with connect() as conn:
+        return mute_word(conn, int(user["id"]), word_id)
+
+
+@app.delete("/api/muted-words/{word}")
+def restore(word: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    with connect() as conn:
+        return restore_word(conn, int(user["id"]), word)
 
 
 @app.patch("/api/settings")

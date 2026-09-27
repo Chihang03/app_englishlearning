@@ -92,6 +92,14 @@ h1, h2, p { margin: 0; }
 .study-menu-panel { position: absolute; z-index: 5; right: 0; top: 48px; width: 220px; max-width: calc(100vw - 36px); max-height: calc(var(--viewport-height, 100svh) - 115px); overflow-y: auto; overscroll-behavior-y: contain; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 8px 30px #233c3312; }
 .study-menu-panel button { width: 100%; min-height: 46px; font-size: 14px; text-align: left; padding: 8px 13px; border-radius: 10px; }
 .study-menu-panel button:hover { background: #eef1e9; }
+.mute-notice { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding: 8px 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: #edf1e6; font-size: 13px; }
+.mute-notice span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mute-notice button { flex-shrink: 0; min-height: 36px; color: var(--accent); }
+.muted-words-list { max-height: 360px; overflow-y: auto; overscroll-behavior-y: contain; margin-top: 12px; }
+.muted-words-list li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.muted-words-list li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.muted-words-list small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+.muted-words-list button { flex-shrink: 0; min-height: 42px; padding: 8px 12px; font-size: 13px; }
 .question-card { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; overflow: hidden; padding: 14px 18px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 8px; }
 .question-heading { flex-shrink: 0; margin-bottom: 10px; }
 .question-labels { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
