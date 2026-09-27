@@ -58,7 +58,7 @@ export function MutedWords({ onRestore, onSignedOut }: {
     {error ? <><p className="error-notice" role="alert">{error}</p>
       <button type="button" className="secondary-button" disabled={loading || busy !== null} onClick={() => { void load(); }}>重新加载</button></> : null}
     <ul className="muted-words-list">{words.map(({ word }) => <li key={word}>
-      <span>{word}<small>已消音 · 所有义项</small></span>
+      <span>{word}</span>
       <button type="button" className="secondary-button" disabled={busy !== null}
         aria-label={`恢复学习 ${word}`} onClick={() => { void restore(word); }}>{busy === word ? "恢复中…" : "恢复学习"}</button>
     </li>)}</ul>
