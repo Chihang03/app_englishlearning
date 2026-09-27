@@ -607,6 +607,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, []);
 
   const busy = loading || submitting || hintPending || Boolean(result?.is_correct);
+  const confirmationCount = result ? (result.memory.known_candidate ? result.memory.confirmations : null)
+    : card?.known_candidate && !card.needs_correction ? card.confirmations : null;
   const isWordListPage = page.startsWith("word-list/");
   const currentWordList = wordLists.find((list) => page === `word-list/${encodeURIComponent(list.list_id)}`);
 
@@ -661,13 +663,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
         {card ? (
           <form onSubmit={submit} className="question-card" aria-busy={loading} aria-label="当前题目">
+            {confirmationCount !== null ? <div className="confirmation-row"><ConfirmationMarks count={confirmationCount} /></div> : null}
             <div className="question-heading">
               <div className="question-labels">
-                {card.known_candidate && !card.needs_correction && !card.is_relearning && card.status !== "Mature" && !result ? (
-                  <ConfirmationMarks count={card.confirmations} />
-                ) : (
-                  <span className="pill">{card.status === "New" && !card.needs_correction ? (card.is_new_word ? "新词" : "新用法") : "复习"}</span>
-                )}
+                <span className="pill">{card.status === "New" && !card.needs_correction ? (card.is_new_word ? "新词" : "新用法") : "复习"}</span>
                 <span className="part-of-speech">{card.part_of_speech}</span>
               </div>
               <button type="button" className="icon-button pronunciation-button"
@@ -705,7 +704,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             </div>
             <div id="answer-feedback" className="study-feedback" aria-live="polite" aria-atomic="true">
               {result?.is_correct && result.is_independent ? (
-                <p className="feedback-correct"><span aria-label="答对">✓</span>{result.memory.known_candidate ? <ConfirmationMarks count={result.memory.confirmations} /> : null}</p>
+                <p className="feedback-correct"><span aria-label="答对">✓</span></p>
               ) : null}
             </div>
             {message ? <p role="alert" className="error-notice">{message}</p> : null}

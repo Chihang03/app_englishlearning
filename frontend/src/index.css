@@ -123,10 +123,10 @@ h1, h2, p { margin: 0; }
 .other-sense-example span { display: block; }
 .sentence-translation { font-size: 14px; color: #697369; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
 .feedback-correct { color: var(--accent); font-weight: 600; }
-.confirmation-marks { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
-.confirmation-mark { display: block; width: 17px; height: 3px; border-radius: 2px; background: #d6ddd2; }
+.confirmation-marks { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+.confirmation-row { margin-bottom: 14px; line-height: 1; }
+.confirmation-mark { display: block; width: 22px; height: 5px; border-radius: 999px; background: #d6ddd2; }
 .confirmation-mark.is-complete { background: var(--accent); }
-.feedback-correct .confirmation-marks { margin-left: 10px; }
 .study-feedback { color: var(--muted); font-size: 13px; line-height: 1.7; margin-top: 16px; }
 .study-feedback:empty { display: none; }
 .primary-button { min-height: 48px; padding: 11px 21px; background: var(--accent); color: white; border: 1px solid var(--accent); border-radius: 14px; font-size: 15px; font-weight: 600; }
