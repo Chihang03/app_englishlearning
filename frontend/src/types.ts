@@ -101,6 +101,7 @@ export type Stats = {
 
 export type Settings = {
   show_sentence_translation: boolean;
+  skip_basic_600: boolean;
   selected_word_list_ids: string[];
   speech_rate: SpeechRate | null;
 };
