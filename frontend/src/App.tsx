@@ -121,11 +121,11 @@ function App() {
   return <Trainer key={user.id} user={user} onSignedOut={() => setUser(null)} />;
 }
 
-type Page = "home" | "study" | "settings";
+type Page = "home" | "study" | "settings" | `word-list/${string}`;
 
 function pageFromHash(): Page {
   const value = window.location.hash.slice(1);
-  return value === "study" || value === "settings" ? value : "home";
+  return value === "study" || value === "settings" || value.startsWith("word-list/") ? value as Page : "home";
 }
 
 function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
@@ -138,6 +138,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [statsReady, setStatsReady] = useState(false);
   const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [] });
   const [wordLists, setWordLists] = useState<WordList[]>([]);
+  const [wordListsReady, setWordListsReady] = useState(false);
   const otherSensesOpenRef = useRef(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
@@ -311,7 +312,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   async function loadWordLists() {
     const payload = await request<{ lists: WordList[] }>("/api/word-lists");
-    if (mountedRef.current) setWordLists(payload.lists);
+    if (mountedRef.current) {
+      setWordLists(payload.lists);
+      setWordListsReady(true);
+    }
   }
 
   async function loadNext() {
@@ -476,6 +480,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    if (page === "settings" || page.startsWith("word-list/")) void guarded(loadWordLists);
     if (page === "study") {
       if (!hasStarted) {
         setHasStarted(true);
@@ -533,6 +538,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, []);
 
   const busy = loading || submitting || Boolean(result?.is_correct);
+  const isWordListPage = page.startsWith("word-list/");
+  const currentWordList = wordLists.find((list) => page === `word-list/${encodeURIComponent(list.list_id)}`);
 
   return (
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : ""}`}>
@@ -651,8 +658,14 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         <SettingsPage user={user} settings={settings} wordLists={wordLists} speech={speech} voices={voices}
           settingsSaving={settingsSaving}
           speechSupported={speechSupported} onBack={() => navigate("home")}
-          onSetting={updateSetting} onToggleWordList={toggleWordList} onSpeech={updateSpeech}
+          onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
           onSignOut={signOut} onSessionExpired={onSignedOut} />
+      ) : null}
+
+      {isWordListPage ? (
+        <WordListPage list={currentWordList} ready={wordListsReady} settingsSaving={settingsSaving}
+          selected={currentWordList ? settings.selected_word_list_ids.includes(currentWordList.list_id) : false}
+          onBack={() => navigate("settings")} onToggle={toggleWordList} />
       ) : null}
 
       {message && page !== "study" ? <p role="alert" className="global-error error-notice">{message}</p> : null}
@@ -665,7 +678,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
             <span className="nav-study-icon"><Icon name="arrow" /></span>
             <span>{hasStarted ? "继续学习" : "开始学习"}</span>
           </button>
-          <button type="button" onClick={() => navigate("settings")} aria-current={page === "settings" ? "page" : undefined}>
+          <button type="button" onClick={() => navigate("settings")} aria-current={page === "settings" || isWordListPage ? "page" : undefined}>
             <Icon name="settings" /><span>设置</span>
           </button>
         </nav>
@@ -728,11 +741,11 @@ function Metric({ icon, label, value }: { icon: IconName; label: string; value: 
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
-function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onToggleWordList, onSpeech, onSignOut, onSessionExpired }: {
+function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired }: {
   user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
-  onToggleWordList: (listId: string, selected: boolean) => void;
+  onOpenWordList: (listId: string) => void;
   onSpeech: (next: Partial<SpeechSettings>) => void; onSignOut: () => void; onSessionExpired: () => void;
 }) {
   return (
@@ -745,17 +758,13 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       </section>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习词库</h2>
-        <p className="settings-hint">取消词库不影响已有复习</p>
         {wordLists.length === 0 ? <p className="settings-hint">暂无词库</p> : (
           <div className="word-list-picker">
             {wordLists.map((list) => (
-              <label className="word-list-option" key={list.list_id}>
-                <span className="word-list-copy">
-                  <strong>{list.title}</strong>
-                  <small>{list.word_count.toLocaleString()} 词</small>
-                </span>
-                <input type="checkbox" disabled={settingsSaving} checked={settings.selected_word_list_ids.includes(list.list_id)} onChange={(event) => onToggleWordList(list.list_id, event.target.checked)} />
-              </label>
+              <button type="button" className="word-list-option" key={list.list_id}
+                onClick={() => onOpenWordList(list.list_id)}>
+                <strong>{list.title}</strong><Icon name="chevron" />
+              </button>
             ))}
           </div>
         )}
@@ -778,6 +787,45 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
         <PasswordForm />
       </section>
       <button type="button" className="sign-out-button secondary-button" onClick={onSignOut}>退出登录</button>
+    </section>
+  );
+}
+
+function WordListPage({ list, ready, selected, settingsSaving, onBack, onToggle }: {
+  list: WordList | undefined; ready: boolean; selected: boolean; settingsSaving: boolean;
+  onBack: () => void; onToggle: (listId: string, selected: boolean) => void;
+}) {
+  return (
+    <section className="settings-page page-container" aria-label="词库详情">
+      <header className="settings-header">
+        <button type="button" className="icon-button" onClick={onBack} aria-label="返回设置"><Icon name="back" /></button>
+        <h1>{list?.title ?? "词库"}</h1><span className="header-spacer" />
+      </header>
+      {list ? <>
+        <section className="word-list-progress panel" aria-label="词库学习进度">
+          <dl className="word-list-statistics">
+            <div><dt>总单词</dt><dd>{list.word_count.toLocaleString()}</dd></div>
+            <div><dt>已学习</dt><dd>{list.learned_word_count.toLocaleString()}</dd></div>
+            <div><dt>已掌握</dt><dd>{list.mastered_word_count.toLocaleString()}</dd></div>
+          </dl>
+          <progress aria-label="已学习单词进度" value={list.learned_word_count} max={Math.max(1,list.word_count)} />
+        </section>
+        <section className="settings-group panel">
+          <label className="setting-row word-list-selection">
+            <strong>加入学习</strong>
+            <input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={selected}
+              onChange={(event) => onToggle(list.list_id,event.target.checked)} />
+          </label>
+        </section>
+        <details className="learning-details word-list-description panel">
+          <summary><span>词库说明</span><Icon name="chevron" /></summary>
+          <div>
+            {list.description ? <p>{list.description}</p> : null}
+            <p>取消词库不影响已有复习</p>
+            {list.source_url ? <a href={list.source_url} target="_blank" rel="noreferrer">词表来源</a> : null}
+          </div>
+        </details>
+      </> : <p className="settings-hint" role="status">{ready ? "词库不存在" : "加载中…"}</p>}
     </section>
   );
 }

@@ -61,6 +61,54 @@ class SenseLearningTests(unittest.TestCase):
         with database.connect() as conn:
             conn.execute("UPDATE relearning_queue SET ready_at='2000-01-01T00:00:00+00:00' WHERE user_id=?",(self.uid,))
 
+    def test_vocabulary_list_progress_counts_exposure_overlap_and_all_mature_senses(self):
+        def lists(client=None):
+            response=(client or self.client).get('/api/word-lists')
+            self.assertEqual(response.status_code,200,response.text)
+            return {item['list_id']:item for item in response.json()['lists']}
+        initial=lists()
+        self.assertEqual((initial['cet4']['word_count'],initial['cet6']['word_count']),(1,2))
+        self.assertEqual(initial['cet4']['learned_word_count'],0)
+        first=self.next()  # Seeing a card counts even before submitting an answer.
+        exposed=lists()
+        self.assertEqual(exposed['cet4']['learned_word_count'],1)
+        self.assertEqual(exposed['cet6']['learned_word_count'],1)
+        self.review(first,'bad')
+        self.assertEqual(lists()['cet4']['learned_word_count'],1)
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET status='Mature' WHERE user_id=?",(self.uid,))
+        self.assertEqual(lists()['cet4']['mastered_word_count'],0)  # Another meaning remains unlearned.
+        with database.connect() as conn:
+            conn.execute("""INSERT INTO sense_srs_state(user_id,sense_id,next_review_date,status)
+                SELECT ?,id,'2099-01-01','Reviewing' FROM word_senses WHERE sense_key='tackle'""",(self.uid,))
+        self.assertEqual(lists()['cet4']['mastered_word_count'],0)  # Entering review is not long-term mastery.
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET status='Mature' WHERE user_id=?",(self.uid,))
+        mature=lists()
+        self.assertEqual(mature['cet4']['mastered_word_count'],1)
+        self.assertEqual(mature['cet6']['mastered_word_count'],1)
+        self.client.patch('/api/settings',json={'selected_word_list_ids':[]})
+        unselected=lists()['cet4']
+        self.assertFalse(unselected['selected'])
+        self.assertEqual((unselected['learned_word_count'],unselected['mastered_word_count']),(1,1))
+        with TestClient(app) as other:
+            other.post('/api/auth/register',json={'username':'other','password':'test-password-123'})
+            other_list=lists(other)['cet4']
+            self.assertEqual((other_list['learned_word_count'],other_list['mastered_word_count']),(0,0))
+
+    def test_vocabulary_list_progress_keeps_legacy_exposure_and_excludes_archived_words(self):
+        with database.connect() as conn:
+            bank=conn.execute("SELECT id FROM words WHERE word='bank'").fetchone()[0]
+            conn.execute("""INSERT INTO review_history(user_id,word_id,review_time,user_answer,is_correct)
+                VALUES(?,?,'2000-01-01T00:00:00+00:00','bad',0)""",(self.uid,bank))
+        items={item['list_id']:item for item in self.client.get('/api/word-lists').json()['lists']}
+        self.assertEqual(items['cet6']['learned_word_count'],1)
+        self.assertEqual(items['cet4']['learned_word_count'],0)
+        with database.connect() as conn:
+            conn.execute('UPDATE word_senses SET active=0 WHERE word_id=?',(bank,))
+        items={item['list_id']:item for item in self.client.get('/api/word-lists').json()['lists']}
+        self.assertEqual((items['cet6']['word_count'],items['cet6']['learned_word_count']),(1,0))
+
     def test_matching_hint_and_independent_sense_progress(self):
         first=self.next();self.assertEqual(first['definition_cn'],'地址');self.assertNotIn('处理',first['definition_cn'])
         response=self.review(first,'address');self.assertEqual(response.status_code,200,response.text)

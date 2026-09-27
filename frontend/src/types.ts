@@ -90,6 +90,8 @@ export type WordList = {
   source_url: string;
   source_word_count: number;
   word_count: number;
+  learned_word_count: number;
+  mastered_word_count: number;
   selected: boolean;
 };
 

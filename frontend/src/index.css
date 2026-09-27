@@ -154,12 +154,21 @@ h1, h2, p { margin: 0; }
 .setting-switch:checked::after { transform: translateX(18px); }
 .settings-hint { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.7; }
 .word-list-picker { display: grid; gap: 0; margin-top: 10px; }
-.word-list-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid #edf0e9; cursor: pointer; }
-.word-list-copy { display: grid; gap: 4px; min-width: 0; }
-.word-list-copy strong { font-size: 14px; font-weight: 600; }
-.word-list-copy small { color: var(--muted); font-size: 12px; line-height: 1.55; }
-.word-list-option input { width: 19px; height: 19px; flex: 0 0 auto; accent-color: var(--accent); }
-.word-list-option input:disabled { cursor: wait; }
+.word-list-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 15px 0; border-top: 1px solid #edf0e9; cursor: pointer; text-align: left; }
+.word-list-option strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.word-list-option svg { width: 18px; height: 18px; color: var(--muted); }
+.word-list-progress { margin-top: 18px; padding: 24px 21px; }
+.word-list-statistics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.word-list-statistics dt { color: var(--muted); font-size: 13px; }
+.word-list-statistics dd { font-size: clamp(22px,6vw,32px); font-weight: 600; margin: 8px 0 0; overflow-wrap: anywhere; }
+.word-list-progress progress { display: block; width: 100%; height: 8px; margin-top: 24px; border: 0; border-radius: 8px; overflow: hidden; background: #e9eee3; accent-color: var(--accent); }
+.word-list-progress progress::-webkit-progress-bar { background: #e9eee3; }
+.word-list-progress progress::-webkit-progress-value { background: var(--accent); border-radius: 8px; }
+.word-list-progress progress::-moz-progress-bar { background: var(--accent); border-radius: 8px; }
+.word-list-selection { margin-top: 0; }
+.word-list-description > div { border-top: 1px solid var(--line); padding: 14px 0 18px; color: var(--muted); font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.word-list-description p + p, .word-list-description a { margin-top: 10px; }
+.word-list-description a { display: inline-block; color: var(--accent); text-decoration: underline; }
 .speech-controls { margin-top: 20px; }
 .setting-field { display: flex; flex-direction: column; gap: 10px; color: var(--ink); font-size: 14px; }
 .setting-field select { border: 1px solid #d8dfd1; border-radius: 12px; width: 100%; min-width: 0; height: 48px; font-size: 16px; background: var(--surface); padding: 0 10px; color: var(--ink); text-overflow: ellipsis; }
