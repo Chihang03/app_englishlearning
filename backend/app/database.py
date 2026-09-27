@@ -304,10 +304,28 @@ def get_vocabulary_lists(user_id: int) -> list[dict[str, Any]]:
         selected = set(selected_vocabulary_list_ids(conn, user_id))
         rows = conn.execute(
             """
-            SELECT list_id, title, description, source_url, source_word_count, word_count
-            FROM vocabulary_lists
-            ORDER BY sort_order, title
-            """
+            WITH touched_words AS (
+                SELECT word_id FROM review_history WHERE user_id=?
+                UNION SELECT word_id FROM srs_state WHERE user_id=?
+                UNION SELECT s.word_id FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id WHERE p.user_id=?
+                UNION SELECT s.word_id FROM study_attempts a JOIN word_senses s ON s.id=a.sense_id WHERE a.user_id=?
+            ), word_progress AS (
+                SELECT s.word_id,
+                    MIN(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mastered
+                FROM word_senses s
+                LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
+                WHERE s.active=1 GROUP BY s.word_id
+            )
+            SELECT v.list_id,v.title,v.description,v.source_url,v.source_word_count,
+                COUNT(p.word_id) AS word_count,
+                COUNT(CASE WHEN p.word_id IS NOT NULL AND t.word_id IS NOT NULL THEN 1 END) AS learned_word_count,
+                COALESCE(SUM(p.mastered),0) AS mastered_word_count
+            FROM vocabulary_lists v
+            LEFT JOIN word_list_memberships m ON m.list_id=v.list_id
+            LEFT JOIN word_progress p ON p.word_id=m.word_id
+            LEFT JOIN touched_words t ON t.word_id=m.word_id
+            GROUP BY v.list_id ORDER BY v.sort_order,v.title
+            """, (user_id,user_id,user_id,user_id,user_id)
         ).fetchall()
     return [{**row_to_dict(row), "selected": row["list_id"] in selected} for row in rows]
 def get_settings(user_id: int) -> dict[str, str]:
