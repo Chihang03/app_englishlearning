@@ -17,8 +17,7 @@ function dateVersion(date) {
 const branch = execFileSync("git", ["branch", "--show-current"], { cwd, encoding: "utf8" }).trim();
 if (branch !== "main") throw new Error("请在 main 上为下一次提交生成版本号。");
 const today = dateVersion(new Date());
-const timestamps = execFileSync("git", ["log", "--first-parent", "--format=%ct"], { cwd, encoding: "utf8" }).trim().split("\n");
-const count = timestamps.filter(time => dateVersion(new Date(Number(time) * 1000)) === today).length;
+const count = Number(execFileSync("git", ["rev-list", "--first-parent", "--count", "main"], { cwd, encoding: "utf8" }).trim());
 const version = `${today}.${count + 1}`;
 writeFileSync(new URL("../src/version.json", import.meta.url), `${JSON.stringify({ version }, null, 2)}\n`);
 console.log(version);
