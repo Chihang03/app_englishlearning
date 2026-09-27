@@ -50,11 +50,11 @@ export function MutedWords({ onRestore, onSignedOut }: {
     }
   }
 
-  return <section className="settings-group panel" aria-label="已消音单词">
+  return <section className="settings-group panel" aria-label="不再学习的单词">
     <h2>单词列表{!loading && !error ? ` · ${words.length}` : ""}</h2>
     <p className="settings-hint">这些单词的所有义项都不会再出题，学习记录仍然保留。</p>
     {loading ? <p className="settings-hint" role="status">加载中…</p> : null}
-    {!loading && !error && words.length === 0 ? <p className="settings-hint">暂无已消音单词</p> : null}
+    {!loading && !error && words.length === 0 ? <p className="settings-hint">暂无单词</p> : null}
     {error ? <><p className="error-notice" role="alert">{error}</p>
       <button type="button" className="secondary-button" disabled={loading || busy !== null} onClick={() => { void load(); }}>重新加载</button></> : null}
     <ul className="muted-words-list">{words.map(({ word }) => <li key={word}>

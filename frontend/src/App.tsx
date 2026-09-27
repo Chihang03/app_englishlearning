@@ -702,9 +702,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
         </header>
 
         {lastMutedWord ? <div className="mute-notice" role="status">
-          <span>已消音 {lastMutedWord} 的所有义项</span>
+          <span>已停止学习 {lastMutedWord}</span>
           <button type="button" disabled={loading || submitting || hintPending || mutePending} onClick={() => { void guarded(() => restoreMutedWord(lastMutedWord)); }}>撤销</button>
-          <button type="button" aria-label="关闭消音提示" onClick={() => setLastMutedWord(null)}>×</button>
+          <button type="button" aria-label="关闭提示" onClick={() => setLastMutedWord(null)}>×</button>
         </div> : null}
 
         {card ? (
@@ -776,10 +776,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} />
       ) : null}
 
-      {page === "muted-words" ? <section className="settings-page page-container" aria-label="已消音单词管理">
+      {page === "muted-words" ? <section className="settings-page page-container" aria-label="不再学习的单词管理">
         <header className="settings-header">
           <button type="button" className="icon-button" onClick={() => navigate("settings")} aria-label="返回设置"><Icon name="back" /></button>
-          <h1>已消音单词</h1><span className="header-spacer" />
+          <h1>不再学习的单词</h1><span className="header-spacer" />
         </header>
         <MutedWords onRestore={restoreMutedWord} onSignedOut={onSignedOut} />
       </section> : null}
@@ -887,7 +887,7 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
         <h2><Icon name="book" /> 智能复习</h2>
         <p className="settings-hint">根据你的作答表现自动安排复习。</p>
         <button type="button" className="word-list-option" onClick={onOpenMutedWords}>
-          <strong>已消音单词</strong><Icon name="chevron" />
+          <strong>不再学习的单词</strong><Icon name="chevron" />
         </button>
       </section>
       <section className="settings-group panel">
