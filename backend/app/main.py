@@ -116,6 +116,7 @@ class ContentReportInput(ExposureInput):
 class SettingsInput(BaseModel):
     show_sentence_translation: bool | None = None
     selected_word_list_ids: list[str] | None = Field(default=None, max_length=50)
+    speech_rate: Literal[90, 120, 175] | None = None
 
 
 
@@ -238,6 +239,7 @@ def settings(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]
     return {
         "show_sentence_translation": values.get("show_sentence_translation", "false") == "true",
         "selected_word_list_ids": [item["list_id"] for item in lists if item["selected"]],
+        "speech_rate": int(values["speech_rate"]) if values.get("speech_rate") in {"90", "120", "175"} else None,
     }
 
 
@@ -269,6 +271,8 @@ def patch_settings(
     values: dict[str, str] = {}
     if payload.show_sentence_translation is not None:
         values["show_sentence_translation"] = "true" if payload.show_sentence_translation else "false"
+    if payload.speech_rate is not None:
+        values["speech_rate"] = str(payload.speech_rate)
     if values:
         update_settings(int(user["id"]), values)
     if payload.selected_word_list_ids is not None:

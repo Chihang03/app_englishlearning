@@ -102,6 +102,7 @@ export type Stats = {
 export type Settings = {
   show_sentence_translation: boolean;
   selected_word_list_ids: string[];
+  speech_rate: SpeechRate | null;
 };
 
 export type WordList = {
@@ -116,7 +117,9 @@ export type WordList = {
   selected: boolean;
 };
 
+export type SpeechRate = 90 | 120 | 175;
+
 export type SpeechSettings = {
   voiceURI: string;
-  rate: number;
+  rate: SpeechRate;
 };
