@@ -154,7 +154,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   const [wordLists, setWordLists] = useState<WordList[]>([]);
   const [wordListsReady, setWordListsReady] = useState(false);
   const studyToolsOpenRef = useRef(false);
-  const [studyTool, setStudyTool] = useState<StudyTool | null>(null);
+  const [studyTool, setStudyTool] = useState<{ tool: StudyTool; card: Card; showTranslation: boolean } | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [speech, setSpeech] = useState<SpeechSettings>(loadSpeechSettings);
   const [loading, setLoading] = useState(false);
@@ -236,7 +236,8 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           onSignedOut();
           return;
         }
-        setMessage(errorMessage(caught));
+        if (pageRef.current === "study" && reviewingRef.current) setReviewMessage(errorMessage(caught));
+        else setMessage(errorMessage(caught));
       }
     },
     [onSignedOut]
@@ -479,11 +480,13 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }
 
   function openStudyTool(tool: StudyTool) {
-    if (!card || reviewingRef.current || deckMovingRef.current || loading || submitting || hintPending || mutePending) return;
+    const target = reviewingRef.current ? previousQuestion?.card : card;
+    if (!target || deckMovingRef.current || loading || submitting || hintPending || mutePending) return;
     studyToolsOpenRef.current = true;
     if (menuRef.current) menuRef.current.open = false;
+    cancelSpeechRef.current?.();
     inputRef.current?.blur();
-    setStudyTool(tool);
+    setStudyTool({ tool, card: target, showTranslation: reviewingRef.current ? previousQuestion!.showTranslation : settings.show_sentence_translation });
   }
 
   function closeStudyTool() {
@@ -493,25 +496,37 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     if (wasOpen) menuRef.current?.querySelector("summary")?.focus();
   }
 
-  async function muteCurrentWord() {
-    if (!card || reviewingRef.current || deckMovingRef.current || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current) return;
+  async function muteVisibleWord() {
+    const wasReviewing = reviewingRef.current;
+    const target = wasReviewing ? previousQuestion?.card : card;
+    if (!target || deckMovingRef.current || loadingRef.current || submittingRef.current || hintPendingRef.current || mutePendingRef.current) return;
     mutePendingRef.current = true;
     setMutePending(true);
-    setMessage("");
+    if (wasReviewing) setReviewMessage("");
+    else setMessage("");
     if (menuRef.current) menuRef.current.open = false;
     cancelSpeechRef.current?.();
+    let advance = false;
     try {
-      const payload = await request<{ word: string }>(`/api/words/${card.id}/mute`, { method: "POST" });
+      const payload = await request<{ word: string }>(`/api/words/${target.id}/mute`, { method: "POST" });
       if (!mountedRef.current) return;
       setLastMutedWord(payload.word);
-      setCard(null);
-      setResult(null);
-      setAnswer("");
+      // Muting applies to every sense and duplicate of this word. An unrelated
+      // live question and its draft survive actions on the previous card.
+      const live = currentQuestionRef.current.card;
+      advance = !wasReviewing || live?.word.trim().toLowerCase() === payload.word.trim().toLowerCase();
+      if (advance) {
+        if (wasReviewing) changeReview(false);
+        setCard(null);
+        setResult(null);
+        setAnswer("");
+        currentQuestionRef.current = { ...currentQuestionRef.current, card: null, result: null };
+      }
     } finally {
       mutePendingRef.current = false;
       if (mountedRef.current) setMutePending(false);
     }
-    await loadNext();
+    if (advance) await loadNext();
     void guarded(async () => { await Promise.all([loadStats(), loadWordLists()]); });
   }
 
@@ -538,6 +553,15 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
       studyToolsOpenRef.current = false;
     }
     setAnswer(value);
+  }
+
+  function markAnswerExposed(source: Card) {
+    setCard((current) => {
+      if (!current) return current;
+      const sameAttempt = current.attempt_id === source.attempt_id;
+      const relatedSense = current.id === source.id && current.sense_id !== source.sense_id;
+      return sameAttempt || relatedSense ? { ...current, answer_exposed: true } : current;
+    });
   }
 
   function navigate(next: Page) {
@@ -692,6 +716,7 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
   }, []);
 
   const busy = loading || submitting || hintPending || mutePending || Boolean(result?.is_correct);
+  const visibleCard = reviewing ? previousQuestion?.card : card;
   const confirmationCount = result ? (result.memory.known_candidate ? result.memory.confirmations : null)
     : card?.known_candidate && !card.needs_correction ? card.confirmations : null;
   const isWordListPage = page.startsWith("word-list/");
@@ -717,9 +742,9 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           <details ref={menuRef} className="study-menu">
             <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
             <div className="study-menu-panel">
-              <button type="button" disabled={reviewing || !card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("meanings")}>更多词义</button>
-              <button type="button" disabled={reviewing || !card || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("report")}>报告错误</button>
-              <button type="button" disabled={reviewing || !card || loading || submitting || hintPending || mutePending} onClick={() => { void guarded(muteCurrentWord); }}>
+              <button type="button" disabled={!visibleCard || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("meanings")}>更多词义</button>
+              <button type="button" disabled={!visibleCard || loading || submitting || hintPending || mutePending} onClick={() => openStudyTool("report")}>报告错误</button>
+              <button type="button" disabled={!visibleCard || loading || submitting || hintPending || mutePending} onClick={() => { void guarded(muteVisibleWord); }}>
                 不再学习此单词
               </button>
               {result?.is_correct && !reviewing ? <button type="button" disabled={loading || mutePending} onClick={() => {
@@ -766,10 +791,10 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
           </div>
         )}
         </StudyDeck>
-        {page === "study" && studyTool && card ? <StudyTools key={`${card.attempt_id}-${studyTool}`}
-          tool={studyTool} card={card} showTranslation={settings.show_sentence_translation}
+        {page === "study" && studyTool ? <StudyTools key={`${studyTool.card.attempt_id}-${studyTool.tool}`}
+          tool={studyTool.tool} card={studyTool.card} showTranslation={studyTool.showTranslation}
           onClose={closeStudyTool} onSignedOut={onSignedOut}
-          onAnswerExposed={() => setCard((current) => current?.attempt_id === card.attempt_id ? { ...current, answer_exposed: true } : current)} /> : null}
+          onAnswerExposed={() => markAnswerExposed(studyTool.card)} /> : null}
       </section>
 
       {page === "settings" ? (
