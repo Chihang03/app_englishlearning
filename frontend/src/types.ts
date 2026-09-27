@@ -61,6 +61,7 @@ export type Stats = {
   today_independent_accuracy: number | null;
   pending_relearning: number;
   pending_relearning_senses: number;
+  next_relearning_at: string | null;
   total_learned: number;
   due_review: number;
   new_words: number;

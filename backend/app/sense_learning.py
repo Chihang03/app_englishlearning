@@ -12,13 +12,27 @@ from .senses import contains_target, example_for_sense, senses_for_word, write_s
 from .srs import RELEARNING_DELAY_SECONDS, next_state
 
 
+# Both counters and card selection use the same due-time and visibility rules.
+# A queued correction's timestamp replaces its old calendar-day due date.
+_DUE_SENSES_SQL = """SELECT p.*,s.word_id,q.ready_at,q.queue_order,
+    q.sense_id IS NOT NULL AS is_relearning
+    FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
+    JOIN words w ON w.id=s.word_id
+    LEFT JOIN relearning_queue q ON q.user_id=p.user_id AND q.sense_id=p.sense_id
+    WHERE p.user_id=? AND s.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)
+      AND p.status!='Mature'
+      AND ((q.sense_id IS NULL AND p.next_review_date<=?) OR q.ready_at<=?)
+      AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)"""
+
+
 def selected_filter(user_id: int) -> tuple[str, tuple[int, int]]:
     return """(w.owner_id=? OR (w.owner_id IS NULL AND EXISTS (
         SELECT 1 FROM word_list_memberships m JOIN user_vocabulary_lists u ON u.list_id=m.list_id
         WHERE m.word_id=w.id AND u.user_id=? AND u.selected=1)))""", (user_id,user_id)
 
 
-def learning_metrics(conn, user_id: int, today: date) -> dict[str, int]:
+def learning_metrics(conn, user_id: int, today: date) -> dict[str, int | str | None]:
+    now = utc_now_iso()
     visible, args = selected_filter(user_id)
     new = conn.execute(f"""SELECT COUNT(DISTINCT w.id) AS words,COUNT(*) AS senses
         FROM word_senses s JOIN words w ON w.id=s.word_id
@@ -37,13 +51,16 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, int]:
     )""", (user_id,user_id)).fetchone()[0]
     progress = conn.execute("""SELECT COUNT(*) AS learned_senses,
         COUNT(DISTINCT CASE WHEN p.status='Learning' THEN s.word_id END) AS learning,
-        COUNT(DISTINCT CASE WHEN p.status='Learning' AND p.next_review_date<=? THEN s.word_id END) AS learning_due,
-        COUNT(CASE WHEN p.status!='Mature' AND p.next_review_date<=? THEN 1 END) AS due_senses,
         COUNT(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 END) AS mastered_senses,
-        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' THEN s.word_id END) AS lapse_words,
-        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND p.next_review_date<=? THEN s.word_id END) AS due_lapses
+        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' THEN s.word_id END) AS lapse_words
         FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
-        WHERE p.user_id=? AND s.active=1""", (today.isoformat(),today.isoformat(),today.isoformat(),user_id)).fetchone()
+        WHERE p.user_id=? AND s.active=1""", (user_id,)).fetchone()
+    due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
+        COUNT(DISTINCT CASE WHEN status='Learning' THEN word_id END) AS learning_due,
+        COUNT(DISTINCT CASE WHEN wrong_count>0 THEN word_id END) AS due_lapses,
+        COUNT(DISTINCT CASE WHEN is_relearning THEN word_id END) AS pending_relearning,
+        COUNT(CASE WHEN is_relearning THEN 1 END) AS pending_relearning_senses
+        FROM ({_DUE_SENSES_SQL})""", (user_id,user_id,today.isoformat(),now)).fetchone()
     complete = conn.execute("""SELECT
         COUNT(CASE WHEN learned=total AND established=total THEN 1 END) AS mastered,
         COUNT(CASE WHEN learned=total AND mature=total THEN 1 END) AS mature
@@ -53,16 +70,18 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, int]:
             FROM word_senses s LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
             WHERE s.active=1 GROUP BY s.word_id)""", (user_id,)).fetchone()
     legacy = conn.execute("SELECT COUNT(*) FROM srs_state WHERE user_id=? AND sense_migrated=0", (user_id,)).fetchone()[0]
-    pending = conn.execute("""SELECT COUNT(*) AS senses,COUNT(DISTINCT s.word_id) AS words
+    upcoming = conn.execute("""SELECT MIN(q.ready_at) AS next_relearning_at
         FROM relearning_queue q JOIN word_senses s ON s.id=q.sense_id
-        JOIN words w ON w.id=s.word_id WHERE q.user_id=? AND s.active=1
+        JOIN words w ON w.id=s.word_id
+        JOIN sense_srs_state p ON p.user_id=q.user_id AND p.sense_id=q.sense_id
+        WHERE q.user_id=? AND s.active=1 AND p.status!='Mature' AND q.ready_at>?
         AND (w.owner_id IS NULL OR w.owner_id=?)
         AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)""",
-        (user_id,user_id)).fetchone()
+        (user_id,now,user_id)).fetchone()
     return {"total_learned": learned, "new_words": new_words, "new_senses": new["senses"],
-            "words_with_new_senses": new["words"], "due_review": progress["due_senses"],
-            **dict(progress), **dict(complete), "legacy_unmapped_words": legacy,
-            "pending_relearning": pending["words"], "pending_relearning_senses": pending["senses"]}
+            "words_with_new_senses": new["words"], "due_review": due["due_senses"],
+            **dict(progress), **dict(due), **dict(complete), "legacy_unmapped_words": legacy,
+            "next_relearning_at": upcoming["next_relearning_at"]}
 
 
 def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[str, Any]:
@@ -95,6 +114,8 @@ def start_attempt(conn, user_id: int, sense_id: int, example_id: int):
 def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
     # Issuing a round and recording its answer must serialize across devices.
     conn.execute("BEGIN IMMEDIATE")
+    now = utc_now_iso()
+    due_args = (user_id,user_id,today.isoformat(),now)
     # A refresh resumes the same round, including its revealed-answer flag.
     active = conn.execute("""SELECT a.* FROM study_attempts a
         JOIN word_senses s ON s.id=a.sense_id JOIN words w ON w.id=s.word_id
@@ -106,39 +127,31 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
     conn.execute("""UPDATE study_attempts SET completed_at=? WHERE user_id=? AND completed_at IS NULL
         AND (sense_id IN (SELECT id FROM word_senses WHERE active=0)
           OR example_id IN (SELECT id FROM sense_examples WHERE active=0))""", (utc_now_iso(),user_id))
-    remaining = conn.execute("""SELECT COUNT(*) FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
-        WHERE p.user_id=? AND s.active=1 AND p.status!='Mature' AND p.next_review_date<=?""",
-        (user_id,today.isoformat())).fetchone()[0]
+    remaining = conn.execute(f"SELECT COUNT(*) FROM ({_DUE_SENSES_SQL})", due_args).fetchone()[0]
     if active is not None:
         row = conn.execute("""SELECT s.*,w.word,COALESCE(p.status,'New') AS status
             FROM word_senses s JOIN words w ON w.id=s.word_id
             LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=? WHERE s.id=?""",
             (user_id,active["sense_id"])).fetchone()
         return {"card": make_card(conn,row,user_id,remaining,active)}
-    row = conn.execute("""SELECT s.*,w.word,p.status FROM sense_srs_state p
+    row = conn.execute(f"""SELECT s.*,w.word,p.status FROM ({_DUE_SENSES_SQL}) p
         JOIN word_senses s ON s.id=p.sense_id JOIN words w ON w.id=s.word_id
-        WHERE p.user_id=? AND s.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)
-          AND p.status!='Mature' AND p.next_review_date<=?
-          AND NOT EXISTS(SELECT 1 FROM relearning_queue q WHERE q.user_id=p.user_id AND q.sense_id=p.sense_id)
-          AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)
-        ORDER BY p.next_review_date,p.lapse_count DESC,s.id LIMIT 1
-    """, (user_id,user_id,today.isoformat())).fetchone()
+        ORDER BY p.is_relearning,
+          CASE WHEN p.is_relearning=0 THEN p.next_review_date END,
+          CASE WHEN p.is_relearning=0 THEN p.lapse_count END DESC,
+          p.queue_order,p.ready_at,s.id LIMIT 1
+    """, due_args).fetchone()
     retry_after = 0
     if row is None:
-        pending = conn.execute("""SELECT s.*,w.word,p.status,q.ready_at FROM relearning_queue q
+        pending = conn.execute("""SELECT MIN(q.ready_at) AS ready_at FROM relearning_queue q
             JOIN word_senses s ON s.id=q.sense_id JOIN words w ON w.id=s.word_id
             JOIN sense_srs_state p ON p.sense_id=q.sense_id AND p.user_id=q.user_id
-            WHERE q.user_id=? AND s.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)
+            WHERE q.user_id=? AND s.active=1 AND p.status!='Mature' AND q.ready_at>?
+            AND (w.owner_id IS NULL OR w.owner_id=?)
             AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)
-            ORDER BY CASE WHEN q.ready_at<=? THEN 0 ELSE 1 END,
-                CASE WHEN q.ready_at<=? THEN q.queue_order ELSE 0 END,q.ready_at,q.sense_id LIMIT 1""",
-            (user_id,user_id,utc_now_iso(),utc_now_iso())).fetchone()
-        if pending is not None:
-            wait = math.ceil((datetime.fromisoformat(pending["ready_at"]) - datetime.now(timezone.utc)).total_seconds())
-            if wait > 0:
-                retry_after = wait
-            else:
-                row = pending
+            """, (user_id,now,user_id)).fetchone()
+        if pending["ready_at"] is not None:
+            retry_after = max(1,math.ceil((datetime.fromisoformat(pending["ready_at"]) - datetime.now(timezone.utc)).total_seconds()))
     if row is None:
         visible, args = selected_filter(user_id)
         row = conn.execute(f"""SELECT s.*,w.word,'New' AS status FROM word_senses s

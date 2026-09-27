@@ -123,8 +123,9 @@ class SenseLearningTests(unittest.TestCase):
         self.assertTrue(self.review(second,'addressed').json()['is_correct'])
         stats=self.client.get('/api/stats').json();self.assertEqual(stats['total_learned'],1)
         self.assertEqual(stats['learned_senses'],2);self.assertEqual(stats['mastered'],0)
-        self.assertEqual(stats['today_success_senses'],1);self.assertEqual(stats['pending_relearning_senses'],1)
+        self.assertEqual(stats['today_success_senses'],1);self.assertEqual(stats['pending_relearning_senses'],0)
         self.ready_relearning()
+        self.assertEqual(self.client.get('/api/stats').json()['pending_relearning_senses'],1)
         retry=self.next();self.assertTrue(retry['is_relearning']);self.assertFalse(retry['needs_correction'])
         self.assertNotEqual(retry['attempt_id'],second['attempt_id'])
         response=self.review(retry,'addressed').json();self.assertTrue(response['is_independent'])
@@ -180,6 +181,39 @@ class SenseLearningTests(unittest.TestCase):
         card=self.next();self.review(card,'bad');self.review(card,'address')
         next_card=self.next();self.assertNotEqual(next_card['sense_id'],card['sense_id'])
         self.assertFalse(next_card['is_relearning'])
+
+    def test_due_counts_follow_exact_relearning_time_and_regular_review_dates(self):
+        card=self.next();self.review(card,'bad');self.review(card,'address')
+        self.client.patch('/api/settings',json={'selected_word_list_ids':['cet6']})
+        with database.connect() as conn:
+            conn.execute("UPDATE relearning_queue SET ready_at='2030-01-02T00:20:00+00:00' WHERE user_id=?",(self.uid,))
+            # Normal SRS reviews still use their calendar due date, even with no mistakes.
+            conn.execute("""INSERT INTO sense_srs_state(user_id,sense_id,next_review_date,status)
+                SELECT ?,id,'2030-01-02','Reviewing' FROM word_senses WHERE sense_key='finance'""",(self.uid,))
+        from app import sense_learning
+        with patch('app.main.user_today',return_value=date(2030,1,2)), \
+             patch('app.main.today_in',return_value=date(2030,1,2)), \
+             patch.object(sense_learning,'utc_now_iso',return_value='2030-01-02T00:19:59+00:00'):
+            before=self.client.get('/api/stats').json()
+            for key in ('pending_relearning','pending_relearning_senses','learning_due','due_lapses'):
+                self.assertEqual(before[key],0,key)
+            self.assertEqual((before['due_review'],before['due_senses']),(1,1))
+            self.assertEqual(before['next_relearning_at'],'2030-01-02T00:20:00+00:00')
+            regular=self.next();self.assertEqual(regular['word'],'bank')
+            self.assertEqual(regular['remaining_today'],1)
+            self.review(regular,'bank')
+        with patch('app.main.user_today',return_value=date(2030,1,2)), \
+             patch('app.main.today_in',return_value=date(2030,1,2)), \
+             patch.object(sense_learning,'utc_now_iso',return_value='2030-01-02T00:20:00+00:00'):
+            due=self.client.get('/api/stats').json()
+            for key in ('pending_relearning','pending_relearning_senses','learning_due','due_lapses','due_review','due_senses'):
+                self.assertEqual(due[key],1,key)
+            self.assertIsNone(due['next_relearning_at'])
+            retry=self.next();self.assertEqual(retry['sense_id'],card['sense_id'])
+            self.assertTrue(retry['is_relearning']);self.assertEqual(retry['remaining_today'],1)
+            self.review(retry,'address')
+            after=self.client.get('/api/stats').json()
+            self.assertEqual((after['pending_relearning'],after['due_review']),(0,0))
 
     def test_failed_relearning_moves_to_tail_and_does_not_disappear_on_next_day(self):
         first=self.next();self.review(first,'bad');self.review(first,'address')

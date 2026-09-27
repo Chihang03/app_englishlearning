@@ -29,6 +29,7 @@ const emptyStats: Stats = {
   today_independent_accuracy: null,
   pending_relearning: 0,
   pending_relearning_senses: 0,
+  next_relearning_at: null,
   total_learned: 0,
   due_review: 0,
   new_words: 0,
@@ -202,6 +203,17 @@ function Trainer({ user, onSignedOut }: { user: User; onSignedOut: () => void })
     },
     [onSignedOut]
   );
+
+  useEffect(() => {
+    if (!stats.next_relearning_at) return;
+    // Refresh due counts when the interval ends, without showing a countdown.
+    const dueAt = Date.parse(stats.next_relearning_at);
+    if (!Number.isFinite(dueAt)) return;
+    const timer = window.setTimeout(() => {
+      void guarded(loadStats);
+    }, Math.max(0, dueAt - Date.now()) + 250);
+    return () => window.clearTimeout(timer);
+  }, [stats.next_relearning_at, guarded]);
 
   function updateSpeech(next: Partial<SpeechSettings>) {
     setSpeech((current) => {
