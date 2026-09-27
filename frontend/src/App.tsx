@@ -139,7 +139,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
   const deckMovingRef = useRef(false);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [statsReady, setStatsReady] = useState(false);
-  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, selected_word_list_ids: [], speech_rate: null });
+  const [settings, setSettings] = useState<Settings>({ show_sentence_translation: false, skip_basic_600: false, selected_word_list_ids: [], speech_rate: null });
   const currentQuestionRef = useRef({ card, result, showTranslation: settings.show_sentence_translation });
   currentQuestionRef.current = { card, result, showTranslation: settings.show_sentence_translation };
   const [wordLists, setWordLists] = useState<WordList[]>([]);
@@ -353,7 +353,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
     }
   }
 
-  async function loadNext() {
+  async function loadNext(preserveDraft = false) {
     if (loadingRef.current || mutePendingRef.current || reviewingRef.current) return;
     const old = currentQuestionRef.current;
     cancelSpeechRef.current?.();
@@ -365,6 +365,12 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
       const payload = await request<{ card: Card | null; message?: string; retry_after_seconds?: number }>("/api/next");
       readCache.clear();
       if (!mountedRef.current) return;
+      // Changing a filter may keep an unrelated round. Preserve its answer,
+      // hints and result while updating the server's remaining count.
+      if (preserveDraft && old.card && old.card.attempt_id === payload.card?.attempt_id) {
+        setCard(payload.card);
+        return;
+      }
       cancelSpeechRef.current?.();
       setReadingCorrectAnswer(false);
       // Do not remove the old input while fetching: mobile keyboards depend on
@@ -627,6 +633,11 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
         readCache.clear();
         settingsSavingRef.current = false;
         if (mountedRef.current) setSettingsSaving(false);
+      }
+      if ("skip_basic_600" in next && mountedRef.current) {
+        changeReview(false);
+        if (hasStarted) await loadNext(true);
+        await loadStats();
       }
     });
   }
@@ -967,6 +978,7 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       <section className="settings-group panel">
         <h2><Icon name="book" /> 智能复习</h2>
         <p className="settings-hint">根据你的作答表现自动安排复习。</p>
+        <label className="setting-row"><span><strong>跳过基础 600 词</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.skip_basic_600} onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} /></label>
         <button type="button" className="word-list-option" onClick={onOpenMutedWords}>
           <strong>不再学习的单词</strong><Icon name="chevron" />
         </button>

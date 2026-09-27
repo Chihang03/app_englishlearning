@@ -10,6 +10,8 @@ from typing import Any, Iterator
 
 from .migrations import run_migrations
 from .senses import authored_sense, migrate_legacy_progress, save_senses, validate_senses
+from .learning_filters import basic_word_sql
+from .security import utc_now_iso
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -338,6 +340,9 @@ def get_settings(user_id: int) -> dict[str, str]:
 
 def update_settings(user_id: int, values: dict[str, str]) -> dict[str, str]:
     with connect() as conn:
+        # Serialize with card issuance/reviews so enabling the filter retires
+        # affected rounds on every device in the same transaction as the setting.
+        conn.execute("BEGIN IMMEDIATE")
         conn.executemany(
             """
             INSERT INTO settings(user_id, key, value)
@@ -346,4 +351,9 @@ def update_settings(user_id: int, values: dict[str, str]) -> dict[str, str]:
             """,
             [(user_id, key, value) for key, value in values.items()],
         )
+        if values.get("skip_basic_600") == "true":
+            conn.execute(f"""UPDATE study_attempts SET completed_at=?
+                WHERE user_id=? AND completed_at IS NULL AND sense_id IN (
+                    SELECT s.id FROM word_senses s JOIN words w ON w.id=s.word_id
+                    WHERE {basic_word_sql()})""", (utc_now_iso(), user_id))
     return get_settings(user_id)
