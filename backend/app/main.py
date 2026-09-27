@@ -244,7 +244,7 @@ def settings(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]
 @app.get("/api/muted-words")
 def muted_words(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     with connect() as conn:
-        rows = conn.execute("SELECT word,muted_at FROM user_muted_words WHERE user_id=? ORDER BY muted_at DESC,word",
+        rows = conn.execute("SELECT word,muted_at FROM user_muted_words WHERE user_id=? ORDER BY word COLLATE NOCASE",
                             (int(user["id"]),)).fetchall()
         return {"words": [dict(row) for row in rows]}
 
