@@ -11,26 +11,29 @@ from .security import local_day_bounds, utc_iso_from, utc_now_iso
 from .senses import contains_target, example_for_sense, senses_for_word, write_state
 from .srs import RELEARNING_DELAY_SECONDS, next_state
 from .adaptive_memory import advance_memory, maybe_calibrate, memory_summary
+from .muted_words import unmuted_sql
 
 
 # Both counters and card selection use the same due-time and visibility rules.
 # A queued correction's timestamp replaces its old calendar-day due date.
-_DUE_SENSES_SQL = """SELECT p.*,s.word_id,q.ready_at,q.queue_order,
+_DUE_SENSES_SQL = f"""SELECT p.*,s.word_id,q.ready_at,q.queue_order,
     q.sense_id IS NOT NULL AS is_relearning
     FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
     JOIN words w ON w.id=s.word_id
     LEFT JOIN relearning_queue q ON q.user_id=p.user_id AND q.sense_id=p.sense_id
     LEFT JOIN adaptive_memory m ON m.user_id=p.user_id AND m.sense_id=p.sense_id
     WHERE p.user_id=? AND s.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)
+      AND {unmuted_sql('p.user_id')}
       AND (p.status!='Mature' OR m.sense_id IS NOT NULL)
       AND ((q.sense_id IS NULL AND p.next_review_date<=?) OR q.ready_at<=?)
       AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)"""
 
 
-def selected_filter(user_id: int) -> tuple[str, tuple[int, int]]:
-    return """(w.owner_id=? OR (w.owner_id IS NULL AND EXISTS (
+def selected_filter(user_id: int) -> tuple[str, tuple[int, int, int]]:
+    return f"""(w.owner_id=? OR (w.owner_id IS NULL AND EXISTS (
         SELECT 1 FROM word_list_memberships m JOIN user_vocabulary_lists u ON u.list_id=m.list_id
-        WHERE m.word_id=w.id AND u.user_id=? AND u.selected=1)))""", (user_id,user_id)
+        WHERE m.word_id=w.id AND u.user_id=? AND u.selected=1)))
+        AND {unmuted_sql('?')}""", (user_id,user_id,user_id)
 
 
 def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
@@ -51,11 +54,12 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         SELECT word_id FROM srs_state WHERE user_id=? UNION
         SELECT s.word_id FROM word_senses s JOIN sense_srs_state p ON p.sense_id=s.id WHERE p.user_id=?
     )""", (user_id,user_id)).fetchone()[0]
-    progress = conn.execute("""SELECT COUNT(*) AS learned_senses,
-        COUNT(DISTINCT CASE WHEN p.status='Learning' THEN s.word_id END) AS learning,
+    progress = conn.execute(f"""SELECT COUNT(*) AS learned_senses,
+        COUNT(DISTINCT CASE WHEN p.status='Learning' AND {unmuted_sql('p.user_id')} THEN s.word_id END) AS learning,
         COUNT(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 END) AS mastered_senses,
-        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' THEN s.word_id END) AS lapse_words
+        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND {unmuted_sql('p.user_id')} THEN s.word_id END) AS lapse_words
         FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
+        JOIN words w ON w.id=s.word_id
         WHERE p.user_id=? AND s.active=1""", (user_id,)).fetchone()
     due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
         COUNT(DISTINCT CASE WHEN status='Learning' THEN word_id END) AS learning_due,
@@ -72,12 +76,13 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
             FROM word_senses s LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
             WHERE s.active=1 GROUP BY s.word_id)""", (user_id,)).fetchone()
     legacy = conn.execute("SELECT COUNT(*) FROM srs_state WHERE user_id=? AND sense_migrated=0", (user_id,)).fetchone()[0]
-    upcoming = conn.execute("""SELECT MIN(q.ready_at) AS next_relearning_at
+    upcoming = conn.execute(f"""SELECT MIN(q.ready_at) AS next_relearning_at
         FROM relearning_queue q JOIN word_senses s ON s.id=q.sense_id
         JOIN words w ON w.id=s.word_id
         JOIN sense_srs_state p ON p.user_id=q.user_id AND p.sense_id=q.sense_id
         WHERE q.user_id=? AND s.active=1 AND p.status!='Mature' AND q.ready_at>?
         AND (w.owner_id IS NULL OR w.owner_id=?)
+        AND {unmuted_sql('q.user_id')}
         AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)""",
         (user_id,now,user_id)).fetchone()
     return {"total_learned": learned, "new_words": new_words, "new_senses": new["senses"],
@@ -130,11 +135,12 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
     now = utc_now_iso()
     due_args = (user_id,user_id,today.isoformat(),now)
     # A refresh resumes the same round, including its revealed-answer flag.
-    active = conn.execute("""SELECT a.* FROM study_attempts a
+    active = conn.execute(f"""SELECT a.* FROM study_attempts a
         JOIN word_senses s ON s.id=a.sense_id JOIN words w ON w.id=s.word_id
         JOIN sense_examples e ON e.id=a.example_id
         WHERE a.user_id=? AND a.completed_at IS NULL AND s.active=1 AND e.active=1
-        AND (w.owner_id IS NULL OR w.owner_id=?) ORDER BY a.created_at,a.id LIMIT 1""",
+        AND (w.owner_id IS NULL OR w.owner_id=?) AND {unmuted_sql('a.user_id')}
+        ORDER BY a.created_at,a.id LIMIT 1""",
         (user_id,user_id)).fetchone()
     # Catalog updates can archive a round; retire it so it cannot block a replacement.
     conn.execute("""UPDATE study_attempts SET completed_at=? WHERE user_id=? AND completed_at IS NULL
@@ -156,11 +162,12 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
     """, due_args).fetchone()
     retry_after = 0
     if row is None:
-        pending = conn.execute("""SELECT MIN(q.ready_at) AS ready_at FROM relearning_queue q
+        pending = conn.execute(f"""SELECT MIN(q.ready_at) AS ready_at FROM relearning_queue q
             JOIN word_senses s ON s.id=q.sense_id JOIN words w ON w.id=s.word_id
             JOIN sense_srs_state p ON p.sense_id=q.sense_id AND p.user_id=q.user_id
             WHERE q.user_id=? AND s.active=1 AND p.status!='Mature' AND q.ready_at>?
             AND (w.owner_id IS NULL OR w.owner_id=?)
+            AND {unmuted_sql('q.user_id')}
             AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)
             """, (user_id,now,user_id)).fetchone()
         if pending["ready_at"] is not None:
@@ -232,6 +239,9 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
             AND (w.owner_id IS NULL OR w.owner_id=?)""", (example_id,sense_id,word_id,user_id)).fetchone()
     if row is None or not contains_target(row["sentence"],row["target_form"]):
         raise HTTPException(status_code=404,detail="Sense/example pair not found")
+    if conn.execute("SELECT 1 FROM user_muted_words WHERE user_id=? AND word=lower(trim(?))",
+                    (user_id,row["word"])).fetchone():
+        raise HTTPException(status_code=409,detail="此单词已消音，请加载下一题。")
     day_start,day_end = local_day_bounds(today,learner_timezone)
     if conn.execute("""SELECT 1 FROM review_history WHERE user_id=? AND sense_id=?
         AND is_independent=1 AND review_time>=? AND review_time<? LIMIT 1""",
