@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 
 def run_migrations(db_path: Path) -> None:
@@ -142,6 +142,16 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("PRAGMA user_version = 15")
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 15 (derived verbs)")
+
+        if version < 16:
+            conn.execute("BEGIN")
+            if 'learning_enabled' not in {r[1] for r in conn.execute('PRAGMA table_info(word_senses)')}:
+                conn.execute("ALTER TABLE word_senses ADD COLUMN learning_enabled INTEGER NOT NULL DEFAULT 1 CHECK(learning_enabled IN (0,1))")
+            conn.execute("""UPDATE word_senses SET learning_enabled=0
+                WHERE sense_key IN ('en:m_en_gbus1159040.002','en:m_en_gbus1159040.003','en:m_en_gbus1159040.005')""")
+            conn.execute("PRAGMA user_version = 16")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 16 (sense learning eligibility)")
 
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -354,6 +364,7 @@ def _migrate_to_v5(conn: sqlite3.Connection) -> None:
             definition_cn TEXT NOT NULL DEFAULT '', definition_en TEXT,
             source TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0,
             active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+            learning_enabled INTEGER NOT NULL DEFAULT 1 CHECK(learning_enabled IN (0,1)),
             CHECK(length(trim(definition_cn)) > 0 OR length(trim(COALESCE(definition_en,''))) > 0),
             UNIQUE(word_id, sense_key)
         )""",

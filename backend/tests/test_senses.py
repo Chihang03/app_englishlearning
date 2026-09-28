@@ -485,6 +485,32 @@ class SenseLearningTests(unittest.TestCase):
         with database.connect() as conn:
             self.assertIsNotNone(conn.execute('SELECT completed_at FROM study_attempts WHERE id=?',(first['attempt_id'],)).fetchone()[0])
 
+    def test_rare_wile_senses_remain_in_dictionary_but_are_not_learned(self):
+        wile={"word":"wile","pronunciation":"waɪl","part_of_speech":"名词","definition_cn":"诡计",
+            "example_sentence":"she didn't employ any feminine wiles to capture his attention.",
+            "memberships":[{"list_id":"cet4","position":2}],"senses":[
+                sense("en:m_en_gbus1159030.006","诡计","she didn't employ any feminine wiles to capture his attention.",target="wiles"),
+                {**sense("en:m_en_gbus1159040.002","糟糕的","he was wile when he was young.",target="wile",pos="形容词"),"learning_enabled":False},
+                {**sense("en:m_en_gbus1159040.003","糟糕的","losing the final was a wile blow.",target="wile",pos="形容词"),"learning_enabled":False},
+                {**sense("en:m_en_gbus1159040.005","非常","this old boy was wile pleased.",target="wile",pos="副词"),"learning_enabled":False}
+            ]}
+        updated=catalog();updated['lists'][0]['source_word_count']=2;updated['lists'][0]['word_count']=2
+        updated['words'].append(wile);self.catalog_path.write_text(json.dumps(updated,ensure_ascii=False))
+        database.seed_vocabulary_catalog()
+        with database.connect() as conn:
+            rows=conn.execute("SELECT sense_key,active,learning_enabled FROM word_senses WHERE word_id=(SELECT id FROM words WHERE word='wile') ORDER BY position").fetchall()
+            self.assertEqual([(r['active'],r['learning_enabled']) for r in rows],[(1,1),(1,0),(1,0),(1,0)])
+        card=self.next();self.assertEqual(card['word'],'address')
+        with database.connect() as conn:
+            conn.execute("UPDATE user_vocabulary_lists SET selected=0 WHERE user_id=? AND list_id='cet4'",(self.uid,))
+            conn.execute("UPDATE user_vocabulary_lists SET selected=1 WHERE user_id=? AND list_id='cet4'",(self.uid,))
+            conn.execute("UPDATE sense_srs_state SET status='Mature' WHERE user_id=?",(self.uid,))
+        # Address has two still-eligible senses; finish them before wile's remaining one.
+        next_card=self.next()
+        while next_card['word']=='address':
+            self.review(next_card,next_card['answer_form']);next_card=self.next()
+        self.assertEqual((next_card['word'],next_card['definition_cn']),('wile','诡计'))
+
 
 class LegacySenseMigrationTests(unittest.TestCase):
     def test_v5_upgrade_preserves_schedules_and_history_and_queues_learning_senses(self):

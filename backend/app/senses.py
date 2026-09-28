@@ -44,13 +44,15 @@ def save_senses(conn, word_id: int, senses: list[dict[str, Any]]) -> None:
     conn.execute("UPDATE sense_examples SET active = 0 WHERE sense_id IN (SELECT id FROM word_senses WHERE word_id = ?)", (word_id,))
     for position, sense in enumerate(senses):
         conn.execute("""
-            INSERT INTO word_senses(word_id,sense_key,part_of_speech,definition_cn,definition_en,source,position,active)
-            VALUES(?,?,?,?,?,?,?,1)
+            INSERT INTO word_senses(word_id,sense_key,part_of_speech,definition_cn,definition_en,source,position,active,learning_enabled)
+            VALUES(?,?,?,?,?,?,?,1,?)
             ON CONFLICT(word_id,sense_key) DO UPDATE SET part_of_speech=excluded.part_of_speech,
                 definition_cn=excluded.definition_cn,definition_en=excluded.definition_en,
-                source=excluded.source,position=excluded.position,active=1
+                source=excluded.source,position=excluded.position,active=1,
+                learning_enabled=CASE WHEN excluded.learning_enabled=0 THEN 0 ELSE word_senses.learning_enabled END
         """, (word_id, sense["key"], sense["part_of_speech"], sense.get("definition_cn") or "",
-               sense.get("definition_en"), sense.get("source") or "本地词库", sense.get("position", position)))
+               sense.get("definition_en"), sense.get("source") or "本地词库", sense.get("position", position),
+               int(sense.get("learning_enabled") is not False)))
         sense_id = conn.execute("SELECT id FROM word_senses WHERE word_id=? AND sense_key=?", (word_id,sense["key"])).fetchone()[0]
         corrections = override_values(conn, 'sense', sense_id)
         if corrections:
