@@ -43,6 +43,7 @@ const emptyStats: Stats = {
   learned_senses: 0,
   new_senses: 0,
   due_senses: 0,
+  due_words: 0,
   mastered_senses: 0,
   legacy_unmapped_words: 0
 };
@@ -940,7 +941,7 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
         <div className="section-heading"><h2>今日学习</h2></div>
         <div className="today-metrics">
           <div><strong>{value(stats.today_completed_cards)}</strong><span>今日完成卡片</span></div>
-          <div><strong>{value(stats.due_senses)}</strong><span>待复习义项</span></div>
+          <div><strong>{value(stats.due_words)}</strong><span>即刻复习</span></div>
         </div>
       </section>
       <section className="overview-section">
