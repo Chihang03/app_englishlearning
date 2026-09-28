@@ -54,12 +54,20 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         SELECT u.word_id FROM learning_units u JOIN sense_srs_state p ON p.learning_unit_id=u.id
             WHERE p.user_id=? AND p.retired_at IS NULL
     )""", (user_id,user_id)).fetchone()[0]
-    progress = conn.execute(f"""SELECT COUNT(*) AS learned_senses,
-        COUNT(DISTINCT CASE WHEN p.status='Learning' AND {learnable_word_sql('p.user_id')} THEN u.word_id END) AS learning,
+    progress = conn.execute(f"""WITH due_word_ids AS (
+        SELECT DISTINCT word_id FROM ({_DUE_SENSES_SQL})
+        ) SELECT COUNT(*) AS learned_senses,
+        COUNT(DISTINCT CASE WHEN p.status IN ('Learning','Reviewing')
+            AND {learnable_word_sql('p.user_id')}
+            AND u.word_id NOT IN (SELECT word_id FROM due_word_ids)
+            AND EXISTS(SELECT 1 FROM review_history h WHERE h.user_id=p.user_id
+                AND h.learning_unit_id=p.learning_unit_id AND h.is_correct=1)
+            THEN u.word_id END) AS learning,
         COUNT(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 END) AS mastered_senses,
         COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND {learnable_word_sql('p.user_id')} THEN u.word_id END) AS lapse_words
         FROM sense_srs_state p JOIN learning_units u ON u.id=p.learning_unit_id JOIN words w ON w.id=u.word_id
-        WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()}""", (user_id,)).fetchone()
+        WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()}""",
+        (user_id,user_id,today.isoformat(),now,user_id)).fetchone()
     due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
         COUNT(DISTINCT word_id) AS due_words,
         COUNT(DISTINCT CASE WHEN status='Learning' THEN word_id END) AS learning_due,

@@ -948,7 +948,7 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing} aria-label="刷新学习数据"><Icon name="refresh" /> {refreshing ? "刷新中…" : "刷新"}</button></div>
         <div className="overview-grid">
           <Metric icon="book" label="累计学过" value={value(stats.total_learned)} />
-          <Metric icon="refresh" label="学习中单词" value={value(stats.learning)} />
+          <Metric icon="refresh" label="学习中的单词" value={value(stats.learning)} />
           <Metric icon="spark" label="可学新词" value={value(stats.new_words)} />
           <Metric icon="check" label="已掌握" value={value(stats.mastered)} />
         </div>

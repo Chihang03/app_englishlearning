@@ -90,7 +90,7 @@ class CompletedCardStatsTests(unittest.TestCase):
     def test_immediate_review_deduplicates_words_and_waits_for_relearning(self):
         first = self.next()
         self.assertTrue(self.review(first, first['answer_form']).json()['is_independent'])
-        self.assertEqual(self.stats()['learning'], 0)
+        self.assertEqual(self.stats()['learning'], 1)
         second = self.next()
         self.assertEqual(second['id'], first['id'])
         self.assertNotEqual(second['learning_unit_id'], first['learning_unit_id'])
@@ -99,15 +99,48 @@ class CompletedCardStatsTests(unittest.TestCase):
         self.assertTrue(self.review(second, second['answer_form']).json()['is_correct'])
         before = self.stats()
         self.assertEqual((before['due_senses'], before['due_words']), (0, 0))
+        self.assertEqual(before['learning'], 1)
         with database.connect() as conn:
             conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=? AND learning_unit_id=?",
                          (self.uid, first['learning_unit_id']))
         regular = self.stats()
         self.assertEqual((regular['due_senses'], regular['due_words']), (1, 1))
+        self.assertEqual(regular['learning'], 0)
         self.ready_relearning()
         ready = self.stats()
         self.assertEqual((ready['due_senses'], ready['due_words']), (2, 1))
         self.assertEqual(ready['pending_relearning_senses'], 1)
+        self.assertEqual(ready['learning'], 0)
+
+    def test_learning_requires_a_correct_answer_and_excludes_due_and_mature_words(self):
+        first = self.next()
+        self.assertFalse(self.review(first, 'wrong').json()['is_correct'])
+        self.assertEqual(self.stats()['learning'], 0)
+        self.assertTrue(self.review(first, first['answer_form']).json()['is_correct'])
+        self.assertEqual(self.stats()['learning'], 1)
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': True}).status_code, 200)
+        self.assertEqual(self.stats()['learning'], 0)
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': False}).status_code, 200)
+        self.assertEqual(self.stats()['learning'], 1)
+        self.assertEqual(self.client.post(f"/api/words/{first['id']}/mute").status_code, 200)
+        self.assertEqual(self.stats()['learning'], 0)
+        self.assertEqual(self.client.delete(f"/api/muted-words/{first['word']}").status_code, 200)
+        self.assertEqual(self.stats()['learning'], 1)
+        self.ready_relearning()
+        due = self.stats()
+        self.assertEqual((due['learning'], due['due_words']), (0, 1))
+        retry = self.next()
+        self.assertTrue(self.review(retry, retry['answer_form']).json()['is_independent'])
+        later = self.stats()
+        self.assertEqual((later['learning'], later['due_words']), (1, 0))
+        second = self.next()
+        self.assertEqual(second['id'], first['id'])
+        self.assertTrue(self.review(second, second['answer_form']).json()['is_independent'])
+        self.assertEqual(self.stats()['learning'], 1)
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET status='Mature' WHERE user_id=?", (self.uid,))
+        mature = self.stats()
+        self.assertEqual((mature['learning'], mature['due_words'], mature['mature']), (0, 0, 1))
 
 
 if __name__ == '__main__':
