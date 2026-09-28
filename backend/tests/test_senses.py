@@ -98,6 +98,52 @@ class SenseLearningTests(unittest.TestCase):
         for field in ('sense_id', 'example_id', 'attempt_id', 'answer_form', 'status'):
             self.assertEqual(before[field], after[field])
 
+    def test_glosses_survive_sentence_release_catalog_refresh_and_restart(self):
+        from app.chinese_glosses import sync_database as sync_glosses
+        from app.chinese_sentences import sync_database as sync_sentences
+        raw=catalog();word=raw['words'][0];word['definition_cn']='';word['definition_en']='a postal location'
+        word['senses'][0]['definition_cn']='';word['senses'][0]['definition_en']='a postal location'
+        self.catalog_path.write_text(json.dumps(raw));database.seed_vocabulary_catalog()
+        before=self.next()
+        self.assertEqual(before['definition_cn'],'')
+        glosses=self.directory/'glosses.json';sentences=self.directory/'sentences.json'
+        glosses.write_text(json.dumps({'format_version':1,'entries':[{
+            'word':'address','sense_key':'place','expected_definition_en':'a postal location',
+            'expected_part_of_speech':'名词','definition_cn':'地址'}]}))
+        sentences.write_text(json.dumps({'format_version':1,'entries':[{
+            'word':'address','sense_key':'place','expected_definition_en':'a postal location',
+            'expected_part_of_speech':'名词','sentence':before['example_sentence'],
+            'target_form':before['answer_form'],'translation_cn':'我们的警员去了那个地址。'}]}))
+        with patch.object(database,'sync_gloss_translations',side_effect=lambda db,**kw:sync_glosses(db,glosses,**kw)), \
+             patch.object(database,'sync_sentence_translations',side_effect=lambda db,**kw:sync_sentences(db,sentences,**kw)):
+            # Restore a previously seeded database even when its fingerprint has not changed.
+            database.init_database()
+            restored=self.next()
+            self.assertEqual(restored['definition_cn'],'地址')
+            self.assertEqual(restored['example_translation_cn'],'我们的警员去了那个地址。')
+            raw['lists'][0]['description']='A new release changes catalog metadata.'
+            self.catalog_path.write_text(json.dumps(raw));database.seed_vocabulary_catalog()
+            with database.connect() as conn:
+                self.assertEqual(conn.execute('SELECT definition_cn FROM words WHERE id=?',(before['id'],)).fetchone()[0],'地址')
+                self.assertEqual(conn.execute('SELECT definition_cn FROM word_senses WHERE id=?',(before['sense_id'],)).fetchone()[0],'地址')
+            database.init_database();database.init_database()
+            after=self.next()
+        for field in ('sense_id','example_id','attempt_id','status','definition_cn','example_translation_cn'):
+            self.assertEqual(restored[field],after[field])
+        self.assertEqual(before['attempt_id'],after['attempt_id'])
+
+    def test_blank_catalog_gloss_is_kept_only_when_meaning_and_pos_are_unchanged(self):
+        raw=catalog();word=raw['words'][0];word['senses'][0]['definition_en']='a postal location'
+        self.catalog_path.write_text(json.dumps(raw));database.seed_vocabulary_catalog()
+        raw['words'][0]['senses'][0]['definition_cn']=''
+        self.catalog_path.write_text(json.dumps(raw));database.seed_vocabulary_catalog()
+        with database.connect() as conn:
+            self.assertEqual(conn.execute("SELECT definition_cn FROM word_senses WHERE sense_key='place'").fetchone()[0],'地址')
+        raw['words'][0]['senses'][0]['definition_en']='a different meaning'
+        self.catalog_path.write_text(json.dumps(raw));database.seed_vocabulary_catalog()
+        with database.connect() as conn:
+            self.assertEqual(conn.execute("SELECT definition_cn FROM word_senses WHERE sense_key='place'").fetchone()[0],'')
+
     def test_vocabulary_list_progress_counts_exposure_overlap_and_all_mature_senses(self):
         def lists(client=None):
             response=(client or self.client).get('/api/word-lists')

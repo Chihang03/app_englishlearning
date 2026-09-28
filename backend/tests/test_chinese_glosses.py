@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from chinese_glosses import apply_supplements
 from apply_chinese_glosses_to_db import apply as apply_to_db
+from app.chinese_glosses import content_hashes, sync_database
 
 
 class ChineseGlossTests(unittest.TestCase):
@@ -100,6 +101,38 @@ class ChineseGlossTests(unittest.TestCase):
             apply_to_db(db, current, previous, self.path, seed, backup)
         with sqlite3.connect(db) as conn:
             self.assertEqual(conn.execute("SELECT definition_cn FROM word_senses WHERE id=11").fetchone()[0], "")
+
+    def test_runtime_restore_keeps_sentences_and_progress_and_is_idempotent(self):
+        db, _, _, _, backup = self.database_fixture()
+        with sqlite3.connect(db) as conn:
+            conn.execute('ALTER TABLE word_senses ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
+            conn.execute("UPDATE words SET definition_en='the land alongside a river' WHERE id=1")
+            conn.execute('CREATE TABLE sense_examples(id INTEGER PRIMARY KEY,sense_id INTEGER,sentence TEXT,translation_cn TEXT)')
+            conn.execute("INSERT INTO sense_examples VALUES(21,11,'They sat on the bank.','他们坐在河岸上。')")
+            before = content_hashes(conn)
+        self.assertEqual(sync_database(db,self.path,dry_run=True)['updated_senses'],1)
+        self.assertFalse(backup.exists())
+        restored = sync_database(db,self.path,backup=backup)
+        self.assertEqual((restored['updated_senses'],restored['updated_word_glosses']),(1,1))
+        self.assertTrue(restored['learning_history_unchanged'])
+        with sqlite3.connect(db) as conn:
+            self.assertEqual(content_hashes(conn),before)
+            self.assertEqual(conn.execute('SELECT definition_cn FROM words WHERE id=1').fetchone()[0],'河岸')
+        self.assertEqual(sync_database(db,self.path)['updated_senses'],0)
+
+    def test_runtime_restore_skips_stale_sources_and_respects_admin_override(self):
+        db, _, _, _, _ = self.database_fixture()
+        with sqlite3.connect(db) as conn:
+            conn.execute('ALTER TABLE word_senses ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
+            conn.execute("UPDATE word_senses SET definition_en='a different meaning' WHERE id=11")
+        with self.assertRaisesRegex(ValueError,'Live sense differs'):
+            sync_database(db,self.path)
+        self.assertEqual(sync_database(db,self.path,strict=False)['stale'],1)
+        with sqlite3.connect(db) as conn:
+            conn.execute("UPDATE word_senses SET definition_en='the land alongside a river' WHERE id=11")
+            conn.execute('CREATE TABLE admin_content_overrides(entity TEXT,entity_id INTEGER,values_json TEXT)')
+            conn.execute('INSERT INTO admin_content_overrides VALUES(?,?,?)',('sense',11,json.dumps({'definition_cn':''})))
+        self.assertEqual(sync_database(db,self.path)['updated_senses'],0)
 
 
 if __name__ == "__main__":

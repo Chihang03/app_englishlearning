@@ -47,7 +47,11 @@ def save_senses(conn, word_id: int, senses: list[dict[str, Any]]) -> None:
             INSERT INTO word_senses(word_id,sense_key,part_of_speech,definition_cn,definition_en,source,position,active,learning_enabled)
             VALUES(?,?,?,?,?,?,?,1,?)
             ON CONFLICT(word_id,sense_key) DO UPDATE SET part_of_speech=excluded.part_of_speech,
-                definition_cn=excluded.definition_cn,definition_en=excluded.definition_en,
+                definition_cn=CASE WHEN trim(excluded.definition_cn)=''
+                    AND COALESCE(word_senses.definition_en,'')=COALESCE(excluded.definition_en,'')
+                    AND word_senses.part_of_speech=excluded.part_of_speech
+                    THEN word_senses.definition_cn ELSE excluded.definition_cn END,
+                definition_en=excluded.definition_en,
                 source=excluded.source,position=excluded.position,active=1,
                 learning_enabled=CASE WHEN excluded.learning_enabled=0 THEN 0 ELSE word_senses.learning_enabled END
         """, (word_id, sense["key"], sense["part_of_speech"], sense.get("definition_cn") or "",
@@ -56,8 +60,9 @@ def save_senses(conn, word_id: int, senses: list[dict[str, Any]]) -> None:
         sense_id = conn.execute("SELECT id FROM word_senses WHERE word_id=? AND sense_key=?", (word_id,sense["key"])).fetchone()[0]
         corrections = override_values(conn, 'sense', sense_id)
         if corrections:
+            saved = conn.execute('SELECT definition_cn,definition_en FROM word_senses WHERE id=?', (sense_id,)).fetchone()
             conn.execute("UPDATE word_senses SET definition_cn=?,definition_en=? WHERE id=?",
-                (corrections.get('definition_cn', sense.get('definition_cn') or ''), corrections.get('definition_en', sense.get('definition_en')), sense_id))
+                (corrections.get('definition_cn', saved['definition_cn']), corrections.get('definition_en', saved['definition_en']), sense_id))
         for example in sense["examples"]:
             existing = overridden_example_id(conn, sense_id, example['sentence'])
             if existing is None:
