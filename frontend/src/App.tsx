@@ -22,6 +22,7 @@ const SPEECH_START_TIMEOUT_MS = 8000;
 
 const emptyStats: Stats = {
   today_learning: 0,
+  today_completed_cards: 0,
   today_accuracy: 0,
   today_success: 0,
   today_success_senses: 0,
@@ -823,7 +824,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
             <Icon name="back" />
           </button>
           <div className="study-progress">
-            <span>今日通过 {statsReady ? stats.today_success_senses : "—"} 题</span>
+            <span>今日完成 {statsReady ? stats.today_completed_cards : "—"} 张</span>
           </div>
           <details ref={menuRef} className="study-menu">
             <summary className="icon-button" aria-label="更多学习操作"><Icon name="more" /></summary>
@@ -938,15 +939,15 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
       <section className="today-panel panel">
         <div className="section-heading"><h2>今日学习</h2></div>
         <div className="today-metrics">
-          <div><strong>{value(stats.today_success)}</strong><span>今日成功单词</span></div>
-          <div><strong>{value(stats.pending_relearning)}</strong><span>待巩固单词</span></div>
+          <div><strong>{value(stats.today_completed_cards)}</strong><span>今日完成卡片</span></div>
+          <div><strong>{value(stats.due_senses)}</strong><span>待复习义项</span></div>
         </div>
       </section>
       <section className="overview-section">
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing} aria-label="刷新学习数据"><Icon name="refresh" /> {refreshing ? "刷新中…" : "刷新"}</button></div>
         <div className="overview-grid">
           <Metric icon="book" label="累计学过" value={value(stats.total_learned)} />
-          <Metric icon="refresh" label="待复习错词" value={value(stats.due_lapses)} />
+          <Metric icon="refresh" label="学习中单词" value={value(stats.learning)} />
           <Metric icon="spark" label="可学新词" value={value(stats.new_words)} />
           <Metric icon="check" label="已掌握" value={value(stats.mastered)} />
         </div>
@@ -954,17 +955,11 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
       <details className="learning-details panel">
         <summary><span><Icon name="chart" /> 更多学习数据</span><Icon name="chevron" /></summary>
         <dl className="detail-metrics">
-          <div><dt>今日答题次数</dt><dd>{value(stats.today_learning)}</dd></div>
-          <div><dt>今日通过义项</dt><dd>{value(stats.today_success_senses)}</dd></div>
           <div><dt>独立作答正确率</dt><dd>{ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</dd></div>
-          <div><dt>学习中</dt><dd>{value(stats.learning)}</dd></div>
-          <div><dt>学习中今日到期</dt><dd>{value(stats.learning_due)}</dd></div>
           <div><dt>有过错误的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
           <div><dt>长期熟记</dt><dd>{value(stats.mature)}</dd></div>
           <div><dt>已学义项</dt><dd>{value(stats.learned_senses)}</dd></div>
           <div><dt>尚未学习的义项</dt><dd>{value(stats.new_senses)}</dd></div>
-          <div><dt>今日到期义项</dt><dd>{value(stats.due_senses)}</dd></div>
-          <div><dt>待巩固义项</dt><dd>{value(stats.pending_relearning_senses)}</dd></div>
           <div><dt>进入间隔复习的义项</dt><dd>{value(stats.mastered_senses)}</dd></div>
         </dl>
         {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">{stats.legacy_unmapped_words} 个旧词的义项待确认</p> : null}

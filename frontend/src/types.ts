@@ -117,6 +117,7 @@ export type Stats = {
     evaluated_at: string | null;
   };
   today_learning: number;
+  today_completed_cards: number;
   today_accuracy: number;
   today_success: number;
   today_success_senses: number;
