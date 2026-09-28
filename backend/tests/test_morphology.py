@@ -306,6 +306,40 @@ class MorphologyTests(unittest.TestCase):
         self.assertFalse(any(e['classification'] == 'INFLECTION' for e in self.lookup('said')['entries']))
         self.assertEqual(before, self.snapshot())
 
+    def test_whitespace_upgrade_preserves_legacy_fingerprints_glosses_and_links(self):
+        from app.vocabulary_json import json_fingerprint, readable_json
+        catalog_path = database.VOCABULARY_CATALOG_PATH
+        catalog = json.loads(catalog_path.read_bytes())
+        old_catalog = (json.dumps(catalog, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
+        catalog_path.write_bytes(old_catalog)
+        self.bundle['catalog_sha256'] = hashlib.sha256(old_catalog).hexdigest()
+        old_bundle = (json.dumps(self.bundle, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
+        self.forms.write_bytes(old_bundle)
+        database.init_database()
+        card = self.card_for('say', 'verb')
+        self.review(card)
+        with database.connect() as conn:
+            conn.execute("UPDATE word_senses SET definition_cn='保留已有释义' WHERE id=?", (card['sense_id'],))
+            conn.execute("UPDATE vocabulary_catalog_state SET value=? WHERE key='fingerprint'",
+                         (hashlib.sha256(old_catalog + b'\0[]').hexdigest(),))
+            conn.execute("UPDATE vocabulary_catalog_state SET value=? WHERE key='morphology_fingerprint'",
+                         (hashlib.sha256(old_bundle + b'\0' + old_catalog).hexdigest(),))
+        before = self.snapshot()
+        catalog_path.write_text(readable_json(catalog), encoding='utf-8')
+        self.forms.write_text(readable_json(self.bundle), encoding='utf-8')
+        with patch('app.database.save_senses', side_effect=AssertionError('Formatting must not reimport senses')):
+            database.init_database()
+            database.init_database()
+        self.assertEqual(before, self.snapshot())
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT definition_cn FROM word_senses WHERE id=?',
+                                          (card['sense_id'],)).fetchone()[0], '保留已有释义')
+            states = dict(conn.execute('SELECT key,value FROM vocabulary_catalog_state'))
+        self.assertEqual(states['fingerprint'], json_fingerprint(catalog_path.read_bytes(), b'[]'))
+        self.assertEqual(states['morphology_fingerprint'], json_fingerprint(self.forms.read_bytes(), catalog_path.read_bytes()))
+        resolved = next(e for e in self.lookup('said')['entries'] if e['classification'] == 'INFLECTION')
+        self.assertEqual(resolved['lexical_unit_id'], card['unit_id'])
+
     def test_repeated_refresh_keeps_source_ids_and_fixed_examples(self):
         card = self.card_for('saying', 'noun')
         self.review(card)

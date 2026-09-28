@@ -5,13 +5,13 @@ an inflection. This module never creates, combines or updates memory states.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import unicodedata
 
 from .senses import save_senses, senses_for_word, validate_senses
 from .word_forms import FORM_LABELS, pos_family
+from .vocabulary_json import catalog_hashes, json_fingerprint, legacy_morphology_fingerprints
 
 
 VERIFIED_EVIDENCE = {
@@ -78,14 +78,16 @@ def backfill_lexical_units(conn: sqlite3.Connection) -> None:
 
 
 def seed_morphology(conn: sqlite3.Connection, bundle_bytes: bytes, catalog_bytes: bytes) -> None:
-    catalog_hash = hashlib.sha256(catalog_bytes).hexdigest()
-    fingerprint = hashlib.sha256(bundle_bytes + b'\0' + catalog_bytes).hexdigest()
+    fingerprint = json_fingerprint(bundle_bytes, catalog_bytes)
     previous = conn.execute("SELECT value FROM vocabulary_catalog_state WHERE key='morphology_fingerprint'").fetchone()
-    if previous and previous[0] == fingerprint:
+    if previous and (previous[0] == fingerprint
+                     or previous[0] in legacy_morphology_fingerprints(bundle_bytes, catalog_bytes)):
+        if previous[0] != fingerprint:
+            conn.execute("UPDATE vocabulary_catalog_state SET value=? WHERE key='morphology_fingerprint'", (fingerprint,))
         backfill_lexical_units(conn)
         return
     bundle = json.loads(bundle_bytes) if bundle_bytes else {}
-    compatible = bundle.get('format_version') == 2 and bundle.get('catalog_sha256') == catalog_hash
+    compatible = bundle.get('format_version') == 2 and bundle.get('catalog_sha256') in catalog_hashes(catalog_bytes)
     if compatible:
         validate_bundle(bundle)
     conn.execute('BEGIN IMMEDIATE')

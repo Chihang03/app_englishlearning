@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -17,6 +16,7 @@ from .morphology import seed_morphology
 from .word_forms import WORD_FORMS_PATH
 from .chinese_sentences import sync_database as sync_sentence_translations
 from .chinese_glosses import sync_database as sync_gloss_translations
+from .vocabulary_json import json_fingerprint, legacy_catalog_fingerprints
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -122,10 +122,13 @@ def seed_vocabulary_catalog() -> None:
     """Copy the bundled, example-complete catalog into SQLite for fast queries."""
     catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
     seed_bytes = SEED_PATH.read_bytes() if SEED_PATH.exists() else b'[]'
-    fingerprint = hashlib.sha256(catalog_bytes + b'\0' + seed_bytes).hexdigest()
+    fingerprint = json_fingerprint(catalog_bytes, seed_bytes)
     with connect() as conn:
         stored = conn.execute("SELECT value FROM vocabulary_catalog_state WHERE key='fingerprint'").fetchone()
-        if stored and stored[0] == fingerprint:
+        if stored and (stored[0] == fingerprint
+                       or stored[0] in legacy_catalog_fingerprints(catalog_bytes, seed_bytes)):
+            if stored[0] != fingerprint:
+                conn.execute("UPDATE vocabulary_catalog_state SET value=? WHERE key='fingerprint'", (fingerprint,))
             migrate_legacy_progress(conn)
             return
     catalog = json.loads(catalog_bytes)

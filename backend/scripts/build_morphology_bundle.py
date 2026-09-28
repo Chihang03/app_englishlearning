@@ -21,6 +21,7 @@ from dictionary_senses import ancestor, nodes, parse_record, text
 from dictionary_morphology import extract_record
 from app.morphology import validate_bundle
 from app.word_forms import pos_family, regular_form_types
+from app.vocabulary_json import json_fingerprint, readable_json
 
 
 DATA = Path(__file__).resolve().parents[1] / 'data'
@@ -143,11 +144,11 @@ def build_bundle(catalog_path: Path, output: Path, dictionary_root: Path,
                 if not values[spelling]:
                     del values[spelling]
     bundle = {'format_version': 2, 'resolver_version': 'morphology-v2-catalog', 'source': 'macOS Dictionary',
-              'catalog_sha256': hashlib.sha256(catalog_bytes).hexdigest(), 'dictionaries': manifests,
+              'catalog_sha256': json_fingerprint(catalog_bytes), 'dictionaries': manifests,
               'words': hints, 'lexical_units': units, 'forms': forms, 'relations': relations,
               'supplemental_words': supplemental, 'coverage': automatic['coverage']}
     validate_bundle(bundle)
-    output.write_text(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
+    output.write_text(readable_json(bundle, sort_keys=True), encoding='utf-8')
     print(f'Exported {len(units)} evidenced units, {len(forms)} form links, {len(relations)} relations, {len(supplemental)} supplemental words')
 
 

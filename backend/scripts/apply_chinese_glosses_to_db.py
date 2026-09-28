@@ -7,6 +7,10 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.vocabulary_json import json_fingerprint, legacy_catalog_fingerprints
 
 
 def catalog_structure(document: dict) -> str:
@@ -63,9 +67,10 @@ def apply(db: Path, catalog: Path, previous_catalog: Path, supplements: Path, se
         with sqlite3.connect(backup) as destination:
             conn.backup(destination)
         conn.execute("BEGIN IMMEDIATE")
-        old_fingerprint = hashlib.sha256(previous_bytes + b"\0" + seed_bytes).hexdigest()
+        old_fingerprint = json_fingerprint(previous_bytes, seed_bytes)
         state = conn.execute("SELECT value FROM vocabulary_catalog_state WHERE key='fingerprint'").fetchone()
-        if not state or state[0] != old_fingerprint:
+        if not state or (state[0] != old_fingerprint
+                         and state[0] not in legacy_catalog_fingerprints(previous_bytes, seed_bytes)):
             raise ValueError("Live catalog fingerprint differs; inspect before applying")
         preserved = unchanged_content(conn)
         changed = 0
@@ -93,7 +98,7 @@ def apply(db: Path, catalog: Path, previous_catalog: Path, supplements: Path, se
         # Prevent a full startup import from merging newly matching starter senses.
         # This narrowly updates the importer fingerprint; IDs/examples stay intact.
         conn.execute("UPDATE vocabulary_catalog_state SET value=? WHERE key='fingerprint'",
-            (hashlib.sha256(new_bytes + b"\0" + seed_bytes).hexdigest(),))
+            (json_fingerprint(new_bytes, seed_bytes),))
         if unchanged_content(conn) != preserved:
             raise ValueError("Unexpected change outside Chinese definitions/fingerprint")
         if conn.execute("PRAGMA foreign_key_check").fetchall() or conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
