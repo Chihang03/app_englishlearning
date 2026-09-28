@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -12,7 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, conlist, root_validator, validator
+from pydantic import BaseModel, Field
 
 from .auth import get_learner_user
 from .admin import router as admin_router
@@ -28,7 +27,7 @@ from .database import (
 from .passkeys import router as passkeys_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
 from .sense_learning import learning_metrics, next_sense_card, record_sense_review, record_hint, record_related_exposure
-from .senses import authored_sense, save_senses, senses_for_word
+from .senses import senses_for_word
 from .study_tools import report_content, word_meanings
 from .muted_words import mute_word, restore_word
 from .http_cache import CachePolicyMiddleware
@@ -37,9 +36,6 @@ from .http_cache import CachePolicyMiddleware
 # The streak walks back day by day from today, so history older than this cannot
 # extend it. Bounding the scan keeps the query flat as history grows.
 STREAK_LOOKBACK_DAYS = 400
-
-# Import is a single request, so it needs a ceiling.
-MAX_IMPORT_WORDS = 500
 
 
 @asynccontextmanager
@@ -69,31 +65,6 @@ if CORS_ORIGINS:
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(passkeys_router)
-
-
-class WordInput(BaseModel):
-    word: str = Field(min_length=1, max_length=100)
-    part_of_speech: str = Field(min_length=1, max_length=50)
-    definition_cn: str = Field(min_length=1, max_length=500)
-    definition_en: str | None = Field(default=None, max_length=1000)
-    example_sentence: str = Field(min_length=1, max_length=1000)
-    example_translation_cn: str | None = Field(default=None, max_length=1000)
-    pronunciation: str | None = Field(default=None, max_length=200)
-
-    @validator("example_sentence")
-    def example_sentence_must_not_be_blank(cls, value: str) -> str:
-        sentence = value.strip()
-        if not sentence:
-            raise ValueError("example sentence is required")
-        return sentence
-
-    @root_validator(skip_on_failure=True)
-    def example_sentence_must_contain_word(cls, values: dict[str, Any]) -> dict[str, Any]:
-        word = str(values.get("word") or "").strip()
-        sentence = str(values.get("example_sentence") or "")
-        if word and not re.search(rf"(?<![A-Za-z'-]){re.escape(word)}(?![A-Za-z'-])", sentence, re.I):
-            raise ValueError("example sentence must contain the target word")
-        return values
 
 
 class ReviewInput(BaseModel):
@@ -348,67 +319,12 @@ def dictionary_lookup(
     }
 
 
-@app.post("/api/words")
-def add_word(
-    payload: WordInput,
-    user: dict[str, Any] = Depends(get_learner_user),
-) -> dict[str, Any]:
-    user_id = int(user["id"])
-    with connect() as conn:
-        try:
-            cursor = conn.execute(
-                """
-                INSERT INTO words(
-                    owner_id, word, part_of_speech, definition_cn, definition_en,
-                    example_sentence, example_translation_cn, pronunciation
-                )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (user_id, *_word_values(payload)),
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=409, detail="Word already exists or is invalid") from exc
-        word = row_to_dict(conn.execute("SELECT * FROM words WHERE id = ?", (cursor.lastrowid,)).fetchone())
-        save_senses(conn, word["id"], authored_sense(word))
-    return {"word": word}
-
-
-@app.post("/api/words/import")
-def import_words(
-    payload: conlist(WordInput, max_length=MAX_IMPORT_WORDS),
-    user: dict[str, Any] = Depends(get_learner_user),
-) -> dict[str, int]:
-    user_id = int(user["id"])
-    inserted = 0
-    with connect() as conn:
-        for item in payload:
-            cursor = conn.execute(
-                """
-                INSERT OR IGNORE INTO words(
-                    owner_id, word, part_of_speech, definition_cn, definition_en,
-                    example_sentence, example_translation_cn, pronunciation
-                )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (user_id, *_word_values(item)),
-            )
-            inserted += cursor.rowcount
-            if cursor.rowcount:
-                word = row_to_dict(conn.execute("SELECT * FROM words WHERE id=?", (cursor.lastrowid,)).fetchone())
-                save_senses(conn, word["id"], authored_sense(word))
-    return {"inserted": inserted}
-
-
-def _word_values(item: WordInput) -> tuple[Any, ...]:
-    return (
-        item.word.strip(),
-        item.part_of_speech.strip(),
-        item.definition_cn.strip(),
-        item.definition_en.strip() if item.definition_en else None,
-        item.example_sentence.strip(),
-        item.example_translation_cn.strip() if item.example_translation_cn else None,
-        item.pronunciation.strip() if item.pronunciation else item.word.strip(),
-    )
+@app.post("/api/words", include_in_schema=False)
+@app.post("/api/words/import", include_in_schema=False)
+def retired_word_import() -> None:
+    # Keep a deterministic response for old clients, including with SPA hosting.
+    # No payload parsing, authentication side effects or database writes remain.
+    raise HTTPException(status_code=410, detail="用户自导入功能已停用")
 
 
 # The built frontend is served from the same origin as the API so that the

@@ -54,10 +54,11 @@ class AdminTests(unittest.TestCase):
             ("POST", "/api/words/1/mute", None),
             ("DELETE", "/api/muted-words/address", None),
             ("PATCH", "/api/settings", {"skip_basic_600": True}),
-            ("POST", "/api/words/import", {"words": []}),
         ]
         for method, path, body in mutations:
             self.assertEqual(admin.request(method, path, json=body).status_code, 403, path)
+        for path in ("/api/words", "/api/words/import"):
+            self.assertEqual(admin.post(path, json={}).status_code, 410, path)
         self.assertEqual(admin.get("/api/auth/passkeys").status_code, 200)
         changed = admin.patch("/api/auth/password", json={"current_password": "admin", "new_password": "new-password-123"})
         self.assertEqual(changed.status_code, 200)
