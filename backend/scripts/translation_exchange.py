@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from chinese_glosses import DEFAULT_SUPPLEMENTS, apply_supplements
+from app.vocabulary_json import readable_json
 
 DEFAULT_CATALOG = Path(__file__).resolve().parents[1] / "data" / "vocabulary_catalog.json"
 DEFAULT_MODEL = 'gpt-6-luna'
@@ -53,7 +54,7 @@ def atomic_json(path: Path, value) -> None:
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
-            output.write(encoded(value) + "\n")
+            output.write(readable_json(value))
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, path)

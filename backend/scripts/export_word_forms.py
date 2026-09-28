@@ -11,6 +11,7 @@ from lxml import html
 
 from dictionary_senses import FORM_LABELS, inflections_from_root
 from build_vocab_bundle import DICTIONARY_ASSETS, _pyglossary_class, find_dictionary
+from app.vocabulary_json import readable_json
 
 
 def write_word_forms(entries: dict, output: Path) -> None:
@@ -24,8 +25,8 @@ def write_word_forms(entries: dict, output: Path) -> None:
                     saved[:] = [kind for kind in FORM_LABELS if kind in {*saved, *kinds}]
         if combined:
             words[word] = combined
-    output.write_text(json.dumps({"format_version": 1, "source": "macOS Dictionary", "words": words},
-        ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    output.write_text(readable_json({"format_version": 1, "source": "macOS Dictionary", "words": words},
+                                  sort_keys=True), encoding="utf-8")
 
 
 def main() -> None:

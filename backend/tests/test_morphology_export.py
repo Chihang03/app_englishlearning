@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -120,6 +119,7 @@ class MorphologyExportTests(unittest.TestCase):
 
     def test_full_export_works_with_empty_reviewed_list(self):
         from build_morphology_bundle import build_bundle
+        from app.vocabulary_json import json_fingerprint
         words = [{'word': 'city', 'senses': [self.sense('city', 'en:city', 'noun')]}]
         records = self.record('city', self.block('noun', 'city', 'city', '<span class="infg"><span class="sy">plural</span><span class="inf">cities</span></span>'))
         with tempfile.TemporaryDirectory() as directory:
@@ -142,6 +142,6 @@ class MorphologyExportTests(unittest.TestCase):
             build_bundle(catalog, output, root, overrides, paths)
             bundle = json.loads(output.read_text())
             self.assertEqual(bundle['forms'][0]['spelling'], 'cities')
-            self.assertEqual(bundle['catalog_sha256'], hashlib.sha256(catalog.read_bytes()).hexdigest())
+            self.assertEqual(bundle['catalog_sha256'], json_fingerprint(catalog.read_bytes()))
             self.assertNotIn('verb', bundle['words']['city'])
             self.assertEqual(bundle['coverage']['catalog_headwords_scanned'], 1)

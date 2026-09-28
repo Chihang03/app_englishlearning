@@ -24,6 +24,7 @@ from dictionary_senses import parse_record
 from chinese_glosses import apply_supplements
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.chinese_sentences import apply_sentence_supplements
+from app.vocabulary_json import readable_json
 
 
 WORD_RE = re.compile(r"^[A-Za-z][A-Za-z'-]*$")
@@ -320,7 +321,7 @@ def _headword_export(entries: dict[str, dict[str, Any]], output: Path) -> None:
         )
         lists.append({**pack, "words": [word for _, word in members]})
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps({"lists": lists}, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    output.write_text(readable_json({"lists": lists}), encoding="utf-8")
 
 
 def build(
@@ -422,7 +423,7 @@ def build(
     write_word_forms(entries, output.with_name("word_forms.json"))
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps({"format_version": 2, "lists": list_metadata, "words": words}, ensure_ascii=False, separators=(",", ":")) + "\n",
+        readable_json({"format_version": 2, "lists": list_metadata, "words": words}),
         encoding="utf-8",
     )
     from build_morphology_bundle import build_bundle
@@ -440,7 +441,7 @@ def build(
         "unpaired_words_by_list": missing,
     }
     output.with_name("vocabulary_export_report.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        readable_json(report), encoding="utf-8")
     print(f"Saved {sense_count:,} paired senses and {example_count:,} examples")
     for pack in list_metadata:
         print(
