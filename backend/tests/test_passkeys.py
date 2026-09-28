@@ -138,6 +138,17 @@ class PasskeyTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.text)
         self.assertEqual(len(self.client.get("/api/auth/passkeys").json()["passkeys"]), 2)
 
+    def test_admin_passkey_login_returns_role_and_keeps_permissions(self):
+        with database.connect() as conn:
+            conn.execute("UPDATE users SET role='admin' WHERE id=?", (self.user["id"],))
+        self.add_key()
+        self.client.post("/api/auth/logout")
+        result = self.verify("login", self.authenticator.authentication(self.options()))
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()["user"]["role"], "admin")
+        self.assertEqual(self.client.get("/api/admin/overview").status_code, 200)
+        self.assertEqual(self.client.get("/api/next").status_code, 403)
+
     def test_management_requires_password_and_session(self):
         response = self.client.post("/api/auth/passkeys/register/options", json={"current_password": "wrong"})
         self.assertEqual(response.status_code, 403)

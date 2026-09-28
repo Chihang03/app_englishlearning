@@ -63,7 +63,7 @@ class PasswordInput(BaseModel):
 
 def public_user(user: dict[str, Any]) -> dict[str, Any]:
     """The account fields safe to hand back to the browser."""
-    return {"id": user["id"], "username": user["username"], "timezone": user["timezone"]}
+    return {key: user[key] for key in ("id", "username", "timezone", "role")}
 
 
 def get_current_user(request: Request) -> dict[str, Any]:
@@ -85,6 +85,18 @@ def get_current_user(request: Request) -> dict[str, Any]:
     user = row_to_dict(row)
     if user is None:
         raise HTTPException(status_code=401, detail="Session expired")
+    return user
+
+
+def get_learner_user(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["role"] != "learner":
+        raise HTTPException(status_code=403, detail="Learning is unavailable for administrator accounts")
+    return user
+
+
+def get_admin_user(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     return user
 
 
@@ -114,6 +126,8 @@ def _start_session(conn, user_id: int, response: Response) -> None:
 
 @router.post("/register")
 def register(payload: RegisterInput, response: Response) -> dict[str, Any]:
+    if payload.username.casefold() == "admin":
+        raise HTTPException(status_code=409, detail="该用户名已预留")
     if REGISTRATION_CODE and payload.registration_code != REGISTRATION_CODE:
         raise HTTPException(status_code=403, detail="Invalid registration code")
 

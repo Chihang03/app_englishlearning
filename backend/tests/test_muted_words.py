@@ -133,11 +133,12 @@ class MutedWordsTests(unittest.TestCase):
         with database.connect() as conn:
             before = {table: [tuple(row) for row in conn.execute(f'SELECT * FROM {table}')] for table in tables}
             conn.execute('DROP TABLE user_muted_words')
+            conn.execute('ALTER TABLE users DROP COLUMN role')
             conn.execute('PRAGMA user_version=8')
         migrations.run_migrations(database.DB_PATH)
         migrations.run_migrations(database.DB_PATH)
         with database.connect() as conn:
-            self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], 9)
+            self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], migrations.SCHEMA_VERSION)
             for table in tables:
                 self.assertEqual([tuple(row) for row in conn.execute(f'SELECT * FROM {table}')], before[table])
             self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])

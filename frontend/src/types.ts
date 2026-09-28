@@ -2,6 +2,7 @@ export type User = {
   id: number;
   username: string;
   timezone: string;
+  role: "learner" | "admin";
 };
 
 export type Card = {
