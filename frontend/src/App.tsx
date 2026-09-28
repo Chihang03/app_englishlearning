@@ -950,7 +950,7 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
           <Metric icon="book" label="累计学过" value={value(stats.total_learned)} />
           <Metric icon="refresh" label="学习中的单词" value={value(stats.learning)} />
           <Metric icon="spark" label="可学新词" value={value(stats.new_words)} />
-          <Metric icon="check" label="已掌握" value={value(stats.mastered)} />
+          <Metric icon="check" label="长期熟记" value={value(stats.mature)} />
         </div>
       </section>
       <details className="learning-details panel">
@@ -958,7 +958,7 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
         <dl className="detail-metrics">
           <div><dt>独立作答正确率</dt><dd>{ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</dd></div>
           <div><dt>有过错误的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
-          <div><dt>长期熟记</dt><dd>{value(stats.mature)}</dd></div>
+          <div><dt>已进入间隔复习</dt><dd>{value(stats.mastered)}</dd></div>
           <div><dt>已学义项</dt><dd>{value(stats.learned_senses)}</dd></div>
           <div><dt>尚未学习的义项</dt><dd>{value(stats.new_senses)}</dd></div>
           <div><dt>进入间隔复习的义项</dt><dd>{value(stats.mastered_senses)}</dd></div>
