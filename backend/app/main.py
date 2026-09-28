@@ -132,6 +132,7 @@ def stats(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
         today_row = conn.execute(
             """
             SELECT COUNT(*) AS total, COALESCE(SUM(is_correct), 0) AS correct,
+                COUNT(DISTINCT CASE WHEN is_correct=1 THEN COALESCE(attempt_id,'legacy:'||id) END) AS completed_cards,
                 COUNT(DISTINCT CASE WHEN is_independent=1 THEN word_id END) AS success_words,
                 COUNT(DISTINCT CASE WHEN is_independent=1 THEN COALESCE(learning_unit_id,-sense_id) END) AS success_senses,
                 COALESCE(SUM(is_first_attempt),0) AS first_total,
@@ -168,6 +169,7 @@ def stats(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     correct_today = int(today_row["correct"])
     return {
         "today_learning": total_today,
+        "today_completed_cards": int(today_row["completed_cards"]),
         "today_accuracy": round((correct_today / total_today) * 100) if total_today else 0,
         "today_success": int(today_row["success_words"]),
         "today_success_senses": int(today_row["success_senses"]),
