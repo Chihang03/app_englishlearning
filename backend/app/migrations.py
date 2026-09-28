@@ -177,6 +177,7 @@ def run_migrations(db_path: Path) -> None:
 
 def _migrate_to_v17(conn: sqlite3.Connection) -> None:
     _run(conn, [
+        "CREATE INDEX IF NOT EXISTS idx_word_list_membership_word ON word_list_memberships(word_id,list_id)",
         """CREATE TABLE IF NOT EXISTS learning_units (
             id INTEGER PRIMARY KEY, lexical_unit_id INTEGER NOT NULL REFERENCES lexical_units(id),
             word_id INTEGER NOT NULL REFERENCES words(id), unit_key TEXT NOT NULL,
