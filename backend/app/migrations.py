@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 
 def run_migrations(db_path: Path) -> None:
@@ -136,12 +136,37 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 14 (lexical identities)")
 
+        if version < 15:
+            conn.execute("BEGIN")
+            _migrate_to_v15(conn)
+            conn.execute("PRAGMA user_version = 15")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 15 (derived verbs)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v15(conn: sqlite3.Connection) -> None:
+    # Broaden the relation CHECK without changing IDs, rows or learner state.
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_lexical_units_word_pos ON lexical_units(word_id,pos_group)')
+    conn.execute("""CREATE TABLE lexical_relations_v15 (
+        id INTEGER PRIMARY KEY, from_unit_id INTEGER NOT NULL REFERENCES lexical_units(id) ON DELETE CASCADE,
+        to_unit_id INTEGER NOT NULL REFERENCES lexical_units(id) ON DELETE CASCADE,
+        relation_type TEXT NOT NULL CHECK(relation_type IN
+            ('derived_adverb','derived_noun','derived_adjective','derived_verb','lexicalized_from','related')),
+        verification TEXT NOT NULL CHECK(verification IN ('verified','candidate','rejected')),
+        semantic_transfer_allowed INTEGER NOT NULL DEFAULT 0 CHECK(semantic_transfer_allowed=0),
+        provenance_json TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        UNIQUE(from_unit_id,to_unit_id,relation_type), CHECK(from_unit_id!=to_unit_id))""")
+    conn.execute('INSERT INTO lexical_relations_v15 SELECT * FROM lexical_relations')
+    conn.execute('DROP TABLE lexical_relations')
+    conn.execute('ALTER TABLE lexical_relations_v15 RENAME TO lexical_relations')
+    conn.execute('CREATE INDEX idx_lexical_relations_to ON lexical_relations(to_unit_id)')
 
 
 def _migrate_to_v14(conn: sqlite3.Connection) -> None:

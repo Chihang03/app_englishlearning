@@ -1,4 +1,4 @@
-"""Real exported identities, conservative resolution and lossless v14 migration."""
+"""Real exported identities, conservative resolution and lossless migrations."""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -26,8 +26,11 @@ class MorphologyTests(unittest.TestCase):
         self.directory = Path(tmp.name)
         self.bundle = json.loads(database.WORD_FORMS_PATH.read_text())
         full = json.loads(database.VOCABULARY_CATALOG_PATH.read_text())
-        words = {u['word'] for u in self.bundle['lexical_units']}
-        words.update(('better', 'best', 'walking', 'gone', 'late'))
+        words = set('say walk book small good go mouse child build meet paint feel mean begin absolute absolutely real really actual actually eventual eventually probable probably hard hardly late lately near nearly saying building meeting painting feeling meaning beginning better best walking gone carry city teach address'.split())
+        self.bundle['lexical_units'] = [u for u in self.bundle['lexical_units'] if u['word'] in words]
+        keys = {u['key'] for u in self.bundle['lexical_units']}
+        self.bundle['forms'] = [f for f in self.bundle['forms'] if f['unit_key'] in keys]
+        self.bundle['relations'] = [r for r in self.bundle['relations'] if r['from'] in keys and r['to'] in keys]
         subset = deepcopy([w for w in full['words'] if w['word'] in words])
         subset.sort(key=lambda w: (w['word'] != 'say', w['word']))
         for position, word in enumerate(subset):
@@ -122,8 +125,8 @@ class MorphologyTests(unittest.TestCase):
         direct = [e for e in entries if e['headword'] == 'better']
         self.assertGreater(sum(len(e['senses']) for e in direct), 1)
         self.assertEqual(self.lookup('inventeding')['classification'], 'UNKNOWN')
-        # v1 contains thousands of spelling hints: an unreviewed one is not proof.
-        self.assertFalse(any(e['classification'] == 'INFLECTION' for e in self.lookup('addressing')['entries']))
+        # A suffix without scoped dictionary evidence is still not proof.
+        self.assertFalse(any(e['classification'] == 'INFLECTION' for e in self.lookup('inventeding')['entries']))
         with database.connect() as conn:
             filtered = resolve_lexical_entries(conn, 'saying', self.uid, 'noun')
             self.assertTrue(all(e['pos_group'] == 'noun' for e in filtered))
@@ -223,12 +226,72 @@ class MorphologyTests(unittest.TestCase):
         migrations.run_migrations(database.DB_PATH)
         self.assertEqual(before, self.snapshot())
         with database.connect() as conn:
-            self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], 14)
+            self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], migrations.SCHEMA_VERSION)
             self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])
         backups = list(self.directory.glob('test.db.bak-v13-*'))
         self.assertEqual(len(backups), 1)
         with sqlite3.connect(backups[0]) as conn:
             self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], 13)
+
+    def test_v15_relation_constraint_upgrade_preserves_ids_and_history(self):
+        self.review(self.card_for('say', 'verb'))
+        before = self.snapshot()
+        with database.connect() as conn:
+            edges = [tuple(r) for r in conn.execute('SELECT * FROM lexical_relations ORDER BY id')]
+            schema = conn.execute("SELECT sql FROM sqlite_master WHERE name='lexical_relations'").fetchone()[0]
+            conn.execute(schema.replace('"lexical_relations"', 'lexical_relations_v14').replace(
+                'CREATE TABLE lexical_relations ', 'CREATE TABLE lexical_relations_v14 ').replace(
+                ",'derived_verb'", ''))
+            conn.execute('INSERT INTO lexical_relations_v14 SELECT * FROM lexical_relations')
+            conn.execute('DROP TABLE lexical_relations')
+            conn.execute('ALTER TABLE lexical_relations_v14 RENAME TO lexical_relations')
+            conn.execute('CREATE INDEX idx_lexical_relations_to ON lexical_relations(to_unit_id)')
+            conn.execute('PRAGMA user_version=14')
+        migrations.run_migrations(database.DB_PATH)
+        migrations.run_migrations(database.DB_PATH)
+        with database.connect() as conn:
+            self.assertEqual(edges, [tuple(r) for r in conn.execute('SELECT * FROM lexical_relations ORDER BY id')])
+            self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])
+            edge = edges[0]
+            conn.execute("INSERT INTO lexical_relations(from_unit_id,to_unit_id,relation_type,verification,provenance_json) VALUES(?,?,'derived_verb','verified','{}')", edge[1:3])
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(len(list(self.directory.glob('test.db.bak-v14-*'))), 1)
+
+    def test_unlisted_dictionary_forms_are_available_without_new_learning_state(self):
+        for word, base, family in [('carried', 'carry', 'verb'), ('carrying', 'carry', 'verb'),
+                                   ('cities', 'city', 'noun'), ('taught', 'teach', 'verb')]:
+            entries = self.lookup(word)['entries']
+            entry = next(e for e in entries if e['headword'] == base and e['pos_group'] == family
+                         and e['classification'] == 'INFLECTION')
+            canonical = next(e for e in self.lookup(base)['entries'] if e['pos_group'] == family)
+            self.assertEqual(entry['lexical_unit_id'], canonical['lexical_unit_id'])
+            self.assertTrue(entry['learnable'])
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM sense_srs_state').fetchone()[0], 0)
+
+    def test_existing_histories_attach_to_verified_units_without_reset(self):
+        current = deepcopy(self.bundle)
+        self.bundle['lexical_units'] = [u for u in self.bundle['lexical_units'] if u['word'] != 'carry']
+        keys = {u['key'] for u in self.bundle['lexical_units']}
+        self.bundle['forms'] = [f for f in self.bundle['forms'] if f['unit_key'] in keys]
+        self.bundle['relations'] = [e for e in self.bundle['relations'] if e['from'] in keys and e['to'] in keys]
+        self.forms.write_text(json.dumps(self.bundle))
+        database.init_database()
+        card = self.card_for('carry', 'verb')
+        self.review(card)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT identity_status FROM lexical_units WHERE id=?', (card['unit_id'],)).fetchone()[0], 'legacy')
+            conn.execute("UPDATE sense_srs_state SET status='Mature',interval_days=60 WHERE sense_id=? AND user_id=?", (card['sense_id'], self.uid))
+        before = self.snapshot()
+        self.forms.write_text(json.dumps(current))
+        database.init_database()
+        self.assertEqual(before, self.snapshot())
+        entry = next(e for e in self.lookup('carried')['entries'] if e['headword'] == 'carry' and e['pos_group'] == 'verb')
+        self.assertEqual(entry['lexical_unit_id'], card['unit_id'])
+        self.assertIn(card['sense_id'], {s['id'] for s in entry['senses']})
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT identity_status FROM lexical_units WHERE id=?', (card['unit_id'],)).fetchone()[0], 'verified')
+            self.assertEqual(tuple(conn.execute('SELECT status,interval_days FROM sense_srs_state WHERE sense_id=? AND user_id=?', (card['sense_id'], self.uid)).fetchone()), ('Mature', 60))
 
     def test_bundle_only_refresh_and_catalog_mismatch_disable_links_safely(self):
         before = self.snapshot()

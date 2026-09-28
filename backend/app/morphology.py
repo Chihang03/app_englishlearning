@@ -1,6 +1,6 @@
 """Conservative lexical identities; learning still belongs to the original sense.
 
-The v1 spelling projection is only a hint. Only reviewed v2 evidence can resolve
+The v1 spelling projection is only a hint. Only scoped v2 evidence can resolve
 an inflection. This module never creates, combines or updates memory states.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ VERIFIED_EVIDENCE = {
     'dictionary_inflection', 'dictionary_grammar_reference', 'reviewed_override',
     'dictionary_example', 'dictionary_derivative',
 }
-RELATION_TYPES = {'derived_adverb', 'derived_noun', 'derived_adjective', 'lexicalized_from', 'related'}
+RELATION_TYPES = {'derived_adverb', 'derived_noun', 'derived_adjective', 'derived_verb', 'lexicalized_from', 'related'}
 
 
 def normalize_spelling(value: str) -> str:
@@ -43,6 +43,11 @@ def validate_bundle(bundle: dict) -> None:
         if form['verification'] == 'verified' and (
                 form['evidence_kind'] not in VERIFIED_EVIDENCE or not form.get('provenance')):
             raise ValueError('Unattested inflection cannot be verified')
+        if form.get('scope_sense_key') and form['scope_sense_key'] not in {
+                s['key'] for s in units[form['unit_key']].get('expected_senses', [])}:
+            raise ValueError('Form scope must belong to its lexical unit')
+        if form['evidence_kind'] == 'dictionary_example' and not form.get('scope_sense_key'):
+            raise ValueError('Example evidence cannot establish a unit-wide form')
     for edge in bundle['relations']:
         if (edge['from'] not in units or edge['to'] not in units or edge['from'] == edge['to']
                 or edge['relation_type'] not in RELATION_TYPES or not edge.get('provenance')
@@ -149,13 +154,15 @@ def _bind_verified_units(conn, bundle):
     result = {}
     for unit in bundle['lexical_units']:
         rows = conn.execute('''SELECT u.id FROM lexical_units u JOIN words w ON w.id=u.word_id
-            WHERE w.owner_id IS NULL AND w.word=? AND u.pos_group=?''', (unit['word'], unit['pos_group'])).fetchall()
+            WHERE COALESCE(w.owner_id,0)=0 AND w.owner_id IS NULL AND w.word=? AND u.pos_group=?''',
+            (unit['word'], unit['pos_group'])).fetchall()
         if not rows and not unit.get('expected_senses'):
             conn.execute('''INSERT INTO lexical_units(unit_key,headword,normalized_headword,pos_group,
                 identity_status,provenance_json,active) VALUES(?,?,?,?,'verified',?,1)
                 ON CONFLICT DO UPDATE SET identity_status='verified',provenance_json=excluded.provenance_json,active=1''',
                 (unit['key'],unit['word'],normalize_spelling(unit['word']),unit['pos_group'],json.dumps(unit['provenance'])))
-            result[unit['key']] = conn.execute('SELECT id FROM lexical_units WHERE owner_id IS NULL AND unit_key=?', (unit['key'],)).fetchone()[0]
+            result[unit['key']] = conn.execute('''SELECT id FROM lexical_units
+                WHERE COALESCE(owner_id,0)=0 AND owner_id IS NULL AND unit_key=?''', (unit['key'],)).fetchone()[0]
             continue
         if len(rows) != 1:
             continue  # No source identity or ambiguous homograph: never guess.
