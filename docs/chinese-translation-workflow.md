@@ -1,6 +1,89 @@
 # 对话模型翻译接口
 
-`backend/scripts/translation_exchange.py` 提供离线导出、校验、导入及生成词库的接口。Codex、其他对话模型或未来的 API 适配器都可以使用相同的文件协议。工具本身不调用模型，不需要 API 密钥，也不写应用数据库。
+`backend/scripts/translation_exchange.py` 同时支持单词释义和句子翻译。导出、校验、导入与生成文件均为离线操作；`run` 显式调用已登录的 Codex CLI，`apply-db` 将句子译文写入已有学习数据库并先备份。
+
+## 句子翻译：完整流程
+
+运行器默认使用 **`gpt-6-luna` + `low`**。本机 Codex 模型目录中 Luna 的最低可选推理档位是 `low`；命令通过 `--model` 和 `model_reasoning_effort` 显式指定，不修改个人全局配置。配置方式见 [OpenAI Docs](https://learn.chatgpt.com/docs/config-file/config-reference)。
+
+### 导出并试译
+
+在项目根目录运行。先导出 20 句检查质量，省略 `--limit` 即导出全部缺失例句：
+
+```sh
+python3 backend/scripts/translation_exchange.py export --task sentences \
+  --output /tmp/english-sentences-pilot --batch-size 20 --limit 20
+
+python3 backend/scripts/translation_exchange.py run \
+  --directory /tmp/english-sentences-pilot
+```
+
+输入为 `[编号,英文原句,目标词头,词性,实际词形,当前义项]`，返回仍是 `{"batch":"实际批次值","items":[[编号,"中文句子"],[编号,null]]}`。已补齐的中文释义会作为语境复用。模型需要兼顾自然表达与目标词的语义映射：例如 `account / 动词 / 认为、视为` 对应 `She was accounted a genius.`，优先译作“她被认为是个天才”，保留目标词和被动关系。仅当原句、目标词及义项语境相同才合并请求；义项键留在本地。模型也会翻译原本就是片段的例句，不补写情节。
+
+正式处理时默认每批 100 句：
+
+```sh
+python3 backend/scripts/translation_exchange.py export --task sentences \
+  --output /tmp/english-sentences-full
+
+python3 backend/scripts/translation_exchange.py run \
+  --directory /tmp/english-sentences-full
+```
+
+`run` 按顺序处理每批，重复运行时跳过已通过校验的结果。`--limit-batches 1` 可只运行一批，`--dry-run` 只查看命令；`--model` 与 `--reasoning-effort` 可以覆盖默认设置。结果、CLI 事件日志和模型配置分别保存为 `.result.json`、`.events.jsonl` 和 `.run.json`。中断后直接重新运行同一命令；无效结果不会被标记为完成。
+
+### 导入结果
+
+```sh
+python3 backend/scripts/translation_exchange.py import --task sentences \
+  --manifest /tmp/english-sentences-pilot/batch-0001.manifest.json \
+  --result /tmp/english-sentences-pilot/batch-0001.result.json --dry-run
+
+python3 backend/scripts/translation_exchange.py import --task sentences \
+  --manifest /tmp/english-sentences-pilot/batch-0001.manifest.json \
+  --result /tmp/english-sentences-pilot/batch-0001.result.json
+```
+
+通过校验后合并到 `backend/data/chinese_sentence_supplements.json`，旧文件自动备份，重复导入相同结果不会重复增加条目。导入会检查原句、目标词、词性和义项是否仍匹配，并拒绝覆盖不同的已有译文。所有这些校验只保障映射及结构，中文语义仍需抽查。
+
+批量导入整个目录，在项目根目录运行：
+
+```sh
+for result in /tmp/english-sentences-full/batch-*.result.json; do
+  manifest="${result%.result.json}.manifest.json"
+  python3 backend/scripts/translation_exchange.py import --task sentences \
+    --manifest "$manifest" --result "$result" || break
+done
+```
+
+只重试返回 `null` 的项：
+
+```sh
+python3 backend/scripts/translation_exchange.py export --task sentences \
+  --output /tmp/english-sentences-retry \
+  --retry-manifest /tmp/english-sentences-pilot/batch-0001.manifest.json \
+  --retry-result /tmp/english-sentences-pilot/batch-0001.result.json
+```
+
+### 更新实际学习数据
+
+句子补充文件随代码部署。服务启动时自动将缺失译文补到 `sense_examples.translation_cn` 和匹配的旧版单词例句字段；保留已有译文、管理员修订、例句编号和学习历史。发生实际更新前自动备份 SQLite；来源已经变化的条目会跳过。
+
+需要立即更新一个已有数据库时，可以明确指定路径：
+
+```sh
+python3 backend/scripts/translation_exchange.py apply-db \
+  --db /path/to/vocabulary.db --dry-run
+
+python3 backend/scripts/translation_exchange.py apply-db \
+  --db /path/to/vocabulary.db --backup /path/to/new-sentence-backup.sqlite
+```
+
+此命令遇到来源变化会停止，数据库写入失败会回滚。学习界面沿用现有“句子翻译”设置，开启后即可显示；当前已打开的题目需要重新加载。
+
+可选的 `materialize --task sentences --output /tmp/catalog-with-sentences.json` 用于生成词库文件检查译文。日常部署采用独立补充文件和上述数据库更新流程；重新从 Mac 字典导出词库时也会复用保存的句子译文。
+
+## 单词释义流程
 
 ## 节省 token 的流程
 
@@ -50,12 +133,13 @@ CLI 复用本机已登录的认证。当前机器支持以下选项。使用独�
 ```sh
 cd /tmp/english-cn-pilot
 cat prompt.txt batch-0001.input.jsonl | codex exec - \
+  --model gpt-6-luna -c 'model_reasoning_effort="low"' \
   --skip-git-repo-check --sandbox read-only --ephemeral \
   --output-schema batch-0001.schema.json \
   --output-last-message batch-0001.result.json
 ```
 
-保留当前配置的模型，先检查小批次质量。也可以把相同输入粘贴到一个新对话中，将纯 JSON 回答保存成结果文件。schema 能约束结构，语义仍需要抽查。
+默认使用 Luna / low，先检查小批次质量。也可以把相同输入粘贴到一个新对话中，将纯 JSON 回答保存成结果文件。schema 能约束结构，语义仍需要抽查。
 
 `--json` 输出的是 CLI 事件日志，不是上述翻译结果。需要观察用量时可单独保存事件日志，仍用 `--output-last-message` 获取翻译结果。Codex 固定系统指令和个人配置也可能进入上下文，因此这里不承诺具体节省比例。
 

@@ -80,6 +80,24 @@ class SenseLearningTests(unittest.TestCase):
         with database.connect() as conn:
             conn.execute("UPDATE relearning_queue SET ready_at='2000-01-01T00:00:00+00:00' WHERE user_id=?",(self.uid,))
 
+    def test_startup_sentence_supplement_updates_the_current_card_without_replacing_it(self):
+        from app.chinese_sentences import sync_database
+        before = self.next()
+        self.assertIsNone(before['example_translation_cn'])
+        supplement = self.directory / 'sentences.json'
+        supplement.write_text(json.dumps({'format_version': 1, 'entries': [{
+            'word': 'address', 'sense_key': 'place', 'sentence': before['example_sentence'],
+            'target_form': before['answer_form'], 'expected_definition_en': None,
+            'expected_part_of_speech': '名词', 'translation_cn': '我们的警员去了那个地址。',
+        }]}, ensure_ascii=False))
+        with patch.object(database, 'sync_sentence_translations', side_effect=lambda db, **kwargs:
+                          sync_database(db, supplement, **kwargs)):
+            database.init_database()
+        after = self.next()
+        self.assertEqual(after['example_translation_cn'], '我们的警员去了那个地址。')
+        for field in ('sense_id', 'example_id', 'attempt_id', 'answer_form', 'status'):
+            self.assertEqual(before[field], after[field])
+
     def test_vocabulary_list_progress_counts_exposure_overlap_and_all_mature_senses(self):
         def lists(client=None):
             response=(client or self.client).get('/api/word-lists')
