@@ -278,6 +278,7 @@ def seed_vocabulary_catalog() -> None:
             INSERT OR IGNORE INTO user_vocabulary_lists(user_id, list_id, selected)
             SELECT users.id, vocabulary_lists.list_id, vocabulary_lists.default_selected
             FROM users CROSS JOIN vocabulary_lists
+            WHERE users.role = 'learner'
             """
         )
         conn.execute("INSERT OR REPLACE INTO vocabulary_catalog_state(key,value) VALUES('fingerprint',?)", (fingerprint,))

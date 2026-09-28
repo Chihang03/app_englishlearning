@@ -105,6 +105,7 @@ class StudyToolsTests(unittest.TestCase):
         with database.connect() as conn:
             conn.execute("DROP TABLE content_reports")
             conn.execute("DROP TABLE user_muted_words")
+            conn.execute("ALTER TABLE users DROP COLUMN role")
             conn.execute("PRAGMA user_version=7")
             before = conn.execute("SELECT * FROM study_attempts").fetchall()
         migrations.run_migrations(database.DB_PATH)

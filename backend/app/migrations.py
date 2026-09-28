@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 def run_migrations(db_path: Path) -> None:
@@ -101,12 +101,25 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 9 (muted words)")
 
+        if version < 10:
+            conn.execute("BEGIN")
+            _migrate_to_v10(conn)
+            conn.execute("PRAGMA user_version = 10")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 10 (account roles)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v10(conn: sqlite3.Connection) -> None:
+    # Existing learners keep their identity and all progress, even if named admin.
+    conn.execute("""ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'learner'
+        CHECK(role IN ('learner','admin'))""")
 
 
 def _migrate_to_v9(conn: sqlite3.Connection) -> None:

@@ -49,6 +49,19 @@ h1, h2, p { margin: 0; }
 .streak-badge { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--accent); background: #e9eee3; padding: 6px 10px; border-radius: 20px; }
 .streak-badge svg { width: 16px; height: 16px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; }
+.admin-shell { min-height: 100svh; background: #f7f7f2; color: var(--ink); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.admin-page { max-width: 740px; }
+.admin-metrics { margin-top: 24px; }
+.admin-update { margin-top: 16px; }
+.admin-users ul { margin-top: 14px; }
+.admin-users li { padding: 16px 0; border-top: 1px solid var(--line); }
+.admin-users h3 { font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
+.admin-users dl { margin-top: 10px; display: grid; gap: 8px; font-size: 14px; }
+.admin-users dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; }
+.admin-users dt { color: var(--muted); }
+.admin-users dd { overflow-wrap: anywhere; }
+.admin-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.admin-security summary { font-weight: 650; }
 .today-panel { padding: 22px; }
 .section-heading h2 { font-size: 17px; font-weight: 650; }
 .today-metrics { display: grid; grid-template-columns: 1fr 1fr; padding: 23px 0 17px; }

@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AuthScreen } from "./AuthScreen";
+import { AdminDashboard } from "./AdminDashboard";
 import { PasskeySettings } from "./PasskeySettings";
 import { StudyCard } from "./StudyCard";
 import { StudyDeck } from "./StudyDeck";
@@ -104,6 +105,12 @@ function App() {
 
   if (user === null) {
     return <AuthScreen onAuthenticated={setUser} />;
+  }
+
+  if (user.role === "admin") {
+    return <AdminDashboard key={user.id} user={user} onSignedOut={signedOut} onSessionChanged={setUser}
+      updateAvailable={updateAvailable}
+      accountSecurity={<><PasskeySettings onSignedOut={signedOut} /><PasswordForm /></>} />;
   }
 
   // Remounting per account keeps one learner's cards and stats from lingering

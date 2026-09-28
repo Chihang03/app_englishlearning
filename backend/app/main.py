@@ -14,7 +14,8 @@ from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, conlist, root_validator, validator
 
-from .auth import get_current_user
+from .auth import get_learner_user
+from .admin import router as admin_router
 from .auth import router as auth_router
 from .database import (
     connect,
@@ -66,6 +67,7 @@ if CORS_ORIGINS:
     )
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(passkeys_router)
 
 
@@ -143,7 +145,7 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/stats")
-def stats(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def stats(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     user_id = int(user["id"])
     tz = user_timezone(user)
     today = today_in(tz)
@@ -199,13 +201,13 @@ def stats(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
 
 
 @app.get("/api/next")
-def next_card(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def next_card(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         return next_sense_card(conn,int(user["id"]),user_today(user))
 
 
 @app.post("/api/review")
-def review(payload: ReviewInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def review(payload: ReviewInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         return record_sense_review(conn,int(user["id"]),user_today(user),payload.word_id,
                                    payload.sense_id,payload.example_id,payload.user_answer,
@@ -213,31 +215,31 @@ def review(payload: ReviewInput, user: dict[str, Any] = Depends(get_current_user
 
 
 @app.post("/api/study/hint")
-def study_hint(payload: HintInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, bool]:
+def study_hint(payload: HintInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, bool]:
     with connect() as conn:
         return record_hint(conn,int(user["id"]),payload.attempt_id,payload.kind)
 
 
 @app.post("/api/study/related-exposure")
-def related_exposure(payload: ExposureInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, bool]:
+def related_exposure(payload: ExposureInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, bool]:
     with connect() as conn:
         return record_related_exposure(conn,int(user["id"]),payload.attempt_id)
 
 
 @app.post("/api/study/meanings")
-def study_meanings(payload: ExposureInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def study_meanings(payload: ExposureInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         return word_meanings(conn, int(user["id"]), payload.attempt_id)
 
 
 @app.post("/api/content-reports")
-def content_report(payload: ContentReportInput, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def content_report(payload: ContentReportInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         return report_content(conn, int(user["id"]), payload.attempt_id, payload.category, payload.details)
 
 
 @app.get("/api/settings")
-def settings(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def settings(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     user_id = int(user["id"])
     values = get_settings(user_id)
     lists = get_vocabulary_lists(user_id)
@@ -250,7 +252,7 @@ def settings(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]
 
 
 @app.get("/api/muted-words")
-def muted_words(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def muted_words(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         rows = conn.execute("SELECT word,muted_at FROM user_muted_words WHERE user_id=? ORDER BY word COLLATE NOCASE",
                             (int(user["id"]),)).fetchall()
@@ -258,13 +260,13 @@ def muted_words(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, A
 
 
 @app.post("/api/words/{word_id}/mute")
-def mute(word_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def mute(word_id: int, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         return mute_word(conn, int(user["id"]), word_id)
 
 
 @app.delete("/api/muted-words/{word}")
-def restore(word: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def restore(word: str, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
         return restore_word(conn, int(user["id"]), word)
 
@@ -272,7 +274,7 @@ def restore(word: str, user: dict[str, Any] = Depends(get_current_user)) -> dict
 @app.patch("/api/settings")
 def patch_settings(
     payload: SettingsInput,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_learner_user),
 ) -> dict[str, Any]:
     values: dict[str, str] = {}
     if payload.show_sentence_translation is not None:
@@ -306,14 +308,14 @@ def patch_settings(
 
 
 @app.get("/api/word-lists")
-def word_lists(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def word_lists(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     return {"lists": get_vocabulary_lists(int(user["id"]))}
 
 
 @app.get("/api/dictionary/{word}")
 def dictionary_lookup(
     word: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_learner_user),
 ) -> dict[str, Any]:
     with connect() as conn:
         entry = row_to_dict(
@@ -349,7 +351,7 @@ def dictionary_lookup(
 @app.post("/api/words")
 def add_word(
     payload: WordInput,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_learner_user),
 ) -> dict[str, Any]:
     user_id = int(user["id"])
     with connect() as conn:
@@ -374,7 +376,7 @@ def add_word(
 @app.post("/api/words/import")
 def import_words(
     payload: conlist(WordInput, max_length=MAX_IMPORT_WORDS),
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_learner_user),
 ) -> dict[str, int]:
     user_id = int(user["id"])
     inserted = 0
