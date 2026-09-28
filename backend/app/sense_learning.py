@@ -177,11 +177,13 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
             AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('q.user_id')}""", (user_id,now,user_id)).fetchone()
         visible, args = selected_filter(user_id)
         row = conn.execute(f"""SELECT u.id AS learning_unit_id FROM learning_units u JOIN words w ON w.id=u.word_id
+            LEFT JOIN word_frequencies f ON f.headword=lower(trim(w.word))
             LEFT JOIN sense_srs_state p ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
             WHERE {usable_unit_sql()} AND p.learning_unit_id IS NULL AND {visible}
             ORDER BY CASE WHEN EXISTS(SELECT 1 FROM srs_state l WHERE l.word_id=w.id AND l.user_id=?)
               OR EXISTS(SELECT 1 FROM sense_srs_state other JOIN learning_units lu ON lu.id=other.learning_unit_id
                 WHERE lu.word_id=w.id AND other.user_id=? AND other.retired_at IS NULL) THEN 1 ELSE 0 END,
+              f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,
               u.position,w.id,u.id LIMIT 1""", (user_id,*args,user_id,user_id)).fetchone()
     if row is None:
         if pending and pending['ready_at'] is not None:

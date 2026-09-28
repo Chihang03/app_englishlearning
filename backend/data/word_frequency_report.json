@@ -1,0 +1,2243 @@
+{
+  "format_version": 1,
+  "source": {
+    "name": "wordfreq",
+    "version": "3.1.1",
+    "language": "en",
+    "wordlist": "large",
+    "metric": "Zipf",
+    "score_scale": 100,
+    "usage_snapshot": "through about 2021",
+    "url": "https://github.com/rspeer/wordfreq",
+    "data_license": "CC-BY-SA-4.0",
+    "library_license": "Apache-2.0",
+    "attribution": "Robyn Speer (2022). rspeer/wordfreq v3.0. https://doi.org/10.5281/zenodo.7199437",
+    "notice": "\n`wordfreq` is freely redistributable under the Apache license (see\n`LICENSE.txt`), and it includes data files that may be\nredistributed under a Creative Commons Attribution-ShareAlike 4.0\nlicense (<https://creativecommons.org/licenses/by-sa/4.0/>).\n\n`wordfreq` contains data extracted from Google Books Ngrams\n(<http://books.google.com/ngrams>) and Google Books Syntactic Ngrams\n(<http://commondatastorage.googleapis.com/books/syntactic-ngrams/index.html>).\nThe terms of use of this data are:\n\n    Ngram Viewer graphs and data may be freely used for any purpose, although\n    acknowledgement of Google Books Ngram Viewer as the source, and inclusion\n    of a link to http://books.google.com/ngrams, would be appreciated.\n\n`wordfreq` also contains data derived from the following Creative Commons-licensed\nsources:\n\n- The Leeds Internet Corpus, from the University of Leeds Centre for Translation\n  Studies (<http://corpus.leeds.ac.uk/list.html>)\n\n- Wikipedia, the free encyclopedia (<http://www.wikipedia.org>)\n\n- ParaCrawl, a multilingual Web crawl (<https://paracrawl.eu>)\n\nIt contains data from OPUS OpenSubtitles 2018\n(<http://opus.nlpl.eu/OpenSubtitles.php>), whose data originates from the\nOpenSubtitles project (<http://www.opensubtitles.org/>) and may be used with\nattribution to OpenSubtitles.\n\nIt contains data from various SUBTLEX word lists: SUBTLEX-US, SUBTLEX-UK,\nSUBTLEX-CH, SUBTLEX-DE, and SUBTLEX-NL, created by Marc Brysbaert et al.\n(see citations below) and available at\n<http://crr.ugent.be/programs-data/subtitle-frequencies>.\n\nI (Robyn Speer) have obtained permission by e-mail from Marc Brysbaert to\ndistribute these wordlists in wordfreq, to be used for any purpose, not just\nfor academic use, under these conditions:\n\n- Wordfreq and code derived from it must credit the SUBTLEX authors.\n- It must remain clear that SUBTLEX is freely available data.\n\nThese terms are similar to the Creative Commons Attribution-ShareAlike license.\n\nSome additional data was collected by a custom application that watches the\nstreaming Twitter API, in accordance with Twitter's Developer Agreement &\nPolicy. This software gives statistics about words that are commonly used on\nTwitter; it does not display or republish any Twitter content.\n\n## Citing wordfreq\n\nIf you use wordfreq in your research, please cite it! We publish the code\nthrough Zenodo so that it can be reliably cited using a DOI. The current\ncitation is:\n\n> Robyn Speer. (2022). rspeer/wordfreq: v3.0 (v3.0.2). Zenodo. https://doi.org/10.5281/zenodo.7199437\n\nThe same citation in BibTex format:\n\n```\n@software{robyn_speer_2022_7199437,\n  author       = {Robyn Speer},\n  title        = {rspeer/wordfreq: v3.0},\n  month        = sep,\n  year         = 2022,\n  publisher    = {Zenodo},\n  version      = {v3.0.2},\n  doi          = {10.5281/zenodo.7199437},\n  url          = {https://doi.org/10.5281/zenodo.7199437}\n}\n```\n\n## Citations to work that wordfreq is built on\n\n- Bojar, O., Chatterjee, R., Federmann, C., Haddow, B., Huck, M., Hokamp, C.,\n  Koehn, P., Logacheva, V., Monz, C., Negri, M., Post, M., Scarton, C.,\n  Specia, L., & Turchi, M. (2015). Findings of the 2015 Workshop on Statistical\n  Machine Translation.\n  <http://www.statmt.org/wmt15/results.html>\n\n- Brysbaert, M. & New, B. (2009). Moving beyond Kucera and Francis: A Critical\n  Evaluation of Current Word Frequency Norms and the Introduction of a New and\n  Improved Word Frequency Measure for American English. Behavior Research\n  Methods, 41 (4), 977-990.\n  <http://sites.google.com/site/borisnew/pub/BrysbaertNew2009.pdf>\n\n- Brysbaert, M., Buchmeier, M., Conrad, M., Jacobs, A.M., Bölte, J., & Böhl, A.\n  (2011). The word frequency effect: A review of recent developments and\n  implications for the choice of frequency estimates in German. Experimental\n  Psychology, 58, 412-424.\n\n- Cai, Q., & Brysbaert, M. (2010). SUBTLEX-CH: Chinese word and character\n  frequencies based on film subtitles. PLoS One, 5(6), e10729.\n  <http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0010729>\n\n- Davis, M. (2012). Unicode text segmentation. Unicode Standard Annex, 29.\n  <http://unicode.org/reports/tr29/>\n\n- Halácsy, P., Kornai, A., Németh, L., Rung, A., Szakadát, I., & Trón, V.\n  (2004). Creating open language resources for Hungarian. In Proceedings of the\n  4th international conference on Language Resources and Evaluation (LREC2004).\n  <http://mokk.bme.hu/resources/webcorpus/>\n\n- Keuleers, E., Brysbaert, M. & New, B. (2010). SUBTLEX-NL: A new frequency\n  measure for Dutch words based on film subtitles. Behavior Research Methods,\n  42(3), 643-650.\n  <http://crr.ugent.be/papers/SUBTLEX-NL_BRM.pdf>\n\n- Kudo, T. (2005). Mecab: Yet another part-of-speech and morphological\n  analyzer.\n  <http://mecab.sourceforge.net/>\n\n- Lin, Y., Michel, J.-B., Aiden, E. L., Orwant, J., Brockman, W., and Petrov,\n  S. (2012). Syntactic annotations for the Google Books Ngram Corpus.\n  Proceedings of the ACL 2012 system demonstrations, 169-174.\n  <http://aclweb.org/anthology/P12-3029>\n\n- Lison, P. and Tiedemann, J. (2016). OpenSubtitles2016: Extracting Large\n  Parallel Corpora from Movie and TV Subtitles. In Proceedings of the 10th\n  International Conference on Language Resources and Evaluation (LREC 2016).\n  <http://stp.lingfil.uu.se/~joerg/paper/opensubs2016.pdf>\n\n- Ortiz Suárez, P. J., Sagot, B., and Romary, L. (2019). Asynchronous pipelines\n  for processing huge corpora on medium to low resource infrastructures. In\n  Proceedings of the Workshop on Challenges in the Management of Large Corpora\n  (CMLC-7) 2019.\n  <https://oscar-corpus.com/publication/2019/clmc7/asynchronous/>\n\n- ParaCrawl (2018). Provision of Web-Scale Parallel Corpora for Official\n  European Languages. <https://paracrawl.eu/>\n\n- van Heuven, W. J., Mandera, P., Keuleers, E., & Brysbaert, M. (2014).\n  SUBTLEX-UK: A new and improved word frequency database for British English.\n  The Quarterly Journal of Experimental Psychology, 67(6), 1176-1190.\n  <http://www.tandfonline.com/doi/pdf/10.1080/17470218.2013.850521>\n\n"
+  },
+  "lists": [
+    {
+      "list_id": "ngsl_core",
+      "title": "NGSL 通用高频",
+      "headword_count": 2777,
+      "measured_headword_count": 2777,
+      "missing_headwords": [],
+      "first_50": [
+        {
+          "word": "the",
+          "zipf": 7.73
+        },
+        {
+          "word": "to",
+          "zipf": 7.43
+        },
+        {
+          "word": "and",
+          "zipf": 7.41
+        },
+        {
+          "word": "of",
+          "zipf": 7.4
+        },
+        {
+          "word": "a",
+          "zipf": 7.36
+        },
+        {
+          "word": "in",
+          "zipf": 7.27
+        },
+        {
+          "word": "i",
+          "zipf": 7.09
+        },
+        {
+          "word": "that",
+          "zipf": 7.01
+        },
+        {
+          "word": "for",
+          "zipf": 7.01
+        },
+        {
+          "word": "you",
+          "zipf": 6.98
+        },
+        {
+          "word": "it",
+          "zipf": 6.95
+        },
+        {
+          "word": "on",
+          "zipf": 6.91
+        },
+        {
+          "word": "with",
+          "zipf": 6.85
+        },
+        {
+          "word": "this",
+          "zipf": 6.82
+        },
+        {
+          "word": "be",
+          "zipf": 6.79
+        },
+        {
+          "word": "as",
+          "zipf": 6.77
+        },
+        {
+          "word": "have",
+          "zipf": 6.71
+        },
+        {
+          "word": "at",
+          "zipf": 6.7
+        },
+        {
+          "word": "not",
+          "zipf": 6.69
+        },
+        {
+          "word": "he",
+          "zipf": 6.69
+        },
+        {
+          "word": "by",
+          "zipf": 6.66
+        },
+        {
+          "word": "but",
+          "zipf": 6.63
+        },
+        {
+          "word": "from",
+          "zipf": 6.63
+        },
+        {
+          "word": "or",
+          "zipf": 6.54
+        },
+        {
+          "word": "we",
+          "zipf": 6.54
+        },
+        {
+          "word": "so",
+          "zipf": 6.52
+        },
+        {
+          "word": "all",
+          "zipf": 6.52
+        },
+        {
+          "word": "they",
+          "zipf": 6.5
+        },
+        {
+          "word": "one",
+          "zipf": 6.47
+        },
+        {
+          "word": "if",
+          "zipf": 6.47
+        },
+        {
+          "word": "can",
+          "zipf": 6.46
+        },
+        {
+          "word": "will",
+          "zipf": 6.45
+        },
+        {
+          "word": "just",
+          "zipf": 6.43
+        },
+        {
+          "word": "like",
+          "zipf": 6.41
+        },
+        {
+          "word": "about",
+          "zipf": 6.4
+        },
+        {
+          "word": "up",
+          "zipf": 6.39
+        },
+        {
+          "word": "out",
+          "zipf": 6.38
+        },
+        {
+          "word": "what",
+          "zipf": 6.38
+        },
+        {
+          "word": "when",
+          "zipf": 6.37
+        },
+        {
+          "word": "more",
+          "zipf": 6.36
+        },
+        {
+          "word": "do",
+          "zipf": 6.35
+        },
+        {
+          "word": "no",
+          "zipf": 6.35
+        },
+        {
+          "word": "who",
+          "zipf": 6.34
+        },
+        {
+          "word": "there",
+          "zipf": 6.31
+        },
+        {
+          "word": "which",
+          "zipf": 6.3
+        },
+        {
+          "word": "time",
+          "zipf": 6.29
+        },
+        {
+          "word": "get",
+          "zipf": 6.28
+        },
+        {
+          "word": "would",
+          "zipf": 6.27
+        },
+        {
+          "word": "she",
+          "zipf": 6.26
+        },
+        {
+          "word": "new",
+          "zipf": 6.25
+        }
+      ]
+    },
+    {
+      "list_id": "ngsl_spoken",
+      "title": "NGSL-S 口语",
+      "headword_count": 718,
+      "measured_headword_count": 718,
+      "missing_headwords": [],
+      "first_50": [
+        {
+          "word": "the",
+          "zipf": 7.73
+        },
+        {
+          "word": "to",
+          "zipf": 7.43
+        },
+        {
+          "word": "and",
+          "zipf": 7.41
+        },
+        {
+          "word": "of",
+          "zipf": 7.4
+        },
+        {
+          "word": "a",
+          "zipf": 7.36
+        },
+        {
+          "word": "in",
+          "zipf": 7.27
+        },
+        {
+          "word": "i",
+          "zipf": 7.09
+        },
+        {
+          "word": "that",
+          "zipf": 7.01
+        },
+        {
+          "word": "for",
+          "zipf": 7.01
+        },
+        {
+          "word": "you",
+          "zipf": 6.98
+        },
+        {
+          "word": "it",
+          "zipf": 6.95
+        },
+        {
+          "word": "on",
+          "zipf": 6.91
+        },
+        {
+          "word": "with",
+          "zipf": 6.85
+        },
+        {
+          "word": "this",
+          "zipf": 6.82
+        },
+        {
+          "word": "be",
+          "zipf": 6.79
+        },
+        {
+          "word": "as",
+          "zipf": 6.77
+        },
+        {
+          "word": "have",
+          "zipf": 6.71
+        },
+        {
+          "word": "at",
+          "zipf": 6.7
+        },
+        {
+          "word": "not",
+          "zipf": 6.69
+        },
+        {
+          "word": "he",
+          "zipf": 6.69
+        },
+        {
+          "word": "by",
+          "zipf": 6.66
+        },
+        {
+          "word": "but",
+          "zipf": 6.63
+        },
+        {
+          "word": "from",
+          "zipf": 6.63
+        },
+        {
+          "word": "or",
+          "zipf": 6.54
+        },
+        {
+          "word": "we",
+          "zipf": 6.54
+        },
+        {
+          "word": "so",
+          "zipf": 6.52
+        },
+        {
+          "word": "all",
+          "zipf": 6.52
+        },
+        {
+          "word": "they",
+          "zipf": 6.5
+        },
+        {
+          "word": "one",
+          "zipf": 6.47
+        },
+        {
+          "word": "if",
+          "zipf": 6.47
+        },
+        {
+          "word": "can",
+          "zipf": 6.46
+        },
+        {
+          "word": "will",
+          "zipf": 6.45
+        },
+        {
+          "word": "just",
+          "zipf": 6.43
+        },
+        {
+          "word": "like",
+          "zipf": 6.41
+        },
+        {
+          "word": "about",
+          "zipf": 6.4
+        },
+        {
+          "word": "up",
+          "zipf": 6.39
+        },
+        {
+          "word": "out",
+          "zipf": 6.38
+        },
+        {
+          "word": "what",
+          "zipf": 6.38
+        },
+        {
+          "word": "when",
+          "zipf": 6.37
+        },
+        {
+          "word": "more",
+          "zipf": 6.36
+        },
+        {
+          "word": "do",
+          "zipf": 6.35
+        },
+        {
+          "word": "no",
+          "zipf": 6.35
+        },
+        {
+          "word": "who",
+          "zipf": 6.34
+        },
+        {
+          "word": "there",
+          "zipf": 6.31
+        },
+        {
+          "word": "which",
+          "zipf": 6.3
+        },
+        {
+          "word": "time",
+          "zipf": 6.29
+        },
+        {
+          "word": "get",
+          "zipf": 6.28
+        },
+        {
+          "word": "would",
+          "zipf": 6.27
+        },
+        {
+          "word": "she",
+          "zipf": 6.26
+        },
+        {
+          "word": "new",
+          "zipf": 6.25
+        }
+      ]
+    },
+    {
+      "list_id": "nawl",
+      "title": "NAWL 学术英语",
+      "headword_count": 883,
+      "measured_headword_count": 883,
+      "missing_headwords": [],
+      "first_50": [
+        {
+          "word": "media",
+          "zipf": 5.3
+        },
+        {
+          "word": "super",
+          "zipf": 5.08
+        },
+        {
+          "word": "anti",
+          "zipf": 5.01
+        },
+        {
+          "word": "pre",
+          "zipf": 4.95
+        },
+        {
+          "word": "impact",
+          "zipf": 4.92
+        },
+        {
+          "word": "mid",
+          "zipf": 4.82
+        },
+        {
+          "word": "authority",
+          "zipf": 4.81
+        },
+        {
+          "word": "ex",
+          "zipf": 4.81
+        },
+        {
+          "word": "apple",
+          "zipf": 4.76
+        },
+        {
+          "word": "ray",
+          "zipf": 4.69
+        },
+        {
+          "word": "tech",
+          "zipf": 4.69
+        },
+        {
+          "word": "sub",
+          "zipf": 4.66
+        },
+        {
+          "word": "distribution",
+          "zipf": 4.64
+        },
+        {
+          "word": "incredible",
+          "zipf": 4.63
+        },
+        {
+          "word": "suicide",
+          "zipf": 4.62
+        },
+        {
+          "word": "assembly",
+          "zipf": 4.61
+        },
+        {
+          "word": "goods",
+          "zipf": 4.6
+        },
+        {
+          "word": "republic",
+          "zipf": 4.6
+        },
+        {
+          "word": "statistics",
+          "zipf": 4.6
+        },
+        {
+          "word": "constitution",
+          "zipf": 4.56
+        },
+        {
+          "word": "client",
+          "zipf": 4.54
+        },
+        {
+          "word": "ultimate",
+          "zipf": 4.53
+        },
+        {
+          "word": "campus",
+          "zipf": 4.51
+        },
+        {
+          "word": "semi",
+          "zipf": 4.51
+        },
+        {
+          "word": "junior",
+          "zipf": 4.49
+        },
+        {
+          "word": "shortly",
+          "zipf": 4.47
+        },
+        {
+          "word": "audio",
+          "zipf": 4.47
+        },
+        {
+          "word": "bound",
+          "zipf": 4.46
+        },
+        {
+          "word": "ridiculous",
+          "zipf": 4.46
+        },
+        {
+          "word": "hip",
+          "zipf": 4.46
+        },
+        {
+          "word": "superior",
+          "zipf": 4.46
+        },
+        {
+          "word": "bonus",
+          "zipf": 4.45
+        },
+        {
+          "word": "acid",
+          "zipf": 4.45
+        },
+        {
+          "word": "gross",
+          "zipf": 4.45
+        },
+        {
+          "word": "enforcement",
+          "zipf": 4.45
+        },
+        {
+          "word": "legend",
+          "zipf": 4.44
+        },
+        {
+          "word": "replacement",
+          "zipf": 4.44
+        },
+        {
+          "word": "thread",
+          "zipf": 4.44
+        },
+        {
+          "word": "strategic",
+          "zipf": 4.43
+        },
+        {
+          "word": "naked",
+          "zipf": 4.43
+        },
+        {
+          "word": "ghost",
+          "zipf": 4.42
+        },
+        {
+          "word": "essentially",
+          "zipf": 4.42
+        },
+        {
+          "word": "whoever",
+          "zipf": 4.42
+        },
+        {
+          "word": "lab",
+          "zipf": 4.42
+        },
+        {
+          "word": "trans",
+          "zipf": 4.41
+        },
+        {
+          "word": "aspect",
+          "zipf": 4.41
+        },
+        {
+          "word": "elite",
+          "zipf": 4.4
+        },
+        {
+          "word": "alliance",
+          "zipf": 4.4
+        },
+        {
+          "word": "obtain",
+          "zipf": 4.4
+        },
+        {
+          "word": "crystal",
+          "zipf": 4.4
+        }
+      ]
+    },
+    {
+      "list_id": "tsl",
+      "title": "TSL TOEIC",
+      "headword_count": 1112,
+      "measured_headword_count": 1110,
+      "missing_headwords": [
+        "dissatisfy",
+        "housekeep"
+      ],
+      "first_50": [
+        {
+          "word": "media",
+          "zipf": 5.3
+        },
+        {
+          "word": "internet",
+          "zipf": 5.06
+        },
+        {
+          "word": "impact",
+          "zipf": 4.92
+        },
+        {
+          "word": "captain",
+          "zipf": 4.89
+        },
+        {
+          "word": "authority",
+          "zipf": 4.81
+        },
+        {
+          "word": "institute",
+          "zipf": 4.8
+        },
+        {
+          "word": "apple",
+          "zipf": 4.76
+        },
+        {
+          "word": "birthday",
+          "zipf": 4.76
+        },
+        {
+          "word": "honestly",
+          "zipf": 4.69
+        },
+        {
+          "word": "attorney",
+          "zipf": 4.69
+        },
+        {
+          "word": "ray",
+          "zipf": 4.69
+        },
+        {
+          "word": "tech",
+          "zipf": 4.69
+        },
+        {
+          "word": "download",
+          "zipf": 4.68
+        },
+        {
+          "word": "distribution",
+          "zipf": 4.64
+        },
+        {
+          "word": "assembly",
+          "zipf": 4.61
+        },
+        {
+          "word": "goods",
+          "zipf": 4.6
+        },
+        {
+          "word": "statistics",
+          "zipf": 4.6
+        },
+        {
+          "word": "lane",
+          "zipf": 4.57
+        },
+        {
+          "word": "exclusive",
+          "zipf": 4.56
+        },
+        {
+          "word": "basketball",
+          "zipf": 4.56
+        },
+        {
+          "word": "client",
+          "zipf": 4.54
+        },
+        {
+          "word": "worldwide",
+          "zipf": 4.54
+        },
+        {
+          "word": "bathroom",
+          "zipf": 4.54
+        },
+        {
+          "word": "baseball",
+          "zipf": 4.54
+        },
+        {
+          "word": "quit",
+          "zipf": 4.54
+        },
+        {
+          "word": "anniversary",
+          "zipf": 4.53
+        },
+        {
+          "word": "officially",
+          "zipf": 4.53
+        },
+        {
+          "word": "battery",
+          "zipf": 4.52
+        },
+        {
+          "word": "campus",
+          "zipf": 4.51
+        },
+        {
+          "word": "outstanding",
+          "zipf": 4.5
+        },
+        {
+          "word": "highway",
+          "zipf": 4.49
+        },
+        {
+          "word": "junior",
+          "zipf": 4.49
+        },
+        {
+          "word": "cabinet",
+          "zipf": 4.49
+        },
+        {
+          "word": "circuit",
+          "zipf": 4.47
+        },
+        {
+          "word": "shortly",
+          "zipf": 4.47
+        },
+        {
+          "word": "healthcare",
+          "zipf": 4.47
+        },
+        {
+          "word": "railway",
+          "zipf": 4.46
+        },
+        {
+          "word": "bound",
+          "zipf": 4.46
+        },
+        {
+          "word": "founder",
+          "zipf": 4.46
+        },
+        {
+          "word": "superior",
+          "zipf": 4.46
+        },
+        {
+          "word": "bonus",
+          "zipf": 4.45
+        },
+        {
+          "word": "pet",
+          "zipf": 4.45
+        },
+        {
+          "word": "hungry",
+          "zipf": 4.45
+        },
+        {
+          "word": "actress",
+          "zipf": 4.45
+        },
+        {
+          "word": "mini",
+          "zipf": 4.44
+        },
+        {
+          "word": "tag",
+          "zipf": 4.44
+        },
+        {
+          "word": "replacement",
+          "zipf": 4.44
+        },
+        {
+          "word": "pizza",
+          "zipf": 4.43
+        },
+        {
+          "word": "strategic",
+          "zipf": 4.43
+        },
+        {
+          "word": "gym",
+          "zipf": 4.43
+        }
+      ]
+    },
+    {
+      "list_id": "bsl",
+      "title": "BSL 商务英语",
+      "headword_count": 1640,
+      "measured_headword_count": 1640,
+      "missing_headwords": [],
+      "first_50": [
+        {
+          "word": "media",
+          "zipf": 5.3
+        },
+        {
+          "word": "super",
+          "zipf": 5.08
+        },
+        {
+          "word": "internet",
+          "zipf": 5.06
+        },
+        {
+          "word": "anti",
+          "zipf": 5.01
+        },
+        {
+          "word": "pre",
+          "zipf": 4.95
+        },
+        {
+          "word": "impact",
+          "zipf": 4.92
+        },
+        {
+          "word": "captain",
+          "zipf": 4.89
+        },
+        {
+          "word": "mid",
+          "zipf": 4.82
+        },
+        {
+          "word": "authority",
+          "zipf": 4.81
+        },
+        {
+          "word": "ex",
+          "zipf": 4.81
+        },
+        {
+          "word": "institute",
+          "zipf": 4.8
+        },
+        {
+          "word": "apple",
+          "zipf": 4.76
+        },
+        {
+          "word": "parliament",
+          "zipf": 4.74
+        },
+        {
+          "word": "attorney",
+          "zipf": 4.69
+        },
+        {
+          "word": "ray",
+          "zipf": 4.69
+        },
+        {
+          "word": "tech",
+          "zipf": 4.69
+        },
+        {
+          "word": "download",
+          "zipf": 4.68
+        },
+        {
+          "word": "sub",
+          "zipf": 4.66
+        },
+        {
+          "word": "distribution",
+          "zipf": 4.64
+        },
+        {
+          "word": "ministry",
+          "zipf": 4.63
+        },
+        {
+          "word": "suicide",
+          "zipf": 4.62
+        },
+        {
+          "word": "assembly",
+          "zipf": 4.61
+        },
+        {
+          "word": "goods",
+          "zipf": 4.6
+        },
+        {
+          "word": "republic",
+          "zipf": 4.6
+        },
+        {
+          "word": "statistics",
+          "zipf": 4.6
+        },
+        {
+          "word": "info",
+          "zipf": 4.6
+        },
+        {
+          "word": "exclusive",
+          "zipf": 4.56
+        },
+        {
+          "word": "constitution",
+          "zipf": 4.56
+        },
+        {
+          "word": "premier",
+          "zipf": 4.56
+        },
+        {
+          "word": "combat",
+          "zipf": 4.56
+        },
+        {
+          "word": "deputy",
+          "zipf": 4.55
+        },
+        {
+          "word": "client",
+          "zipf": 4.54
+        },
+        {
+          "word": "worldwide",
+          "zipf": 4.54
+        },
+        {
+          "word": "baseball",
+          "zipf": 4.54
+        },
+        {
+          "word": "quit",
+          "zipf": 4.54
+        },
+        {
+          "word": "anniversary",
+          "zipf": 4.53
+        },
+        {
+          "word": "ultimate",
+          "zipf": 4.53
+        },
+        {
+          "word": "officially",
+          "zipf": 4.53
+        },
+        {
+          "word": "steam",
+          "zipf": 4.52
+        },
+        {
+          "word": "battery",
+          "zipf": 4.52
+        },
+        {
+          "word": "campus",
+          "zipf": 4.51
+        },
+        {
+          "word": "commander",
+          "zipf": 4.51
+        },
+        {
+          "word": "semi",
+          "zipf": 4.51
+        },
+        {
+          "word": "gang",
+          "zipf": 4.5
+        },
+        {
+          "word": "outstanding",
+          "zipf": 4.5
+        },
+        {
+          "word": "highway",
+          "zipf": 4.49
+        },
+        {
+          "word": "junior",
+          "zipf": 4.49
+        },
+        {
+          "word": "cabinet",
+          "zipf": 4.49
+        },
+        {
+          "word": "rape",
+          "zipf": 4.48
+        },
+        {
+          "word": "circuit",
+          "zipf": 4.47
+        }
+      ]
+    },
+    {
+      "list_id": "cet4",
+      "title": "CET-4 四级",
+      "headword_count": 3846,
+      "measured_headword_count": 3840,
+      "missing_headwords": [
+        "clear-cut",
+        "high-tech",
+        "old-fashioned",
+        "so-called",
+        "well-being",
+        "well-off"
+      ],
+      "first_50": [
+        {
+          "word": "the",
+          "zipf": 7.73
+        },
+        {
+          "word": "to",
+          "zipf": 7.43
+        },
+        {
+          "word": "and",
+          "zipf": 7.41
+        },
+        {
+          "word": "a",
+          "zipf": 7.36
+        },
+        {
+          "word": "in",
+          "zipf": 7.27
+        },
+        {
+          "word": "i",
+          "zipf": 7.09
+        },
+        {
+          "word": "that",
+          "zipf": 7.01
+        },
+        {
+          "word": "for",
+          "zipf": 7.01
+        },
+        {
+          "word": "you",
+          "zipf": 6.98
+        },
+        {
+          "word": "on",
+          "zipf": 6.91
+        },
+        {
+          "word": "with",
+          "zipf": 6.85
+        },
+        {
+          "word": "this",
+          "zipf": 6.82
+        },
+        {
+          "word": "as",
+          "zipf": 6.77
+        },
+        {
+          "word": "have",
+          "zipf": 6.71
+        },
+        {
+          "word": "at",
+          "zipf": 6.7
+        },
+        {
+          "word": "not",
+          "zipf": 6.69
+        },
+        {
+          "word": "he",
+          "zipf": 6.69
+        },
+        {
+          "word": "by",
+          "zipf": 6.66
+        },
+        {
+          "word": "but",
+          "zipf": 6.63
+        },
+        {
+          "word": "from",
+          "zipf": 6.63
+        },
+        {
+          "word": "my",
+          "zipf": 6.57
+        },
+        {
+          "word": "or",
+          "zipf": 6.54
+        },
+        {
+          "word": "we",
+          "zipf": 6.54
+        },
+        {
+          "word": "your",
+          "zipf": 6.53
+        },
+        {
+          "word": "so",
+          "zipf": 6.52
+        },
+        {
+          "word": "all",
+          "zipf": 6.52
+        },
+        {
+          "word": "his",
+          "zipf": 6.51
+        },
+        {
+          "word": "they",
+          "zipf": 6.5
+        },
+        {
+          "word": "me",
+          "zipf": 6.48
+        },
+        {
+          "word": "one",
+          "zipf": 6.47
+        },
+        {
+          "word": "if",
+          "zipf": 6.47
+        },
+        {
+          "word": "can",
+          "zipf": 6.46
+        },
+        {
+          "word": "will",
+          "zipf": 6.45
+        },
+        {
+          "word": "just",
+          "zipf": 6.43
+        },
+        {
+          "word": "like",
+          "zipf": 6.41
+        },
+        {
+          "word": "about",
+          "zipf": 6.4
+        },
+        {
+          "word": "up",
+          "zipf": 6.39
+        },
+        {
+          "word": "out",
+          "zipf": 6.38
+        },
+        {
+          "word": "what",
+          "zipf": 6.38
+        },
+        {
+          "word": "when",
+          "zipf": 6.37
+        },
+        {
+          "word": "more",
+          "zipf": 6.36
+        },
+        {
+          "word": "do",
+          "zipf": 6.35
+        },
+        {
+          "word": "no",
+          "zipf": 6.35
+        },
+        {
+          "word": "who",
+          "zipf": 6.34
+        },
+        {
+          "word": "their",
+          "zipf": 6.33
+        },
+        {
+          "word": "there",
+          "zipf": 6.31
+        },
+        {
+          "word": "her",
+          "zipf": 6.3
+        },
+        {
+          "word": "which",
+          "zipf": 6.3
+        },
+        {
+          "word": "time",
+          "zipf": 6.29
+        },
+        {
+          "word": "get",
+          "zipf": 6.28
+        }
+      ]
+    },
+    {
+      "list_id": "cet6",
+      "title": "CET-6 六级（含四级基础）",
+      "headword_count": 5031,
+      "measured_headword_count": 5025,
+      "missing_headwords": [
+        "clear-cut",
+        "high-tech",
+        "old-fashioned",
+        "so-called",
+        "well-being",
+        "well-off"
+      ],
+      "first_50": [
+        {
+          "word": "the",
+          "zipf": 7.73
+        },
+        {
+          "word": "to",
+          "zipf": 7.43
+        },
+        {
+          "word": "and",
+          "zipf": 7.41
+        },
+        {
+          "word": "a",
+          "zipf": 7.36
+        },
+        {
+          "word": "in",
+          "zipf": 7.27
+        },
+        {
+          "word": "i",
+          "zipf": 7.09
+        },
+        {
+          "word": "that",
+          "zipf": 7.01
+        },
+        {
+          "word": "for",
+          "zipf": 7.01
+        },
+        {
+          "word": "you",
+          "zipf": 6.98
+        },
+        {
+          "word": "on",
+          "zipf": 6.91
+        },
+        {
+          "word": "with",
+          "zipf": 6.85
+        },
+        {
+          "word": "this",
+          "zipf": 6.82
+        },
+        {
+          "word": "as",
+          "zipf": 6.77
+        },
+        {
+          "word": "have",
+          "zipf": 6.71
+        },
+        {
+          "word": "at",
+          "zipf": 6.7
+        },
+        {
+          "word": "not",
+          "zipf": 6.69
+        },
+        {
+          "word": "he",
+          "zipf": 6.69
+        },
+        {
+          "word": "by",
+          "zipf": 6.66
+        },
+        {
+          "word": "but",
+          "zipf": 6.63
+        },
+        {
+          "word": "from",
+          "zipf": 6.63
+        },
+        {
+          "word": "my",
+          "zipf": 6.57
+        },
+        {
+          "word": "or",
+          "zipf": 6.54
+        },
+        {
+          "word": "we",
+          "zipf": 6.54
+        },
+        {
+          "word": "your",
+          "zipf": 6.53
+        },
+        {
+          "word": "so",
+          "zipf": 6.52
+        },
+        {
+          "word": "all",
+          "zipf": 6.52
+        },
+        {
+          "word": "his",
+          "zipf": 6.51
+        },
+        {
+          "word": "they",
+          "zipf": 6.5
+        },
+        {
+          "word": "me",
+          "zipf": 6.48
+        },
+        {
+          "word": "one",
+          "zipf": 6.47
+        },
+        {
+          "word": "if",
+          "zipf": 6.47
+        },
+        {
+          "word": "can",
+          "zipf": 6.46
+        },
+        {
+          "word": "will",
+          "zipf": 6.45
+        },
+        {
+          "word": "just",
+          "zipf": 6.43
+        },
+        {
+          "word": "like",
+          "zipf": 6.41
+        },
+        {
+          "word": "about",
+          "zipf": 6.4
+        },
+        {
+          "word": "up",
+          "zipf": 6.39
+        },
+        {
+          "word": "out",
+          "zipf": 6.38
+        },
+        {
+          "word": "what",
+          "zipf": 6.38
+        },
+        {
+          "word": "when",
+          "zipf": 6.37
+        },
+        {
+          "word": "more",
+          "zipf": 6.36
+        },
+        {
+          "word": "do",
+          "zipf": 6.35
+        },
+        {
+          "word": "no",
+          "zipf": 6.35
+        },
+        {
+          "word": "who",
+          "zipf": 6.34
+        },
+        {
+          "word": "their",
+          "zipf": 6.33
+        },
+        {
+          "word": "there",
+          "zipf": 6.31
+        },
+        {
+          "word": "her",
+          "zipf": 6.3
+        },
+        {
+          "word": "which",
+          "zipf": 6.3
+        },
+        {
+          "word": "time",
+          "zipf": 6.29
+        },
+        {
+          "word": "get",
+          "zipf": 6.28
+        }
+      ]
+    },
+    {
+      "list_id": "toefl",
+      "title": "TOEFL 托福",
+      "headword_count": 6337,
+      "measured_headword_count": 6316,
+      "missing_headwords": [
+        "avant-garde",
+        "bereave",
+        "by-product",
+        "contemn",
+        "discompose",
+        "embosom",
+        "far-reaching",
+        "frowzy",
+        "garrulity",
+        "hands-on",
+        "imprecate",
+        "locomote",
+        "long-range",
+        "overtire",
+        "peculate",
+        "self-sufficient",
+        "semiliterate",
+        "subduct",
+        "three-dimensional",
+        "time-consuming",
+        "well-being"
+      ],
+      "first_50": [
+        {
+          "word": "can",
+          "zipf": 6.46
+        },
+        {
+          "word": "well",
+          "zipf": 6.03
+        },
+        {
+          "word": "way",
+          "zipf": 6.01
+        },
+        {
+          "word": "even",
+          "zipf": 5.99
+        },
+        {
+          "word": "still",
+          "zipf": 5.92
+        },
+        {
+          "word": "down",
+          "zipf": 5.88
+        },
+        {
+          "word": "long",
+          "zipf": 5.81
+        },
+        {
+          "word": "house",
+          "zipf": 5.71
+        },
+        {
+          "word": "team",
+          "zipf": 5.67
+        },
+        {
+          "word": "company",
+          "zipf": 5.6
+        },
+        {
+          "word": "thought",
+          "zipf": 5.59
+        },
+        {
+          "word": "system",
+          "zipf": 5.56
+        },
+        {
+          "word": "mean",
+          "zipf": 5.53
+        },
+        {
+          "word": "head",
+          "zipf": 5.51
+        },
+        {
+          "word": "actually",
+          "zipf": 5.49
+        },
+        {
+          "word": "party",
+          "zipf": 5.49
+        },
+        {
+          "word": "season",
+          "zipf": 5.48
+        },
+        {
+          "word": "trying",
+          "zipf": 5.47
+        },
+        {
+          "word": "general",
+          "zipf": 5.47
+        },
+        {
+          "word": "face",
+          "zipf": 5.45
+        },
+        {
+          "word": "means",
+          "zipf": 5.44
+        },
+        {
+          "word": "post",
+          "zipf": 5.43
+        },
+        {
+          "word": "court",
+          "zipf": 5.41
+        },
+        {
+          "word": "air",
+          "zipf": 5.37
+        },
+        {
+          "word": "understand",
+          "zipf": 5.37
+        },
+        {
+          "word": "close",
+          "zipf": 5.36
+        },
+        {
+          "word": "human",
+          "zipf": 5.35
+        },
+        {
+          "word": "cause",
+          "zipf": 5.35
+        },
+        {
+          "word": "due",
+          "zipf": 5.35
+        },
+        {
+          "word": "community",
+          "zipf": 5.34
+        },
+        {
+          "word": "watch",
+          "zipf": 5.34
+        },
+        {
+          "word": "age",
+          "zipf": 5.32
+        },
+        {
+          "word": "reason",
+          "zipf": 5.32
+        },
+        {
+          "word": "deal",
+          "zipf": 5.32
+        },
+        {
+          "word": "check",
+          "zipf": 5.31
+        },
+        {
+          "word": "further",
+          "zipf": 5.31
+        },
+        {
+          "word": "media",
+          "zipf": 5.3
+        },
+        {
+          "word": "major",
+          "zipf": 5.3
+        },
+        {
+          "word": "available",
+          "zipf": 5.28
+        },
+        {
+          "word": "education",
+          "zipf": 5.28
+        },
+        {
+          "word": "former",
+          "zipf": 5.28
+        },
+        {
+          "word": "ready",
+          "zipf": 5.28
+        },
+        {
+          "word": "final",
+          "zipf": 5.28
+        },
+        {
+          "word": "current",
+          "zipf": 5.27
+        },
+        {
+          "word": "march",
+          "zipf": 5.26
+        },
+        {
+          "word": "process",
+          "zipf": 5.26
+        },
+        {
+          "word": "chance",
+          "zipf": 5.26
+        },
+        {
+          "word": "action",
+          "zipf": 5.25
+        },
+        {
+          "word": "board",
+          "zipf": 5.24
+        },
+        {
+          "word": "moment",
+          "zipf": 5.24
+        }
+      ]
+    },
+    {
+      "list_id": "ielts",
+      "title": "IELTS 雅思",
+      "headword_count": 4454,
+      "measured_headword_count": 4442,
+      "missing_headwords": [
+        "close-up",
+        "drop-off",
+        "full-time",
+        "hard-working",
+        "high-rise",
+        "invigilate",
+        "low-risk",
+        "misconceive",
+        "part-time",
+        "self-defense",
+        "self-discipline",
+        "self-sufficient"
+      ],
+      "first_50": [
+        {
+          "word": "in",
+          "zipf": 7.27
+        },
+        {
+          "word": "on",
+          "zipf": 6.91
+        },
+        {
+          "word": "as",
+          "zipf": 6.77
+        },
+        {
+          "word": "all",
+          "zipf": 6.52
+        },
+        {
+          "word": "one",
+          "zipf": 6.47
+        },
+        {
+          "word": "time",
+          "zipf": 6.29
+        },
+        {
+          "word": "get",
+          "zipf": 6.28
+        },
+        {
+          "word": "good",
+          "zipf": 6.12
+        },
+        {
+          "word": "make",
+          "zipf": 6.08
+        },
+        {
+          "word": "back",
+          "zipf": 6.04
+        },
+        {
+          "word": "go",
+          "zipf": 6.03
+        },
+        {
+          "word": "most",
+          "zipf": 6.0
+        },
+        {
+          "word": "even",
+          "zipf": 5.99
+        },
+        {
+          "word": "may",
+          "zipf": 5.98
+        },
+        {
+          "word": "day",
+          "zipf": 5.95
+        },
+        {
+          "word": "take",
+          "zipf": 5.92
+        },
+        {
+          "word": "say",
+          "zipf": 5.89
+        },
+        {
+          "word": "world",
+          "zipf": 5.89
+        },
+        {
+          "word": "best",
+          "zipf": 5.84
+        },
+        {
+          "word": "part",
+          "zipf": 5.78
+        },
+        {
+          "word": "come",
+          "zipf": 5.78
+        },
+        {
+          "word": "better",
+          "zipf": 5.76
+        },
+        {
+          "word": "give",
+          "zipf": 5.71
+        },
+        {
+          "word": "school",
+          "zipf": 5.71
+        },
+        {
+          "word": "place",
+          "zipf": 5.71
+        },
+        {
+          "word": "house",
+          "zipf": 5.71
+        },
+        {
+          "word": "end",
+          "zipf": 5.68
+        },
+        {
+          "word": "team",
+          "zipf": 5.67
+        },
+        {
+          "word": "feel",
+          "zipf": 5.67
+        },
+        {
+          "word": "family",
+          "zipf": 5.66
+        },
+        {
+          "word": "keep",
+          "zipf": 5.66
+        },
+        {
+          "word": "might",
+          "zipf": 5.66
+        },
+        {
+          "word": "put",
+          "zipf": 5.66
+        },
+        {
+          "word": "money",
+          "zipf": 5.64
+        },
+        {
+          "word": "second",
+          "zipf": 5.63
+        },
+        {
+          "word": "night",
+          "zipf": 5.61
+        },
+        {
+          "word": "city",
+          "zipf": 5.61
+        },
+        {
+          "word": "let",
+          "zipf": 5.6
+        },
+        {
+          "word": "company",
+          "zipf": 5.6
+        },
+        {
+          "word": "different",
+          "zipf": 5.59
+        },
+        {
+          "word": "thought",
+          "zipf": 5.59
+        },
+        {
+          "word": "set",
+          "zipf": 5.59
+        },
+        {
+          "word": "top",
+          "zipf": 5.57
+        },
+        {
+          "word": "public",
+          "zipf": 5.57
+        },
+        {
+          "word": "group",
+          "zipf": 5.57
+        },
+        {
+          "word": "government",
+          "zipf": 5.57
+        },
+        {
+          "word": "business",
+          "zipf": 5.56
+        },
+        {
+          "word": "system",
+          "zipf": 5.56
+        },
+        {
+          "word": "care",
+          "zipf": 5.56
+        },
+        {
+          "word": "nothing",
+          "zipf": 5.55
+        }
+      ]
+    },
+    {
+      "list_id": "gre",
+      "title": "GRE",
+      "headword_count": 6625,
+      "measured_headword_count": 6544,
+      "missing_headwords": [
+        "abnegate",
+        "adulate",
+        "apothegm",
+        "avant-garde",
+        "bedizen",
+        "bereave",
+        "blandishment",
+        "bowdlerize",
+        "brattish",
+        "calumniate",
+        "circumlocutory",
+        "coarsen",
+        "cold-blooded",
+        "corrugate",
+        "coruscate",
+        "debouch",
+        "defalcate",
+        "denunciate",
+        "deracinate",
+        "dilapidate",
+        "disaffect",
+        "discompose",
+        "disembody",
+        "disgruntle",
+        "dishevel",
+        "divagate",
+        "double-cross",
+        "down-to-earth",
+        "dumbfound",
+        "enfetter",
+        "even-tempered",
+        "exceptionable",
+        "excogitate",
+        "excruciate",
+        "expurgate",
+        "fail-safe",
+        "far-reaching",
+        "footle",
+        "frowzy",
+        "full-blown",
+        "full-bodied",
+        "full-fledged",
+        "garrulity",
+        "gaucherie",
+        "geometrician",
+        "immure",
+        "impend",
+        "inappreciable",
+        "inculpate",
+        "indurate",
+        "ineffaceable",
+        "infelicity",
+        "interlope",
+        "invigilate",
+        "long-winded",
+        "lucubrate",
+        "magniloquent",
+        "malodor",
+        "mettlesome",
+        "mulct",
+        "naysay",
+        "nonplus",
+        "oafishness",
+        "off-key",
+        "other-directed",
+        "peculate",
+        "pell-mell",
+        "pettish",
+        "potation",
+        "predestine",
+        "pullulate",
+        "schematize",
+        "sedulous",
+        "self-abasement",
+        "self-absorbed",
+        "self-assertion",
+        "sermonize",
+        "stultify",
+        "tauten",
+        "topsy-turvy",
+        "ungrudging"
+      ],
+      "first_50": [
+        {
+          "word": "want",
+          "zipf": 6.04
+        },
+        {
+          "word": "even",
+          "zipf": 5.99
+        },
+        {
+          "word": "down",
+          "zipf": 5.88
+        },
+        {
+          "word": "school",
+          "zipf": 5.71
+        },
+        {
+          "word": "lot",
+          "zipf": 5.61
+        },
+        {
+          "word": "group",
+          "zipf": 5.57
+        },
+        {
+          "word": "mean",
+          "zipf": 5.53
+        },
+        {
+          "word": "court",
+          "zipf": 5.41
+        },
+        {
+          "word": "control",
+          "zipf": 5.4
+        },
+        {
+          "word": "guy",
+          "zipf": 5.4
+        },
+        {
+          "word": "taking",
+          "zipf": 5.39
+        },
+        {
+          "word": "bit",
+          "zipf": 5.37
+        },
+        {
+          "word": "nice",
+          "zipf": 5.37
+        },
+        {
+          "word": "low",
+          "zipf": 5.33
+        },
+        {
+          "word": "check",
+          "zipf": 5.31
+        },
+        {
+          "word": "available",
+          "zipf": 5.28
+        },
+        {
+          "word": "ready",
+          "zipf": 5.28
+        },
+        {
+          "word": "list",
+          "zipf": 5.28
+        },
+        {
+          "word": "meet",
+          "zipf": 5.27
+        },
+        {
+          "word": "moment",
+          "zipf": 5.24
+        },
+        {
+          "word": "issue",
+          "zipf": 5.23
+        },
+        {
+          "word": "hold",
+          "zipf": 5.19
+        },
+        {
+          "word": "press",
+          "zipf": 5.16
+        },
+        {
+          "word": "original",
+          "zipf": 5.16
+        },
+        {
+          "word": "blue",
+          "zipf": 5.13
+        },
+        {
+          "word": "green",
+          "zipf": 5.13
+        },
+        {
+          "word": "fast",
+          "zipf": 5.13
+        },
+        {
+          "word": "forward",
+          "zipf": 5.12
+        },
+        {
+          "word": "august",
+          "zipf": 5.1
+        },
+        {
+          "word": "damn",
+          "zipf": 5.09
+        },
+        {
+          "word": "release",
+          "zipf": 5.09
+        },
+        {
+          "word": "choice",
+          "zipf": 5.08
+        },
+        {
+          "word": "code",
+          "zipf": 5.08
+        },
+        {
+          "word": "die",
+          "zipf": 5.07
+        },
+        {
+          "word": "safe",
+          "zipf": 5.07
+        },
+        {
+          "word": "table",
+          "zipf": 5.05
+        },
+        {
+          "word": "base",
+          "zipf": 5.05
+        },
+        {
+          "word": "access",
+          "zipf": 5.05
+        },
+        {
+          "word": "district",
+          "zipf": 5.04
+        },
+        {
+          "word": "response",
+          "zipf": 5.03
+        },
+        {
+          "word": "track",
+          "zipf": 5.02
+        },
+        {
+          "word": "limited",
+          "zipf": 5.02
+        },
+        {
+          "word": "conference",
+          "zipf": 5.01
+        },
+        {
+          "word": "beat",
+          "zipf": 5.01
+        },
+        {
+          "word": "potential",
+          "zipf": 5.01
+        },
+        {
+          "word": "addition",
+          "zipf": 5.01
+        },
+        {
+          "word": "husband",
+          "zipf": 5.0
+        },
+        {
+          "word": "credit",
+          "zipf": 5.0
+        },
+        {
+          "word": "cross",
+          "zipf": 5.0
+        },
+        {
+          "word": "individual",
+          "zipf": 5.0
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 # Local Python environments and bytecode
 .venv/
 .venv-vocab-export/
+.venv-word-frequency-export/
 venv/
 __pycache__/
 *.py[cod]

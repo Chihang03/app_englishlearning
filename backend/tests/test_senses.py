@@ -63,7 +63,8 @@ class SenseLearningTests(unittest.TestCase):
         self.directory=Path(temporary.name);self.catalog_path=self.directory/'catalog.json'
         self.catalog_path.write_text(json.dumps(catalog(),ensure_ascii=False))
         for name,value in [("DATA_DIR",self.directory),("DB_PATH",self.directory/'test.db'),
-                           ("SEED_PATH",self.directory/'no-seed.json'),("VOCABULARY_CATALOG_PATH",self.catalog_path)]:
+                           ("SEED_PATH",self.directory/'no-seed.json'),("VOCABULARY_CATALOG_PATH",self.catalog_path),
+                           ("WORD_FREQUENCIES_PATH",self.directory/'no-frequencies.json')]:
             p=patch.object(database,name,value);p.start();self.addCleanup(p.stop)
         self.client=TestClient(app);self.client.__enter__();self.addCleanup(self.client.__exit__,None,None,None)
         registered=self.client.post('/api/auth/register',json={"username":"learner","password":"test-password-123"})
