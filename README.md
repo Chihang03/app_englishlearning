@@ -193,6 +193,23 @@ cd backend
 
 学习词库分为两层：`source_word_lists.json` 只保存 NGSL、四/六级、托福、雅思、GRE 等词表的词头分类；`vocabulary_catalog.json` 保存可直接学习的本地释义、发音和例句。服务器只读取这些随项目部署的静态文件，不调用 Mac 词典，也不需要安装导出依赖。
 
+新词在所选词库范围内按通用英语词频从高到低出现，保留全新单词优先于已学词的新用法的规则。同频词使用固定的打散顺序，同词内部保留学习单元顺序；未收录或只有多词组合估算的词频记为缺失，排在有词频的词之后，仍可学习。已发出的题目、到期复习、错词巩固、账号隔离、手动“不再学习”和“跳过基础 600 词”继续使用原来的规则；基础 600 词仍按 NGSL 原始源排名确定。
+
+`word_frequencies.json` 是独立的词头词频快照，采用 `wordfreq==3.1.1` 的英语 large 词表。Zipf 分数以百分之一的整数保存，来源是约截至 2021 年的多语料通用使用频率，不代表考试题中的出现频率或某个具体义项的频率。数据和导出报告内嵌来源、版本及 CC BY-SA 4.0 署名/许可说明。`word_frequency_report.json` 列出各词库覆盖率、缺失词和按新顺序排列的前 50 个词。服务器只导入该静态快照，不安装或调用 wordfreq。
+
+数据库 v19 升级前自动备份，只增加 `word_frequencies` 和 `word_frequency_state` 表。词频按规范化词头共享，不重建词库或改写单词、义项、学习单元和用户进度；快照独立更新，不影响词库内容指纹。
+
+更新公共词库后，在独立导出环境重新生成词频快照与报告：
+
+```bash
+cd backend
+python3 -m venv .venv-word-frequency-export
+.venv-word-frequency-export/bin/pip install -r requirements-word-frequency-export.txt
+.venv-word-frequency-export/bin/python scripts/export_word_frequencies.py
+```
+
+验证时显式设置临时 `DATA_DIR`，运行 `tests/test_word_frequencies.py`；发布前在生产数据库的 SQLite backup 副本上预演迁移与启动，核对全部原有表的内容和外键完整性。
+
 在 Mac 上生成或更新本地词库时，需先安装希望使用的系统词典。默认会读取仓库内已本地化的词头清单；如果要刷新考试/用途词表，再传入包含源文件的 `--source-dir`：
 
 ```bash

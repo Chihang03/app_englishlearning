@@ -18,6 +18,7 @@ from .chinese_sentences import sync_database as sync_sentence_translations
 from .chinese_glosses import sync_database as sync_gloss_translations
 from .vocabulary_json import json_fingerprint, legacy_catalog_fingerprints
 from .learning_units import sync_learning_units, usable_unit_sql
+from .word_frequencies import WORD_FREQUENCIES_PATH, sync_word_frequencies
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -77,6 +78,7 @@ def init_database() -> None:
     sync_sentence_translations(DB_PATH, strict=False)
     with connect() as conn:
         sync_learning_units(conn)
+        sync_word_frequencies(conn, WORD_FREQUENCIES_PATH)
 
 
 def _enable_wal() -> None:

@@ -1,0 +1,2 @@
+# Offline frequency exporter only; never needed by the deployed app.
+wordfreq==3.1.1

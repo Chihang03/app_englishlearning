@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 
 def run_migrations(db_path: Path) -> None:
@@ -167,12 +167,32 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 18 (shared learning state)")
 
+        if version < 19:
+            conn.execute("BEGIN")
+            _migrate_to_v19(conn)
+            conn.execute("PRAGMA user_version = 19")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 19 (word frequencies)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v19(conn: sqlite3.Connection) -> None:
+    # Content metadata only; word/sense identities and learner state stay intact.
+    _run(conn, [
+        """CREATE TABLE IF NOT EXISTS word_frequencies (
+            headword TEXT PRIMARY KEY,
+            zipf_cent INTEGER CHECK(zipf_cent IS NULL OR
+                (typeof(zipf_cent)='integer' AND zipf_cent BETWEEN 1 AND 900)),
+            tie_break TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS word_frequency_state (
+            key TEXT PRIMARY KEY, value TEXT NOT NULL)""",
+    ])
 
 
 def _migrate_to_v17(conn: sqlite3.Connection) -> None:
