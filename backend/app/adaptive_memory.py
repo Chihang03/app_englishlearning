@@ -12,6 +12,8 @@ from typing import Any
 
 from fsrs import Card, Rating, Scheduler, State
 
+from .learning_units import anchor_for_unit
+
 MODEL_VERSION = "fsrs-6.3.0-prior-v1"
 TARGET_RETENTION = 0.9
 MIN_CALIBRATION_SAMPLES = 150
@@ -59,12 +61,12 @@ def maybe_calibrate(conn, user_id: int, now: str) -> None:
     previous = profile(conn, user_id)
     if count < MIN_CALIBRATION_SAMPLES or count - previous["evaluated_count"] < CALIBRATION_BATCH:
         return
-    rows = conn.execute("""SELECT base_recall_probability,is_correct,sense_id,review_time
+    rows = conn.execute("""SELECT base_recall_probability,is_correct,COALESCE(learning_unit_id,-sense_id) AS recall_unit,review_time
         FROM review_history WHERE user_id=? AND base_recall_probability IS NOT NULL
         ORDER BY id DESC LIMIT 5000""", (user_id,)).fetchall()[::-1]
     # Several answers on one word or in one short session cannot establish a
     # personal long-term forgetting rate. These are conservative product gates.
-    if len({r["sense_id"] for r in rows}) < 20 or (instant(rows[-1]["review_time"]) - instant(rows[0]["review_time"])).days < 30:
+    if len({r["recall_unit"] for r in rows}) < 20 or (instant(rows[-1]["review_time"]) - instant(rows[0]["review_time"])).days < 30:
         return
     samples = [(r["base_recall_probability"], bool(r["is_correct"])) for r in rows]
     split = int(len(samples) * 0.8)
@@ -87,28 +89,28 @@ def maybe_calibrate(conn, user_id: int, now: str) -> None:
         (user_id,selected,count,len(training),len(validation),baseline_loss,candidate_loss,int(adopted),now))
 
 
-def initial_card(conn, user_id: int, sense_id: int, current, now: datetime) -> Card:
-    card = Card(card_id=sense_id)
+def initial_card(conn, user_id: int, learning_unit_id: int, current, now: datetime) -> Card:
+    card = Card(card_id=learning_unit_id)
     if current:
         # Historical answers did not reliably track pronunciation. Use the old
         # interval only as a conservative starting estimate, preserving due dates
         # until a real answer arrives. Do not invent independent confirmations.
-        last = conn.execute("SELECT MAX(review_time) FROM review_history WHERE user_id=? AND sense_id=?",
-                            (user_id,sense_id)).fetchone()[0]
-        card = Card(card_id=sense_id, state=State.Review, step=None,
+        last = conn.execute("SELECT MAX(review_time) FROM review_history WHERE user_id=? AND learning_unit_id=?",
+                            (user_id,learning_unit_id)).fetchone()[0]
+        card = Card(card_id=learning_unit_id, state=State.Review, step=None,
                     stability=max(1, min(365, current["interval_days"])), difficulty=5,
                     last_review=min(now, instant(last)) if last else now)
     return card
 
 
-def advance_memory(conn, user_id: int, sense_id: int, current, *, correct: bool,
+def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correct: bool,
                    independent: bool, practice: bool, assisted: bool,
                    today: date, now: str, active_response_ms: int | None,
                    allow_known_prior: bool) -> dict[str, Any]:
     moment = instant(now)
-    stored = conn.execute("SELECT * FROM adaptive_memory WHERE user_id=? AND sense_id=?",
-                          (user_id,sense_id)).fetchone()
-    card = Card.from_json(stored["card_json"]) if stored else initial_card(conn,user_id,sense_id,current,moment)
+    stored = conn.execute("SELECT * FROM adaptive_memory WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL",
+                          (user_id,learning_unit_id)).fetchone()
+    card = Card.from_json(stored["card_json"]) if stored else initial_card(conn,user_id,learning_unit_id,current,moment)
     personal = profile(conn, user_id)
     model = scheduler(personal["forgetting_multiplier"])
     base_probability = scheduler().get_card_retrievability(card,moment) if card.last_review else None
@@ -130,10 +132,10 @@ def advance_memory(conn, user_id: int, sense_id: int, current, *, correct: bool,
                 last = now
             if stored is None and current is None:
                 # Only brand-new history recorded with v7 hint tracking qualifies.
-                historical = conn.execute("SELECT 1 FROM review_history WHERE user_id=? AND sense_id=? LIMIT 1",
-                                          (user_id,sense_id)).fetchone()
-                exposed = conn.execute("SELECT 1 FROM sense_exposures WHERE user_id=? AND sense_id=?",
-                                       (user_id,sense_id)).fetchone()
+                historical = conn.execute("SELECT 1 FROM review_history WHERE user_id=? AND learning_unit_id=? LIMIT 1",
+                                          (user_id,learning_unit_id)).fetchone()
+                exposed = conn.execute("SELECT 1 FROM sense_exposures WHERE user_id=? AND learning_unit_id=?",
+                                       (user_id,learning_unit_id)).fetchone()
                 known = historical is None and exposed is None and allow_known_prior
                 if known:
                     card.stability = 30.0
@@ -171,12 +173,12 @@ def advance_memory(conn, user_id: int, sense_id: int, current, *, correct: bool,
     if mature:
         interval = MATURE_AUDIT_DAYS
     card.due = moment + timedelta(days=interval)
-    conn.execute("""INSERT INTO adaptive_memory(user_id,sense_id,card_json,known_candidate,
-        confirmations,first_independent_at,last_independent_at) VALUES(?,?,?,?,?,?,?)
+    conn.execute("""INSERT INTO adaptive_memory(user_id,sense_id,learning_unit_id,card_json,known_candidate,
+        confirmations,first_independent_at,last_independent_at) VALUES(?,?,?,?,?,?,?,?)
         ON CONFLICT(user_id,sense_id) DO UPDATE SET card_json=excluded.card_json,
         known_candidate=excluded.known_candidate,confirmations=excluded.confirmations,
-        first_independent_at=excluded.first_independent_at,last_independent_at=excluded.last_independent_at""",
-        (user_id,sense_id,card.to_json(),int(known),confirmations,first,last))
+        first_independent_at=excluded.first_independent_at,last_independent_at=excluded.last_independent_at,learning_unit_id=excluded.learning_unit_id,retired_at=NULL""",
+        (user_id,anchor_for_unit(conn,learning_unit_id),learning_unit_id,card.to_json(),int(known),confirmations,first,last))
     return {"interval_days": interval, "next_review_date": (today + timedelta(days=interval)).isoformat(),
             "mature": mature, "known_candidate": known, "confirmations": confirmations,
             "stability_days": round(card.stability or 0,2), "difficulty": round(card.difficulty or 0,2),

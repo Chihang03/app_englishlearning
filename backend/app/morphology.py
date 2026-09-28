@@ -1,4 +1,4 @@
-"""Conservative lexical identities; learning still belongs to the original sense.
+"""Conservative lexical identities, independent of teaching groups.
 
 The v1 spelling projection is only a hint. Only scoped v2 evidence can resolve
 an inflection. This module never creates, combines or updates memory states.

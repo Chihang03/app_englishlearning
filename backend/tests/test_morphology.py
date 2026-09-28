@@ -214,8 +214,27 @@ class MorphologyTests(unittest.TestCase):
 
     def test_v14_additive_upgrade_backup_and_idempotency(self):
         self.review(self.card_for('say', 'verb'))
+        with database.connect() as conn:
+            # Construct the actual pre-v14 fixture: later teaching metadata has
+            # its own lexical FK and did not exist on a v13 database.
+            state_tables = ('sense_srs_state','adaptive_memory','relearning_queue','user_sense_examples')
+            event_tables = ('study_attempts','review_history','sense_exposures')
+            for table in (*state_tables,*event_tables):
+                conn.execute(f'DROP TRIGGER bind_{table}_learning_unit')
+            for table in state_tables:
+                conn.execute(f'DROP INDEX idx_{table}_learning_unit')
+            conn.execute('DROP INDEX idx_open_learning_attempt')
+            conn.execute('DROP INDEX idx_unit_review_history')
+            for table in (*state_tables,*event_tables):
+                conn.execute(f'ALTER TABLE {table} DROP COLUMN learning_unit_id')
+            for table in state_tables:
+                conn.execute(f'ALTER TABLE {table} DROP COLUMN retired_at')
+            for table in ('word_list_learning_units','word_list_learning_scopes','learning_unit_senses',
+                          'learning_unit_merges','learning_group_blocks','learning_units'):
+                conn.execute(f'DROP TABLE {table}')
         before = self.snapshot()
         with database.connect() as conn:
+            columns = {table:[r['name'] for r in conn.execute(f'PRAGMA table_info({table})')] for table in before}
             conn.execute('DROP TABLE lexical_relations')
             conn.execute('DROP TABLE word_forms')
             conn.execute('DROP INDEX idx_word_senses_lexical_unit')
@@ -224,7 +243,10 @@ class MorphologyTests(unittest.TestCase):
             conn.execute('PRAGMA user_version=13')
         migrations.run_migrations(database.DB_PATH)
         migrations.run_migrations(database.DB_PATH)
-        self.assertEqual(before, self.snapshot())
+        with database.connect() as conn:
+            after = {table:[tuple(row[name] for name in columns[table])
+                for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')] for table in before}
+        self.assertEqual(before, after)
         with database.connect() as conn:
             self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], migrations.SCHEMA_VERSION)
             self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])

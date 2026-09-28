@@ -17,6 +17,7 @@ from .word_forms import WORD_FORMS_PATH
 from .chinese_sentences import sync_database as sync_sentence_translations
 from .chinese_glosses import sync_database as sync_gloss_translations
 from .vocabulary_json import json_fingerprint, legacy_catalog_fingerprints
+from .learning_units import sync_learning_units, usable_unit_sql
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -74,6 +75,8 @@ def init_database() -> None:
         catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
         seed_morphology(conn, WORD_FORMS_PATH.read_bytes() if WORD_FORMS_PATH.exists() else b'', catalog_bytes)
     sync_sentence_translations(DB_PATH, strict=False)
+    with connect() as conn:
+        sync_learning_units(conn)
 
 
 def _enable_wal() -> None:
@@ -130,6 +133,7 @@ def seed_vocabulary_catalog() -> None:
             if stored[0] != fingerprint:
                 conn.execute("UPDATE vocabulary_catalog_state SET value=? WHERE key='fingerprint'", (fingerprint,))
             migrate_legacy_progress(conn)
+            sync_learning_units(conn)
             return
     catalog = json.loads(catalog_bytes)
     seed_entries = json.loads(seed_bytes)
@@ -300,6 +304,7 @@ def seed_vocabulary_catalog() -> None:
             """
         )
         conn.execute("INSERT OR REPLACE INTO vocabulary_catalog_state(key,value) VALUES('fingerprint',?)", (fingerprint,))
+        sync_learning_units(conn)
 
 
 def selected_vocabulary_list_ids(conn: sqlite3.Connection, user_id: int) -> list[str]:
@@ -324,27 +329,26 @@ def get_vocabulary_lists(user_id: int) -> list[dict[str, Any]]:
     with connect() as conn:
         selected = set(selected_vocabulary_list_ids(conn, user_id))
         rows = conn.execute(
-            """
+            f"""
             WITH touched_words AS (
                 SELECT word_id FROM review_history WHERE user_id=?
                 UNION SELECT word_id FROM srs_state WHERE user_id=?
                 UNION SELECT s.word_id FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id WHERE p.user_id=?
                 UNION SELECT s.word_id FROM study_attempts a JOIN word_senses s ON s.id=a.sense_id WHERE a.user_id=?
             ), word_progress AS (
-                SELECT s.word_id,
+                SELECT m.list_id,u.word_id,
                     MIN(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mastered
-                FROM word_senses s
-                LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
-                WHERE s.active=1 AND s.learning_enabled=1 GROUP BY s.word_id
+                FROM word_list_learning_units m JOIN learning_units u ON u.id=m.learning_unit_id
+                LEFT JOIN sense_srs_state p ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
+                WHERE {usable_unit_sql()} GROUP BY m.list_id,u.word_id
             )
             SELECT v.list_id,v.title,v.description,v.source_url,v.source_word_count,
                 COUNT(p.word_id) AS word_count,
                 COUNT(CASE WHEN p.word_id IS NOT NULL AND t.word_id IS NOT NULL THEN 1 END) AS learned_word_count,
                 COALESCE(SUM(p.mastered),0) AS mastered_word_count
             FROM vocabulary_lists v
-            LEFT JOIN word_list_memberships m ON m.list_id=v.list_id
-            LEFT JOIN word_progress p ON p.word_id=m.word_id
-            LEFT JOIN touched_words t ON t.word_id=m.word_id
+            LEFT JOIN word_progress p ON p.list_id=v.list_id
+            LEFT JOIN touched_words t ON t.word_id=p.word_id
             GROUP BY v.list_id ORDER BY v.sort_order,v.title
             """, (user_id,user_id,user_id,user_id,user_id)
         ).fetchall()
