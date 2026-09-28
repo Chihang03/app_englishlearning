@@ -12,30 +12,34 @@ export function useForegroundRefresh(refresh: () => void) {
 
 export function useVersionUpdate() {
   const [available, setAvailable] = useState(false);
-  const checking = useRef(false);
+  const checking = useRef<Promise<void> | undefined>(undefined);
   const lastChecked = useRef(0);
   const active = useRef(false);
-  async function check() {
-    if (checking.current || document.hidden || !navigator.onLine || Date.now() - lastChecked.current < 30000) return;
-    checking.current = true;
-    try {
-      const payload = await request<{ version: string | null }>("/api/version");
-      if (active.current) {
-        setAvailable(Boolean(payload.version && payload.version !== version));
-        lastChecked.current = Date.now();
+  function check(force = false): Promise<void> {
+    if (checking.current) return checking.current;
+    if (!force && (document.hidden || !navigator.onLine || Date.now() - lastChecked.current < 30000)) return Promise.resolve();
+    checking.current = (async () => {
+      try {
+        const payload = await request<{ version: string | null }>("/api/version");
+        if (!payload.version) throw new Error("暂时无法获取版本信息");
+        if (active.current) {
+          setAvailable(payload.version !== version);
+          lastChecked.current = Date.now();
+        }
+      } finally {
+        checking.current = undefined;
       }
-    } catch {
-      // A deployment check must not turn a temporary outage into a login error.
-    } finally {
-      checking.current = false;
-    }
+    })();
+    return checking.current;
   }
-  useForegroundRefresh(() => { void check(); });
+  // Background failures stay silent; a manual refresh receives the error.
+  const backgroundCheck = () => { void check().catch(() => {}); };
+  useForegroundRefresh(backgroundCheck);
   useEffect(() => {
     active.current = true;
-    void check();
-    const timer = window.setInterval(() => { void check(); }, 5 * 60000);
+    backgroundCheck();
+    const timer = window.setInterval(backgroundCheck, 5 * 60000);
     return () => { active.current = false; window.clearInterval(timer); };
   }, []);
-  return available;
+  return { available, check: () => check(true) };
 }

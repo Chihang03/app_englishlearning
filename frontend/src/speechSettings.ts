@@ -44,55 +44,62 @@ export function useSpeechSettings(userId: number, onSignedOut: () => void,
   const revision = useRef(0);
   const signedOut = useRef(onSignedOut);
   signedOut.current = onSignedOut;
-  const syncRef = useRef<() => void>(() => {});
+  const syncRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let active = true;
-    let running = false;
+    let running: Promise<void> | undefined;
     let loaded = false;
     let retry: number | undefined;
     const persist = () => writeCache(rateKey(userId), current.current);
 
-    async function sync() {
-      if (!active || running) return;
-      running = true;
+    function sync(): Promise<void> {
+      if (!active) return Promise.resolve();
+      if (running) return running;
       window.clearTimeout(retry);
-      try {
-        if (!loaded && !current.current.pending) {
-          const settings = await readSettings();
-          if (!active) return;
-          // A selection made during loading always takes precedence.
-          if (!current.current.pending) {
-            current.current = { rate: validRate(settings.speech_rate) ? settings.speech_rate : current.current.rate,
-              pending: settings.speech_rate == null };
-            persist();
-            setSpeech((value) => ({ ...value, rate: current.current.rate }));
+      running = Promise.resolve().then(async () => {
+        try {
+          if (!loaded && !current.current.pending) {
+            const settings = await readSettings();
+            if (!active) return;
+            // A selection made during loading always takes precedence.
+            if (!current.current.pending) {
+              current.current = { rate: validRate(settings.speech_rate) ? settings.speech_rate : current.current.rate,
+                pending: settings.speech_rate == null };
+              persist();
+              setSpeech((value) => ({ ...value, rate: current.current.rate }));
+            }
           }
-        }
-        loaded = true;
-        // Serialize writes so rapid taps cannot save an older choice last.
-        while (active && current.current.pending) {
-          const sentRevision = revision.current;
-          const rate = current.current.rate;
-          await request<Settings>("/api/settings", { method: "PATCH", body: JSON.stringify({ speech_rate: rate }), keepalive: true });
-          if (!active) return;
-          if (revision.current === sentRevision) {
-            current.current = { rate, pending: false };
-            persist();
+          loaded = true;
+          // Serialize writes so rapid taps cannot save an older choice last.
+          while (active && current.current.pending) {
+            const sentRevision = revision.current;
+            const rate = current.current.rate;
+            await request<Settings>("/api/settings", { method: "PATCH", body: JSON.stringify({ speech_rate: rate }), keepalive: true });
+            if (!active) return;
+            if (revision.current === sentRevision) {
+              current.current = { rate, pending: false };
+              persist();
+            }
           }
+        } catch (error) {
+          if (!active) return;
+          if (isUnauthorized(error)) signedOut.current();
+          else retry = window.setTimeout(backgroundSync, 5000);
+          throw error;
+        } finally {
+          running = undefined;
         }
-      } catch (error) {
-        if (!active) return;
-        if (isUnauthorized(error)) signedOut.current();
-        else retry = window.setTimeout(() => { void sync(); }, 5000);
-      } finally { running = false; }
+      });
+      return running;
     }
 
-    const resume = () => { if (!document.hidden) void sync(); };
-    syncRef.current = () => { void sync(); };
+    function backgroundSync() { void sync().catch(() => {}); }
+    const resume = () => { if (!document.hidden) backgroundSync(); };
+    syncRef.current = sync;
     window.addEventListener("online", resume);
     document.addEventListener("visibilitychange", resume);
-    void sync();
+    backgroundSync();
     return () => {
       active = false;
       window.clearTimeout(retry);
@@ -109,8 +116,16 @@ export function useSpeechSettings(userId: number, onSignedOut: () => void,
       writeCache(rateKey(userId), current.current);
     }
     setSpeech((value) => ({ ...value, ...next }));
-    if (next.rate !== undefined) syncRef.current();
+    if (next.rate !== undefined) void syncRef.current().catch(() => {});
   }
 
-  return { speech, updateSpeech };
+  function applySpeechSettings(settings: Settings) {
+    // A server download must never overwrite an unsaved local selection.
+    if (current.current.pending || !validRate(settings.speech_rate)) return;
+    current.current = { rate: settings.speech_rate, pending: false };
+    writeCache(rateKey(userId), current.current);
+    setSpeech((value) => ({ ...value, rate: current.current.rate }));
+  }
+
+  return { speech, updateSpeech, syncSpeech: () => syncRef.current(), applySpeechSettings };
 }

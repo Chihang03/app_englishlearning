@@ -70,7 +70,7 @@ function App() {
   const [connectionError, setConnectionError] = useState(false);
   const authChecking = useRef(false);
   const signedOut = useCallback(() => setUser(null), []);
-  const updateAvailable = useVersionUpdate();
+  const { available: updateAvailable, check: checkVersion } = useVersionUpdate();
 
   const checkSession = useCallback(async () => {
     if (authChecking.current) return;
@@ -116,7 +116,7 @@ function App() {
   // Remounting per account keeps one learner's cards and stats from lingering
   // on screen after a different one signs in.
   return <Trainer key={user.id} user={user} onSignedOut={signedOut}
-    onSessionChanged={setUser} updateAvailable={updateAvailable} />;
+    onSessionChanged={setUser} updateAvailable={updateAvailable} checkVersion={checkVersion} />;
 }
 
 type Page = "home" | "study" | "settings" | "muted-words" | `word-list/${string}`;
@@ -126,12 +126,14 @@ function pageFromHash(): Page {
   return value === "study" || value === "settings" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
 }
 
-function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
+function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVersion }: {
   user: User; onSignedOut: () => void; onSessionChanged: (user: User) => void; updateAvailable: boolean;
+  checkVersion: () => Promise<void>;
 }) {
   const readCache = useMemo(() => new ReadCache(request), [user.id]);
   const [resumeRequested, setResumeRequested] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
   const [sessionEnding, setSessionEnding] = useState(false);
   const [writeEpoch, setWriteEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
@@ -154,7 +156,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
   const studyToolsOpenRef = useRef(false);
   const [studyTool, setStudyTool] = useState<{ tool: StudyTool; card: Card; showTranslation: boolean } | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
-  const { speech, updateSpeech } = useSpeechSettings(user.id, onSignedOut,
+  const { speech, updateSpeech, syncSpeech, applySpeechSettings } = useSpeechSettings(user.id, onSignedOut,
     () => readCache.get<Settings>("/api/settings", 30000));
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -349,7 +351,10 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
 
   async function loadSettings() {
     const payload = await readCache.get<Settings>("/api/settings", 30000);
-    if (mountedRef.current && !settingsSavingRef.current) setSettings(payload);
+    if (mountedRef.current && !settingsSavingRef.current) {
+      setSettings(payload);
+      applySpeechSettings(payload);
+    }
   }
 
   async function loadWordLists() {
@@ -697,25 +702,36 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
   }, []);
 
   useForegroundRefresh(() => setResumeRequested(true));
+  async function refreshData(force = false) {
+    if (refreshingRef.current || sessionEnding || submittingRef.current || loadingRef.current || settingsSavingRef.current || mutePendingRef.current || hintPendingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    if (force) setMessage("");
+    try {
+      const session = await request<{ user: User }>("/api/auth/me");
+      if (!mountedRef.current) return;
+      if (session.user.id !== user.id || session.user.role !== user.role) {
+        onSessionChanged(session.user);
+        return;
+      }
+      if (force) await syncSpeech();
+      if (!mountedRef.current) return;
+      readCache.clear();
+      // Finish all reads before allowing a version reload, even if one fails.
+      const downloads = await Promise.allSettled([loadStats(true), loadSettings(), loadWordLists()]);
+      const failed = downloads.find((download) => download.status === "rejected" && isUnauthorized(download.reason))
+        ?? downloads.find((download) => download.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+      if (force && mountedRef.current) await checkVersion();
+    } finally {
+      refreshingRef.current = false;
+      if (mountedRef.current) setRefreshing(false);
+    }
+  }
   useEffect(() => {
     if (!resumeRequested || refreshing || sessionEnding || submitting || loading || settingsSaving || mutePending || hintPending) return;
     setResumeRequested(false);
-    setRefreshing(true);
-    void guarded(async () => {
-      try {
-        const session = await request<{ user: User }>("/api/auth/me");
-        if (!mountedRef.current) return;
-        if (session.user.id !== user.id) {
-          onSessionChanged(session.user);
-          return;
-        }
-        readCache.clear();
-        // Reconcile read-only data without replacing the current question or draft.
-        await Promise.all([loadStats(true), loadSettings(), loadWordLists()]);
-      } finally {
-        if (mountedRef.current) setRefreshing(false);
-      }
-    });
+    void guarded(() => refreshData());
   }, [resumeRequested, refreshing, sessionEnding, submitting, loading, settingsSaving, mutePending, hintPending]);
 
   useEffect(() => {
@@ -795,8 +811,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
   return (
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : page === "muted-words" ? "is-managing-words" : ""}`}>
       {page === "home" ? (
-        <Home user={user} stats={stats} ready={statsReady}
-          onRefresh={() => { setMessage(""); void guarded(() => loadStats(true)); }} />
+        <Home user={user} stats={stats} ready={statsReady} refreshing={refreshing}
+          onRefresh={() => { void guarded(() => refreshData(true)); }} />
       ) : null}
 
       {/* Hidden rather than unmounted: returning Home preserves the current
@@ -908,8 +924,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable }: {
   );
 }
 
-function Home({ user, stats, ready, onRefresh }: {
-  user: User; stats: Stats; ready: boolean;
+function Home({ user, stats, ready, refreshing, onRefresh }: {
+  user: User; stats: Stats; ready: boolean; refreshing: boolean;
   onRefresh: () => void;
 }) {
   const value = (count: number) => ready ? count.toLocaleString() : "—";
@@ -927,7 +943,7 @@ function Home({ user, stats, ready, onRefresh }: {
         </div>
       </section>
       <section className="overview-section">
-        <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} aria-label="刷新学习数据"><Icon name="refresh" /> 刷新</button></div>
+        <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing} aria-label="刷新学习数据"><Icon name="refresh" /> {refreshing ? "刷新中…" : "刷新"}</button></div>
         <div className="overview-grid">
           <Metric icon="book" label="累计学过" value={value(stats.total_learned)} />
           <Metric icon="refresh" label="待复习错词" value={value(stats.due_lapses)} />
