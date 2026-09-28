@@ -11,6 +11,12 @@ from typing import Any
 
 from lxml import html
 
+# Export and server share the same spelling classification, without lxml at runtime.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.word_forms import FORM_LABELS, pos_family, regular_form_types
+
 
 POS = {
     "noun": "名词", "verb": "动词", "transitive verb": "及物动词",
@@ -106,12 +112,83 @@ def example(sentence: str, word: str, aliases: list[str], pos: str) -> dict[str,
     return None
 
 
+def inflections_from_root(root: Any, word: str, aliases: list[str]) -> dict[str, dict[str, list[str]]]:
+    """Keep grammatical inflection labels; search aliases also contain derivatives."""
+    result: dict[str, dict[str, list[str]]] = {}
+    families = {pos_family(text(n)) for cls in ("ps", "pos") for n in nodes(root, cls)
+                if ancestor(n, ("subEntry",)) is None} - {""}
+
+    def add(family: str, form: str, types: list[str]) -> None:
+        if word.casefold() == "be" and family == "verb":
+            types = {"am": ["first_person_singular"], "is": ["third_person_singular"],
+                     "are": ["second_person_or_plural"], "was": ["past"], "were": ["past"]}.get(form, types)
+        if family == "verb" and "ing" in types and not form.endswith("ing"):
+            types = [kind for kind in types if kind != "ing"] or regular_form_types(word,form,family)
+        if "third_person_singular" in types:
+            types = [kind for kind in types if kind != "present"]
+        if family and types:
+            saved = result.setdefault(family, {}).setdefault(form, [])
+            saved[:] = [kind for kind in FORM_LABELS if kind in {*saved, *types}]
+            if "third_person_singular" in saved and "present" in saved:
+                saved.remove("present")
+
+    for family in families:
+        for alias in aliases:
+            form = alias.strip().casefold()
+            add(family, form, regular_form_types(word, form, family))
+    alias_set = {a.strip().casefold() for a in aliases}
+    for group in nodes(root, "infg"):
+        if ancestor(group, ("subEntry",)) is not None:
+            continue
+        block = ancestor(group, ("gramb", "se1"))
+        positions = [n for cls in ("ps", "pos") for n in nodes(block, cls)] if block is not None else []
+        family = pos_family(text(positions[0])) if positions else ""
+        types: list[str] = []
+        for node in group.iterdescendants():
+            if has(node, "gr") or has(node, "sy"):
+                label = text(node).casefold()
+                types = []
+                if "past participle" in label:
+                    types.append("past_participle")
+                if "past" in label.replace("past participle", ""):
+                    types.append("past")
+                if "present participle" in label:
+                    types.append("ing")
+                elif "present" in label:
+                    types.append("present")
+                if "singular" in label and ("third" in label or "3rd" in label) and "past" not in label:
+                    types = [kind for kind in types if kind != "present"]
+                    types.append("third_person_singular")
+                if "plural" in label:
+                    types.append("plural")
+                if "comparative" in label:
+                    types.append("comparative")
+                if "superlative" in label:
+                    types.append("superlative")
+                # "present participle etc." introduces both -ing and -ed
+                # variants. Its umbrella label does not describe every form.
+                if "etc" in label:
+                    types = []
+            elif has(node, "inf"):
+                for form in re.findall(r"[a-z]+(?:['-][a-z]+)*", text(node).casefold()):
+                    if form not in alias_set and form != word.casefold():
+                        continue
+                    if types:
+                        labelled_family = ("noun" if "plural" in types else
+                            "adjective" if any(t in types for t in ("comparative", "superlative")) else "verb")
+                        add(family or labelled_family, form, types)
+                    else:
+                        for candidate in ({family} if family else families):
+                            add(candidate, form, regular_form_types(word, form, candidate))
+    return result
+
+
 def parse_record(definition_html: str, word: str, language: str, aliases: list[str]) -> dict[str, Any]:
     try:
         root = html.fromstring(definition_html)
     except (TypeError, ValueError):
         return {}
-    result: dict[str, Any] = {"senses": []}
+    result: dict[str, Any] = {"senses": [], "inflections": inflections_from_root(root,word,aliases)}
     phones = nodes(root, "ph")
     ipa = [p for p in phones if has(p, "t_IPA")] or phones
     if ipa:

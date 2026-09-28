@@ -103,6 +103,7 @@ class StudyToolsTests(unittest.TestCase):
 
     def test_v8_upgrade_preserves_existing_data_and_makes_backup(self):
         with database.connect() as conn:
+            conn.execute("DROP TABLE user_sense_examples")
             conn.execute("DROP TABLE admin_content_edits")
             conn.execute("DROP TABLE admin_content_overrides")
             conn.execute("DROP TABLE content_reports")

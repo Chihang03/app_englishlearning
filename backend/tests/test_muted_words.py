@@ -132,6 +132,7 @@ class MutedWordsTests(unittest.TestCase):
         tables = ('users', 'sense_srs_state', 'adaptive_memory', 'review_history', 'study_attempts')
         with database.connect() as conn:
             before = {table: [tuple(row) for row in conn.execute(f'SELECT * FROM {table}')] for table in tables}
+            conn.execute('DROP TABLE user_sense_examples')
             conn.execute('DROP TABLE user_muted_words')
             conn.execute("DROP TABLE admin_content_edits")
             conn.execute("DROP TABLE admin_content_overrides")

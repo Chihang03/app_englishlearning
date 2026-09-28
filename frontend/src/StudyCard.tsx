@@ -39,7 +39,7 @@ export function StudyCard({ card, result, answer, showTranslation, marks, soundI
     <div className="question-heading">
       <div className="question-labels">
         <span className="pill">{!card ? "加载中…" : card.status === "New" && !card.needs_correction ? (card.is_new_word ? "新词" : "新用法") : "复习"}</span>
-        <span className="part-of-speech">{card?.part_of_speech}</span>
+        <span className="part-of-speech">{card?.part_of_speech}{card?.answer_form_label ? ` · ${card.answer_form_label}` : ""}</span>
       </div>
       <button type="button" className="icon-button pronunciation-button" onClick={onWordHint}
         disabled={wordHintDisabled} aria-label={readOnly ? "重新朗读上一题句子" : "朗读单词"} title={readOnly ? "朗读句子" : "朗读单词"}>

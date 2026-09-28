@@ -238,7 +238,12 @@ def read_mac_dictionary(
                 details = parse_record(record.defi, key, language, aliases)
                 bucket = entry.setdefault("mac_zh" if language == "zh" else "mac_en", {})
                 for field, value in details.items():
-                    if field in ("examples", "senses"):
+                    if field == "inflections":
+                        for family, forms in value.items():
+                            for form, kinds in forms.items():
+                                saved = bucket.setdefault(field, {}).setdefault(family, {}).setdefault(form, [])
+                                saved[:] = sorted(set(saved + kinds))
+                    elif field in ("examples", "senses"):
                         bucket.setdefault(field, []).extend(value)
                     elif value and not bucket.get(field):
                         bucket[field] = value
@@ -408,6 +413,8 @@ def build(
         })
 
     _headword_export(entries, output.with_name("source_word_lists.json"))
+    from export_word_forms import write_word_forms
+    write_word_forms(entries, output.with_name("word_forms.json"))
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         json.dumps({"format_version": 2, "lists": list_metadata, "words": words}, ensure_ascii=False, separators=(",", ":")) + "\n",

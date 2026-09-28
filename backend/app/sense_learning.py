@@ -12,6 +12,7 @@ from .senses import contains_target, example_for_sense, senses_for_word, write_s
 from .srs import RELEARNING_DELAY_SECONDS, next_state
 from .adaptive_memory import advance_memory, maybe_calibrate, memory_summary
 from .learning_filters import learnable_word_sql
+from .word_forms import answer_form_label
 
 
 # Both counters and card selection use the same due-time and visibility rules.
@@ -108,6 +109,7 @@ def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[
             "definition_cn": sense["definition_cn"], "definition_en": sense["definition_en"],
             "cloze_sentence": cloze, "example_sentence": example["sentence"],
             "example_translation_cn": example["translation_cn"], "answer_form": example["target_form"],
+            "answer_form_label": answer_form_label(sense["word"],example["target_form"],sense["part_of_speech"],example["sentence"]),
             "status": sense["status"], "is_new_word": started is None, "remaining_today": remaining_today,
             "attempt_id": attempt["id"], "needs_correction": bool(attempt["hint_used"]),
             "pronunciation_used": bool(attempt["pronunciation_used"]),
