@@ -138,6 +138,7 @@ export type Stats = {
   learned_senses: number;
   new_senses: number;
   due_senses: number;
+  due_words: number;
   mastered_senses: number;
   legacy_unmapped_words: number;
 };

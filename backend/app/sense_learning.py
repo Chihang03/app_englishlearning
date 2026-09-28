@@ -61,6 +61,7 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         FROM sense_srs_state p JOIN learning_units u ON u.id=p.learning_unit_id JOIN words w ON w.id=u.word_id
         WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()}""", (user_id,)).fetchone()
     due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
+        COUNT(DISTINCT word_id) AS due_words,
         COUNT(DISTINCT CASE WHEN status='Learning' THEN word_id END) AS learning_due,
         COUNT(DISTINCT CASE WHEN wrong_count>0 THEN word_id END) AS due_lapses,
         COUNT(DISTINCT CASE WHEN is_relearning THEN word_id END) AS pending_relearning,

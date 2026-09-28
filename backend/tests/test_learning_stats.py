@@ -87,6 +87,28 @@ class CompletedCardStatsTests(unittest.TestCase):
             conn.execute('UPDATE review_history SET attempt_id=NULL WHERE user_id=?', (self.uid,))
         self.assertEqual(self.stats()['today_completed_cards'], 1)
 
+    def test_immediate_review_deduplicates_words_and_waits_for_relearning(self):
+        first = self.next()
+        self.assertTrue(self.review(first, first['answer_form']).json()['is_independent'])
+        self.assertEqual(self.stats()['learning'], 0)
+        second = self.next()
+        self.assertEqual(second['id'], first['id'])
+        self.assertNotEqual(second['learning_unit_id'], first['learning_unit_id'])
+        self.assertFalse(self.review(second, 'wrong').json()['is_correct'])
+        self.assertEqual(self.stats()['learning'], 1)
+        self.assertTrue(self.review(second, second['answer_form']).json()['is_correct'])
+        before = self.stats()
+        self.assertEqual((before['due_senses'], before['due_words']), (0, 0))
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=? AND learning_unit_id=?",
+                         (self.uid, first['learning_unit_id']))
+        regular = self.stats()
+        self.assertEqual((regular['due_senses'], regular['due_words']), (1, 1))
+        self.ready_relearning()
+        ready = self.stats()
+        self.assertEqual((ready['due_senses'], ready['due_words']), (2, 1))
+        self.assertEqual(ready['pending_relearning_senses'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()
