@@ -146,9 +146,11 @@ DATA_DIR=/path/to/persistent-data .venv/bin/python scripts/create_admin.py
 
 脚本交互输入初始密码，只保存口令散列。重复运行不会重设已有管理员的密码；遇到同名学习账号会停止并保留该账号。普通注册请求不能指定管理员角色。
 
-数据库 v11 为反馈增加处理备注、处理时间及处理管理员；原反馈和学习记录保留。标记反馈已处理只更新反馈状态和备注。
+数据库 v11 为反馈增加处理备注、处理时间及处理管理员；v12 保存内容修正和修改记录。在反馈详情点击「修正内容」可修改对应义项的中英文释义、例句、翻译、答案词形和音标；「保存修正并处理」会更新实际学习内容并将反馈标为已处理。原题目快照保留，词、义项及例句 ID 保持不变，原学习历史与 SRS 保留。受影响的未完成题目会结束，下次取题使用修正后的内容。答案词形必须存在于例句中，冲突或已归档题目会拒绝更新。
 
-管理接口：`GET /api/admin/overview`、`GET /api/admin/users?offset=0&limit=50`、`GET /api/admin/users/{id}`、`GET /api/admin/reports?status=pending&offset=0&limit=50`、`GET /api/admin/reports/{id}`、`PATCH /api/admin/reports/{id}`。列表每页最多 100 条；响应不包含密码、会话令牌或通行密钥凭据。
+内容修正保存在持久化数据库中，重启或重新导入同一义项/例句的源词库时继续应用，保持例句 ID；上游删除的义项/例句仍归档。音标修改影响音标文本，浏览器的实际朗读声音仍由语音设置决定。管理页可查看提交时内容及最近十次修改记录。
+
+管理接口：`GET /api/admin/overview`、`GET /api/admin/users?offset=0&limit=50`、`GET /api/admin/users/{id}`、`GET /api/admin/reports?status=pending&offset=0&limit=50`、`GET /api/admin/reports/{id}`、`PATCH /api/admin/reports/{id}`、`PATCH /api/admin/reports/{id}/content`。列表每页最多 100 条；响应不包含密码、会话令牌或通行密钥凭据。
 
 ## 通行密钥（Passkey）
 

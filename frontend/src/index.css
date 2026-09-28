@@ -77,6 +77,10 @@ h1, h2, p { margin: 0; }
 .admin-notes textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; background: var(--surface); resize: vertical; }
 .admin-report-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .admin-report-actions button { flex: 1; }
+.admin-content-form { display: grid; gap: 18px; margin-top: 18px; }
+.admin-edit-record { padding: 14px 0; border-top: 1px solid var(--line); }
+.admin-edit-record h3 { font-size: 14px; font-weight: 600; }
+.admin-edit-record > div { margin-top: 14px; font-size: 14px; }
 .admin-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
 .admin-security summary { font-weight: 650; }
 .admin-security input[type="password"] { height: 48px; font-size: 16px; border-radius: 12px; border-color: #d8dfd1; }

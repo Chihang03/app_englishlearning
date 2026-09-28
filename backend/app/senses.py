@@ -5,6 +5,8 @@ import hashlib
 import re
 from typing import Any
 
+from .content_overrides import override_values, overridden_example_id
+
 
 STATE_FIELDS = ("review_count", "correct_count", "wrong_count", "lapse_count",
                 "easiness_factor", "interval_days", "next_review_date", "status")
@@ -50,7 +52,20 @@ def save_senses(conn, word_id: int, senses: list[dict[str, Any]]) -> None:
         """, (word_id, sense["key"], sense["part_of_speech"], sense.get("definition_cn") or "",
                sense.get("definition_en"), sense.get("source") or "本地词库", sense.get("position", position)))
         sense_id = conn.execute("SELECT id FROM word_senses WHERE word_id=? AND sense_key=?", (word_id,sense["key"])).fetchone()[0]
+        corrections = override_values(conn, 'sense', sense_id)
+        if corrections:
+            conn.execute("UPDATE word_senses SET definition_cn=?,definition_en=? WHERE id=?",
+                (corrections.get('definition_cn', sense.get('definition_cn') or ''), corrections.get('definition_en', sense.get('definition_en')), sense_id))
         for example in sense["examples"]:
+            existing = overridden_example_id(conn, sense_id, example['sentence'])
+            if existing is None:
+                row = conn.execute('SELECT id FROM sense_examples WHERE sense_id=? AND sentence=?', (sense_id,example['sentence'])).fetchone()
+                existing = row[0] if row else None
+            corrected = {**example, **override_values(conn, 'example', existing)} if existing is not None else example
+            if existing is not None:
+                conn.execute("""UPDATE sense_examples SET sentence=?,translation_cn=?,target_form=?,source=?,active=1 WHERE id=?""",
+                    (corrected['sentence'],corrected.get('translation_cn'),corrected['target_form'],example.get('source') or sense.get('source') or '本地词库', existing))
+                continue
             conn.execute("""
                 INSERT INTO sense_examples(sense_id,sentence,translation_cn,target_form,source,active)
                 VALUES(?,?,?,?,?,1) ON CONFLICT(sense_id,sentence) DO UPDATE SET
