@@ -279,7 +279,7 @@ def seed_vocabulary_catalog() -> None:
             SET word_count = (
                 SELECT COUNT(*) FROM word_list_memberships m
                 WHERE m.list_id = vocabulary_lists.list_id
-                  AND EXISTS(SELECT 1 FROM word_senses s WHERE s.word_id=m.word_id AND s.active=1)
+                  AND EXISTS(SELECT 1 FROM word_senses s WHERE s.word_id=m.word_id AND s.active=1 AND s.learning_enabled=1)
             )
             """
         )
@@ -327,7 +327,7 @@ def get_vocabulary_lists(user_id: int) -> list[dict[str, Any]]:
                     MIN(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mastered
                 FROM word_senses s
                 LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
-                WHERE s.active=1 GROUP BY s.word_id
+                WHERE s.active=1 AND s.learning_enabled=1 GROUP BY s.word_id
             )
             SELECT v.list_id,v.title,v.description,v.source_url,v.source_word_count,
                 COUNT(p.word_id) AS word_count,

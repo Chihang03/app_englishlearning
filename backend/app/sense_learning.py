@@ -23,7 +23,7 @@ _DUE_SENSES_SQL = f"""SELECT p.*,s.word_id,q.ready_at,q.queue_order,
     JOIN words w ON w.id=s.word_id
     LEFT JOIN relearning_queue q ON q.user_id=p.user_id AND q.sense_id=p.sense_id
     LEFT JOIN adaptive_memory m ON m.user_id=p.user_id AND m.sense_id=p.sense_id
-    WHERE p.user_id=? AND s.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)
+    WHERE p.user_id=? AND s.active=1 AND s.learning_enabled=1 AND (w.owner_id IS NULL OR w.owner_id=?)
       AND {learnable_word_sql('p.user_id')}
       AND (p.status!='Mature' OR m.sense_id IS NOT NULL)
       AND ((q.sense_id IS NULL AND p.next_review_date<=?) OR q.ready_at<=?)
@@ -43,17 +43,18 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
     new = conn.execute(f"""SELECT COUNT(DISTINCT w.id) AS words,COUNT(*) AS senses
         FROM word_senses s JOIN words w ON w.id=s.word_id
         LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
-        WHERE s.active=1 AND p.sense_id IS NULL AND {visible}
+        WHERE s.active=1 AND s.learning_enabled=1 AND p.sense_id IS NULL AND {visible}
           AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)
     """, (user_id,*args)).fetchone()
     new_words = conn.execute(f"""SELECT COUNT(*) FROM words w WHERE {visible}
-        AND EXISTS(SELECT 1 FROM word_senses s WHERE s.word_id=w.id AND s.active=1)
+        AND EXISTS(SELECT 1 FROM word_senses s WHERE s.word_id=w.id AND s.active=1 AND s.learning_enabled=1)
         AND NOT EXISTS(SELECT 1 FROM srs_state l WHERE l.word_id=w.id AND l.user_id=?)
         AND NOT EXISTS(SELECT 1 FROM word_senses s JOIN sense_srs_state p ON p.sense_id=s.id
-            WHERE s.word_id=w.id AND p.user_id=?)""", (*args,user_id,user_id)).fetchone()[0]
+            WHERE s.word_id=w.id AND s.learning_enabled=1 AND p.user_id=?)""", (*args,user_id,user_id)).fetchone()[0]
     learned = conn.execute("""SELECT COUNT(*) FROM (
         SELECT word_id FROM srs_state WHERE user_id=? UNION
-        SELECT s.word_id FROM word_senses s JOIN sense_srs_state p ON p.sense_id=s.id WHERE p.user_id=?
+        SELECT s.word_id FROM word_senses s JOIN sense_srs_state p ON p.sense_id=s.id
+            WHERE p.user_id=? AND s.learning_enabled=1
     )""", (user_id,user_id)).fetchone()[0]
     progress = conn.execute(f"""SELECT COUNT(*) AS learned_senses,
         COUNT(DISTINCT CASE WHEN p.status='Learning' AND {learnable_word_sql('p.user_id')} THEN s.word_id END) AS learning,
@@ -61,7 +62,7 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND {learnable_word_sql('p.user_id')} THEN s.word_id END) AS lapse_words
         FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id
         JOIN words w ON w.id=s.word_id
-        WHERE p.user_id=? AND s.active=1""", (user_id,)).fetchone()
+        WHERE p.user_id=? AND s.active=1 AND s.learning_enabled=1""", (user_id,)).fetchone()
     due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
         COUNT(DISTINCT CASE WHEN status='Learning' THEN word_id END) AS learning_due,
         COUNT(DISTINCT CASE WHEN wrong_count>0 THEN word_id END) AS due_lapses,
@@ -75,13 +76,13 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
             SUM(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 ELSE 0 END) AS established,
             SUM(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mature
             FROM word_senses s LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
-            WHERE s.active=1 GROUP BY s.word_id)""", (user_id,)).fetchone()
+            WHERE s.active=1 AND s.learning_enabled=1 GROUP BY s.word_id)""", (user_id,)).fetchone()
     legacy = conn.execute("SELECT COUNT(*) FROM srs_state WHERE user_id=? AND sense_migrated=0", (user_id,)).fetchone()[0]
     upcoming = conn.execute(f"""SELECT MIN(q.ready_at) AS next_relearning_at
         FROM relearning_queue q JOIN word_senses s ON s.id=q.sense_id
         JOIN words w ON w.id=s.word_id
         JOIN sense_srs_state p ON p.user_id=q.user_id AND p.sense_id=q.sense_id
-        WHERE q.user_id=? AND s.active=1 AND p.status!='Mature' AND q.ready_at>?
+        WHERE q.user_id=? AND s.active=1 AND s.learning_enabled=1 AND p.status!='Mature' AND q.ready_at>?
         AND (w.owner_id IS NULL OR w.owner_id=?)
         AND {learnable_word_sql('q.user_id')}
         AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)""",
@@ -140,13 +141,13 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
     active = conn.execute(f"""SELECT a.* FROM study_attempts a
         JOIN word_senses s ON s.id=a.sense_id JOIN words w ON w.id=s.word_id
         JOIN sense_examples e ON e.id=a.example_id
-        WHERE a.user_id=? AND a.completed_at IS NULL AND s.active=1 AND e.active=1
+        WHERE a.user_id=? AND a.completed_at IS NULL AND s.active=1 AND s.learning_enabled=1 AND e.active=1
         AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('a.user_id')}
         ORDER BY a.created_at,a.id LIMIT 1""",
         (user_id,user_id)).fetchone()
     # Catalog updates can archive a round; retire it so it cannot block a replacement.
     conn.execute("""UPDATE study_attempts SET completed_at=? WHERE user_id=? AND completed_at IS NULL
-        AND (sense_id IN (SELECT id FROM word_senses WHERE active=0)
+        AND (sense_id IN (SELECT id FROM word_senses WHERE active=0 OR learning_enabled=0)
           OR example_id IN (SELECT id FROM sense_examples WHERE active=0))""", (utc_now_iso(),user_id))
     remaining = conn.execute(f"SELECT COUNT(*) FROM ({_DUE_SENSES_SQL})", due_args).fetchone()[0]
     if active is not None:
@@ -167,7 +168,7 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
         pending = conn.execute(f"""SELECT MIN(q.ready_at) AS ready_at FROM relearning_queue q
             JOIN word_senses s ON s.id=q.sense_id JOIN words w ON w.id=s.word_id
             JOIN sense_srs_state p ON p.sense_id=q.sense_id AND p.user_id=q.user_id
-            WHERE q.user_id=? AND s.active=1 AND p.status!='Mature' AND q.ready_at>?
+            WHERE q.user_id=? AND s.active=1 AND s.learning_enabled=1 AND p.status!='Mature' AND q.ready_at>?
             AND (w.owner_id IS NULL OR w.owner_id=?)
             AND {learnable_word_sql('q.user_id')}
             AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)
@@ -178,7 +179,7 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
         visible, args = selected_filter(user_id)
         row = conn.execute(f"""SELECT s.*,w.word,'New' AS status FROM word_senses s
             JOIN words w ON w.id=s.word_id LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
-            WHERE s.active=1 AND p.sense_id IS NULL AND {visible}
+            WHERE s.active=1 AND s.learning_enabled=1 AND p.sense_id IS NULL AND {visible}
               AND EXISTS(SELECT 1 FROM sense_examples e WHERE e.sense_id=s.id AND e.active=1)
             ORDER BY CASE WHEN EXISTS(SELECT 1 FROM srs_state l WHERE l.word_id=w.id AND l.user_id=?)
               OR EXISTS(SELECT 1 FROM sense_srs_state other JOIN word_senses os ON os.id=other.sense_id
@@ -231,13 +232,13 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
     if sense_id is None:
         pairs = conn.execute("""SELECT s.id AS sense_id,e.id AS example_id FROM word_senses s
             JOIN sense_examples e ON e.sense_id=s.id JOIN words w ON w.id=s.word_id
-            WHERE w.id=? AND s.active=1 AND e.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)""", (word_id,user_id)).fetchall()
+            WHERE w.id=? AND s.active=1 AND s.learning_enabled=1 AND e.active=1 AND (w.owner_id IS NULL OR w.owner_id=?)""", (word_id,user_id)).fetchall()
         if len(pairs) != 1:
             raise HTTPException(status_code=422,detail="Select a specific sense_id and example_id")
         sense_id,example_id = pairs[0]["sense_id"],pairs[0]["example_id"]
     row = conn.execute("""SELECT e.*,w.word,s.definition_cn,s.definition_en FROM sense_examples e
         JOIN word_senses s ON s.id=e.sense_id JOIN words w ON w.id=s.word_id
-        WHERE e.id=? AND s.id=? AND w.id=? AND s.active=1 AND e.active=1
+        WHERE e.id=? AND s.id=? AND w.id=? AND s.active=1 AND s.learning_enabled=1 AND e.active=1
             AND (w.owner_id IS NULL OR w.owner_id=?)""", (example_id,sense_id,word_id,user_id)).fetchone()
     if row is None or not contains_target(row["sentence"],row["target_form"]):
         raise HTTPException(status_code=404,detail="Sense/example pair not found")
