@@ -32,6 +32,13 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
   const [saving, setSaving] = useState(false);
   const [reportId, setReportId] = useState<number | null>(null);
   const [loading, setLoading] = useState(tool === "meanings");
+  // Several source senses can attest the same form; show the spelling once.
+  const formLabels = new Map<string, Set<string>>();
+  for (const form of meanings?.morphology.inflected_forms || []) {
+    const labels = formLabels.get(form.spelling) || new Set<string>();
+    for (const label of form.label.split("／")) labels.add(label);
+    formLabels.set(form.spelling, labels);
+  }
 
   useEffect(() => {
     activeRef.current = true;
@@ -129,8 +136,8 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
               ))}
               {meanings.morphology.inflected_forms.length ? <section className="morphology-group">
                 <h3>屈折形式</h3>
-                <div className="morphology-forms">{meanings.morphology.inflected_forms.map((form) => (
-                  <div key={`${form.spelling}-${form.scope_sense_id}`}><span>{form.spelling}</span><span>{form.label}</span></div>
+                <div className="morphology-forms">{Array.from(formLabels, ([spelling, labels]) => (
+                  <div key={spelling}><span>{spelling}</span><span>{Array.from(labels).join("／")}</span></div>
                 ))}</div>
               </section> : null}
               {peerGroup(meanings.morphology.derived_words.every((peer) => peer.direction === "incoming") ? "派生来源" : "派生词", meanings.morphology.derived_words)}
