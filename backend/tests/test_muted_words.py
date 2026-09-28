@@ -98,10 +98,9 @@ class MutedWordsTests(unittest.TestCase):
             updated = fixtures.catalog()['words'][0]['senses'] + [
                 fixtures.sense('speech', '演讲', 'He gave an address.')]
             save_senses(conn, card['id'], updated)
-        response = self.client.post('/api/words', json={
+        fixtures.legacy_private_word(self.uid, {
             'word': 'Address', 'part_of_speech': '名词', 'definition_cn': '地址',
             'example_sentence': 'Please give me your Address.'})
-        self.assertEqual(response.status_code, 200, response.text)
         self.assertIsNone(self.next())
         self.assertEqual(self.client.get('/api/stats').json()['new_senses'], 0)
         self.restore()
@@ -110,9 +109,9 @@ class MutedWordsTests(unittest.TestCase):
 
     def test_authentication_account_isolation_and_private_word_ownership(self):
         card = self.next()
-        private = self.client.post('/api/words', json={
+        private = fixtures.legacy_private_word(self.uid, {
             'word': 'private', 'part_of_speech': '形容词', 'definition_cn': '私有',
-            'example_sentence': 'This is private.'}).json()['word']
+            'example_sentence': 'This is private.'})
         self.mute(card)
         with TestClient(fixtures.app) as other:
             self.assertEqual(other.get('/api/muted-words').status_code, 401)

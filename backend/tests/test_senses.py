@@ -14,6 +14,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import database, migrations
 from app.main import app
+from app.senses import authored_sense, save_senses
 
 
 def sense(key, meaning, sentence, target="address", pos="名词", extra=None):
@@ -36,6 +37,24 @@ def catalog():
         {"word":"bank","pronunciation":"bank","part_of_speech":"名词","definition_cn":"银行",
          "example_sentence":"She went to the bank.","memberships":[{"list_id":"cet6","position":2}],
          "senses":[sense("finance","银行","She went to the bank.",target="bank")]}]}
+
+
+def legacy_private_word(user_id, data):
+    """Seed historical content directly; the retired import API cannot create it."""
+    word = {"definition_en": None, "example_translation_cn": None,
+            "pronunciation": data["word"], **data}
+    with database.connect() as conn:
+        cursor = conn.execute(
+            """INSERT INTO words(owner_id,word,part_of_speech,definition_cn,
+                definition_en,example_sentence,example_translation_cn,pronunciation)
+                VALUES(?,?,?,?,?,?,?,?)""",
+            (user_id, *(word[key] for key in (
+                "word", "part_of_speech", "definition_cn", "definition_en",
+                "example_sentence", "example_translation_cn", "pronunciation"))),
+        )
+        word["id"] = cursor.lastrowid
+        save_senses(conn, word["id"], authored_sense(word))
+    return word
 
 
 class SenseLearningTests(unittest.TestCase):
@@ -374,14 +393,56 @@ class SenseLearningTests(unittest.TestCase):
         with database.connect() as conn:self.assertEqual(conn.execute('SELECT COUNT(*) FROM review_history').fetchone()[0],0)
         self.assertEqual(self.client.post('/api/review',json={'word_id':first['id'],'user_answer':'address'}).status_code,422)
 
-    def test_private_words_are_isolated_and_have_a_learning_sense(self):
+    def test_legacy_private_words_remain_learnable_isolated_and_preserved(self):
         data={'word':'custom','part_of_speech':'名词','definition_cn':'习惯','example_sentence':'This is an old custom.'}
-        added=self.client.post('/api/words',json=data);self.assertEqual(added.status_code,200,added.text)
+        saved=legacy_private_word(self.uid,data)
+        self.client.patch('/api/settings',json={'selected_word_list_ids':[]})
+        card=self.next();self.assertEqual(card['word'],'custom')
+        reviewed=self.review(card,'custom')
+        self.assertEqual(reviewed.status_code,200,reviewed.text)
+        self.assertTrue(reviewed.json()['is_independent'])
+        tables=('words','word_senses','sense_examples','sense_srs_state',
+                'adaptive_memory','review_history','user_sense_examples')
         with database.connect() as conn:
-            word_id=added.json()['word']['id'];pair=conn.execute('SELECT s.id AS sense_id,e.id AS example_id FROM word_senses s JOIN sense_examples e ON e.sense_id=s.id WHERE s.word_id=?',(word_id,)).fetchone()
-        other=TestClient(app);other.post('/api/auth/register',json={'username':'other','password':'test-password-123'})
-        result=other.post('/api/review',json={'word_id':word_id,**dict(pair),'user_answer':'custom'})
-        self.assertEqual(result.status_code,404);self.assertFalse(other.get('/api/dictionary/custom').json()['available'])
+            before={table:[tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                    for table in tables}
+        database.init_database()
+        with database.connect() as conn:
+            for table in tables:
+                self.assertEqual([tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')],before[table],table)
+        self.assertTrue(self.client.get('/api/dictionary/custom').json()['available'])
+        with TestClient(app) as other:
+            other.post('/api/auth/register',json={'username':'other','password':'test-password-123'})
+            result=other.post('/api/review',json={'word_id':saved['id'],
+                'sense_id':card['sense_id'],'example_id':card['example_id'],'user_answer':'custom'})
+            self.assertEqual(result.status_code,404)
+            self.assertFalse(other.get('/api/dictionary/custom').json()['available'])
+
+    def test_retired_import_routes_reject_all_payloads_without_learning_data_writes(self):
+        self.review(self.next(),'address')
+        data={'word':'custom','part_of_speech':'名词','definition_cn':'习惯','example_sentence':'This is an old custom.'}
+        tables=('words','word_senses','sense_examples','sense_srs_state',
+                'adaptive_memory','review_history','study_attempts','user_sense_examples')
+        with database.connect() as conn:
+            before={table:[tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                    for table in tables}
+        with TestClient(app) as anonymous:
+            for client in (self.client,anonymous):
+                for path,valid in (('/api/words',data),('/api/words/import',[data])):
+                    for payload in (valid,{}, {'words':[data]}):
+                        response=client.post(path,json=payload)
+                        self.assertEqual(response.status_code,410,response.text)
+                        self.assertEqual(response.json(),{'detail':'用户自导入功能已停用'})
+                        self.assertEqual(response.headers['cache-control'],'no-store')
+                    malformed=client.post(path,content='{',headers={'Content-Type':'application/json'})
+                    self.assertEqual(malformed.status_code,410,malformed.text)
+        with database.connect() as conn:
+            for table in tables:
+                self.assertEqual([tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')],before[table],table)
+        schema=self.client.get('/openapi.json').json()
+        self.assertNotIn('/api/words',schema['paths'])
+        self.assertNotIn('/api/words/import',schema['paths'])
+        self.assertNotIn('WordInput',schema['components']['schemas'])
 
     def test_reimport_keeps_ids_history_and_archives_removed_senses(self):
         first=self.next();self.review(first,'address')

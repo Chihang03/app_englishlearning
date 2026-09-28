@@ -78,17 +78,16 @@ class BasicWordsTests(unittest.TestCase):
         self.assertNotEqual(restored['attempt_id'], card['attempt_id'])
         self.assertTrue(restored['is_relearning'])
 
-    def test_exact_600_boundary_and_case_insensitive_private_imports(self):
+    def test_exact_600_boundary_and_case_insensitive_legacy_private_words(self):
         self.assertEqual(len(BASIC_WORDS), 600)
         self.assertIn('contact', BASIC_WORDS)  # rank 600
         self.assertNotIn('particularly', BASIC_WORDS)  # rank 601
         self.client.patch('/api/settings', json={'selected_word_list_ids': []})
         # upon has no catalog example; the full source list must still cover it.
         for word in ('Contact', 'upon', 'I', 'Address', 'particularly'):
-            response = self.client.post('/api/words', json={
+            fixtures.legacy_private_word(self.uid, {
                 'word': word, 'part_of_speech': '词汇', 'definition_cn': '测试',
                 'example_sentence': f'This example contains {word}.'})
-            self.assertEqual(response.status_code, 200, response.text)
         self.skip()
         stats = self.client.get('/api/stats').json()
         self.assertEqual((stats['new_words'], stats['new_senses']), (1, 1))
