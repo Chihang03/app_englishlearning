@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+import json
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -108,6 +109,8 @@ class AdminTests(unittest.TestCase):
         with database.connect() as conn:
             before = tuple(conn.execute("SELECT * FROM review_history").fetchone())
             conn.execute("UPDATE users SET username='admin' WHERE id=?", (self.uid,))
+            conn.execute("DROP TABLE admin_content_edits")
+            conn.execute("DROP TABLE admin_content_overrides")
             conn.execute("ALTER TABLE users DROP COLUMN role")
             for column in ('resolution_notes', 'resolved_at', 'resolved_by'):
                 conn.execute(f'ALTER TABLE content_reports DROP COLUMN {column}')
@@ -123,6 +126,75 @@ class AdminTests(unittest.TestCase):
         with patch.object(provision, "DB_PATH", database.DB_PATH), self.assertRaises(ValueError):
             provision.create_admin("admin")
         self.assertEqual(self.client.get("/api/admin/overview").status_code, 403)
+
+    def test_content_correction_changes_learning_and_survives_catalog_refresh(self):
+        card = self.next()
+        self.review(card, 'bad')
+        rid = self.client.post('/api/content-reports', json={'attempt_id': card['attempt_id'], 'category': 'sentence'}).json()['id']
+        admin = self.admin_client()
+        original = admin.get(f'/api/admin/reports/{rid}').json()
+        with database.connect() as conn:
+            before = {table: [tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                for table in ('review_history', 'sense_srs_state', 'adaptive_memory')}
+        changes = {'definition_cn': '居住地址', 'definition_en': 'residential address', 'sentence': 'Send the letter to this address.',
+            'translation_cn': '请寄到这个地址。', 'target_form': 'address', 'pronunciation': 'əˈdres'}
+        response = admin.patch(f'/api/admin/reports/{rid}/content', json={'expected_content': original['current_content'], 'changes': changes})
+        self.assertEqual(response.status_code, 200, response.text)
+        fixed = response.json()
+        self.assertEqual(fixed['status'], 'resolved')
+        self.assertEqual(fixed['content'], original['content'])
+        self.assertEqual(fixed['current_content']['sentence'], changes['sentence'])
+        self.assertEqual(len(fixed['edits']), 1)
+        self.assertEqual(fixed['edits'][0]['before'], original['current_content'])
+        self.assertEqual(self.review(card, 'address').status_code, 409)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT sentence FROM sense_examples WHERE id=?', (card['example_id'],)).fetchone()[0], changes['sentence'])
+            conn.execute("UPDATE relearning_queue SET ready_at='2000-01-01T00:00:00+00:00'")
+        fresh = TestClient(app)
+        fresh.post('/api/auth/register', json={'username': 'fresh_learner', 'password': 'test-password-123'})
+        restored = fresh.get('/api/next').json()['card']
+        self.assertEqual(restored['definition_cn'], changes['definition_cn'])
+        self.assertEqual(restored['example_id'], card['example_id'])
+        self.assertEqual(restored['example_sentence'], changes['sentence'])
+        self.assertEqual(restored['answer_form'], 'address')
+        # Force a shipped-catalog refresh, without changing sense identity.
+        catalog = json.loads(self.catalog_path.read_text())
+        catalog['lists'][0]['title'] = '刷新后的四级词库'
+        self.catalog_path.write_text(json.dumps(catalog, ensure_ascii=False))
+        database.init_database()
+        database.init_database()
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT sentence FROM sense_examples WHERE id=?', (card['example_id'],)).fetchone()[0], changes['sentence'])
+            self.assertEqual(conn.execute('SELECT definition_cn FROM word_senses WHERE id=?', (card['sense_id'],)).fetchone()[0], changes['definition_cn'])
+            self.assertEqual(conn.execute('SELECT pronunciation FROM words WHERE id=?', (card['id'],)).fetchone()[0], changes['pronunciation'])
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM sense_examples WHERE sense_id=? AND active=1', (card['sense_id'],)).fetchone()[0], 2)
+            for table, rows in before.items():
+                self.assertEqual([tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')], rows)
+            self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])
+
+    def test_content_correction_rejects_stale_invalid_and_unauthorized_edits(self):
+        card = self.next()
+        rid = self.client.post('/api/content-reports', json={'attempt_id': card['attempt_id'], 'category': 'definition'}).json()['id']
+        admin = self.admin_client()
+        path = f'/api/admin/reports/{rid}/content'
+        content = admin.get(f'/api/admin/reports/{rid}').json()['current_content']
+        payload = {'expected_content': content, 'changes': {'definition_cn': '地址（修正）'}}
+        self.assertEqual(self.client.patch(path, json=payload).status_code, 403)
+        self.assertEqual(TestClient(app).patch(path, json=payload).status_code, 401)
+        for changes in ({'sentence': 'A sentence without the target.'}, {'definition_cn': '', 'definition_en': ''},
+                        {'target_form': ''}, {'sentence': 'Please give me your address.'}):
+            response = admin.patch(path, json={'expected_content': content, 'changes': changes})
+            self.assertIn(response.status_code, (400, 409), response.text)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM admin_content_edits').fetchone()[0], 0)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM admin_content_overrides').fetchone()[0], 0)
+            self.assertIsNone(conn.execute('SELECT completed_at FROM study_attempts WHERE id=?', (card['attempt_id'],)).fetchone()[0])
+        self.assertEqual(admin.patch(path, json=payload).status_code, 200)
+        self.assertEqual(admin.patch(path, json=payload).status_code, 409)
+        with database.connect() as conn:
+            conn.execute('UPDATE word_senses SET active=0 WHERE id=?', (card['sense_id'],))
+        current = admin.get(f'/api/admin/reports/{rid}').json()['current_content']
+        self.assertEqual(admin.patch(path, json={'expected_content': current, 'changes': {'definition_cn': '再次修正'}}).status_code, 409)
 
     def test_user_details_include_learning_but_exclude_credentials(self):
         card = self.next()

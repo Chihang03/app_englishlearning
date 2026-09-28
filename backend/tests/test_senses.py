@@ -360,7 +360,9 @@ class LegacySenseMigrationTests(unittest.TestCase):
                 conn.execute("INSERT INTO users VALUES(1,'original','original-hash','Asia/Shanghai','old')")
                 conn.execute("INSERT INTO words(id,word,part_of_speech,definition_cn,example_sentence) VALUES(1,'address','名词','地址','Our officers went to the address.')")
                 from app.senses import save_senses
-                save_senses(conn,1,catalog()['words'][0]['senses'])
+                # This fixture intentionally predates the administrator override tables.
+                with patch('app.senses.override_values', return_value={}), patch('app.senses.overridden_example_id', return_value=None):
+                    save_senses(conn,1,catalog()['words'][0]['senses'])
                 conn.execute("""INSERT INTO sense_srs_state(user_id,sense_id,review_count,correct_count,wrong_count,next_review_date,status)
                     VALUES(1,1,3,0,2,'2026-01-01','Learning'),(1,2,4,4,0,'2026-12-01','Reviewing')""")
                 conn.execute("""INSERT INTO review_history(user_id,word_id,sense_id,example_id,review_time,user_answer,is_correct)

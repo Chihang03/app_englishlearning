@@ -63,15 +63,15 @@ export function AdminChevron() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>;
 }
 
-export function AdminHeader({ title, onBack, busy, onRefresh }: {
-  title: string; onBack?: () => void; busy: boolean; onRefresh: () => void;
+export function AdminHeader({ title, onBack, busy, disabled = false, onRefresh }: {
+  title: string; onBack?: () => void; busy: boolean; disabled?: boolean; onRefresh: () => void;
 }) {
   return <header className="page-header admin-header">
     {onBack ? <button type="button" className="icon-button" aria-label="返回" onClick={onBack}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M20 12H4m6-6-6 6 6 6" /></svg>
     </button> : null}
     <h1>{title}</h1>
-    <button type="button" className="secondary-button" disabled={busy} onClick={onRefresh}>{busy ? "刷新中…" : "刷新"}</button>
+    <button type="button" className="secondary-button" disabled={busy || disabled} onClick={onRefresh}>{busy ? "刷新中…" : "刷新"}</button>
   </header>;
 }
 
@@ -85,4 +85,3 @@ export function AdminPagination({ offset, total, limit, busy, onOffset }: {
     <button type="button" className="secondary-button" disabled={busy || offset + limit >= total} onClick={() => onOffset(offset + limit)}>下一页</button>
   </div>;
 }
-

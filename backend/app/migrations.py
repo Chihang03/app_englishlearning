@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 def run_migrations(db_path: Path) -> None:
@@ -115,12 +115,34 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 11 (report resolution)")
 
+        if version < 12:
+            conn.execute("BEGIN")
+            _migrate_to_v12(conn)
+            conn.execute("PRAGMA user_version = 12")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 12 (persistent content corrections)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v12(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        """CREATE TABLE admin_content_overrides (
+            entity TEXT NOT NULL CHECK(entity IN ('word','sense','example')), entity_id INTEGER NOT NULL,
+            original_json TEXT NOT NULL, values_json TEXT NOT NULL,
+            updated_by INTEGER NOT NULL REFERENCES users(id), updated_at TEXT NOT NULL,
+            PRIMARY KEY(entity,entity_id))""",
+        """CREATE TABLE admin_content_edits (
+            id INTEGER PRIMARY KEY, report_id INTEGER NOT NULL REFERENCES content_reports(id),
+            admin_id INTEGER NOT NULL REFERENCES users(id), before_json TEXT NOT NULL,
+            after_json TEXT NOT NULL, created_at TEXT NOT NULL)""",
+        "CREATE INDEX admin_content_edits_report ON admin_content_edits(report_id,id)",
+    ])
 
 
 def _migrate_to_v11(conn: sqlite3.Connection) -> None:

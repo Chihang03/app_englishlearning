@@ -133,6 +133,8 @@ class MutedWordsTests(unittest.TestCase):
         with database.connect() as conn:
             before = {table: [tuple(row) for row in conn.execute(f'SELECT * FROM {table}')] for table in tables}
             conn.execute('DROP TABLE user_muted_words')
+            conn.execute("DROP TABLE admin_content_edits")
+            conn.execute("DROP TABLE admin_content_overrides")
             conn.execute('ALTER TABLE users DROP COLUMN role')
             for column in ('resolution_notes', 'resolved_at', 'resolved_by'):
                 conn.execute(f'ALTER TABLE content_reports DROP COLUMN {column}')

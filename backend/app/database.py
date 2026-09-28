@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .migrations import run_migrations
+from .content_overrides import apply_word_overrides
 from .senses import authored_sense, migrate_legacy_progress, save_senses, validate_senses
 from .learning_filters import basic_word_sql
 from .security import utc_now_iso
@@ -244,6 +245,8 @@ def seed_vocabulary_catalog() -> None:
             if row["example_sentence"].strip():
                 save_senses(conn, row["id"], authored_sense(dict(row)))
         migrate_legacy_progress(conn)
+
+        apply_word_overrides(conn)
 
         # The original sample entries remain selectable even before a generated
         # catalog is present, and stay available as a small fallback collection.
