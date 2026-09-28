@@ -143,5 +143,42 @@ class CompletedCardStatsTests(unittest.TestCase):
         self.assertEqual((mature['learning'], mature['due_words'], mature['mature']), (0, 0, 1))
 
 
+    def test_all_progress_counters_exclude_skipped_and_muted_words_without_erasing_history(self):
+        first = self.next()
+        self.assertTrue(self.review(first, first['answer_form']).json()['is_independent'])
+        second = self.next()
+        self.assertEqual(second['id'], first['id'])
+        self.assertTrue(self.review(second, second['answer_form']).json()['is_independent'])
+        keys = ('total_learned', 'learned_senses', 'mastered_senses', 'mastered', 'mature', 'learning')
+        def counts():
+            stats = self.stats()
+            return tuple(stats[key] for key in keys)
+        active = (1, 2, 2, 1, 0, 1)
+        self.assertEqual(counts(), active)
+        with database.connect() as conn:
+            before_history = [tuple(row) for row in conn.execute('SELECT * FROM review_history WHERE user_id=? ORDER BY id', (self.uid,))]
+            before_progress = [tuple(row) for row in conn.execute('SELECT * FROM sense_srs_state WHERE user_id=? ORDER BY learning_unit_id', (self.uid,))]
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': True}).status_code, 200)
+        self.assertEqual(counts(), (0, 0, 0, 0, 0, 0))
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': False}).status_code, 200)
+        self.assertEqual(counts(), active)
+        self.assertEqual(self.client.post(f"/api/words/{first['id']}/mute").status_code, 200)
+        self.assertEqual(counts(), (0, 0, 0, 0, 0, 0))
+        self.assertEqual(self.client.delete(f"/api/muted-words/{first['word']}").status_code, 200)
+        self.assertEqual(counts(), active)
+        # Deselection affects new words, not already started reviews.
+        self.assertEqual(self.client.patch('/api/settings', json={'selected_word_list_ids': []}).status_code, 200)
+        self.assertEqual(counts(), active)
+        with database.connect() as conn:
+            self.assertEqual([tuple(row) for row in conn.execute('SELECT * FROM review_history WHERE user_id=? ORDER BY id', (self.uid,))], before_history)
+            self.assertEqual([tuple(row) for row in conn.execute('SELECT * FROM sense_srs_state WHERE user_id=? ORDER BY learning_unit_id', (self.uid,))], before_progress)
+            conn.execute("UPDATE sense_srs_state SET status='Mature' WHERE user_id=?", (self.uid,))
+        self.assertEqual(counts(), (1, 2, 2, 1, 1, 0))
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': True}).status_code, 200)
+        self.assertEqual(counts(), (0, 0, 0, 0, 0, 0))
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': False}).status_code, 200)
+        self.assertEqual(counts(), (1, 2, 2, 1, 1, 0))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -49,11 +49,14 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         AND NOT EXISTS(SELECT 1 FROM srs_state l WHERE l.word_id=w.id AND l.user_id=?)
         AND NOT EXISTS(SELECT 1 FROM learning_units lu JOIN sense_srs_state p ON p.learning_unit_id=lu.id
             WHERE lu.word_id=w.id AND p.retired_at IS NULL AND p.user_id=?)""", (*args,user_id,user_id)).fetchone()[0]
-    learned = conn.execute("""SELECT COUNT(*) FROM (
+    # Progress follows the current learning exclusions without deleting history.
+    learned = conn.execute(f"""SELECT COUNT(*) FROM words w JOIN (
         SELECT word_id FROM srs_state WHERE user_id=? UNION
         SELECT u.word_id FROM learning_units u JOIN sense_srs_state p ON p.learning_unit_id=u.id
             WHERE p.user_id=? AND p.retired_at IS NULL
-    )""", (user_id,user_id)).fetchone()[0]
+    ) learned ON learned.word_id=w.id
+        WHERE {learnable_word_sql('?')}""",
+        (user_id,user_id,user_id,user_id)).fetchone()[0]
     progress = conn.execute(f"""WITH due_word_ids AS (
         SELECT DISTINCT word_id FROM ({_DUE_SENSES_SQL})
         ) SELECT COUNT(*) AS learned_senses,
@@ -66,7 +69,8 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         COUNT(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 END) AS mastered_senses,
         COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND {learnable_word_sql('p.user_id')} THEN u.word_id END) AS lapse_words
         FROM sense_srs_state p JOIN learning_units u ON u.id=p.learning_unit_id JOIN words w ON w.id=u.word_id
-        WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()}""",
+        WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()}
+        AND {learnable_word_sql('p.user_id')}""",
         (user_id,user_id,today.isoformat(),now,user_id)).fetchone()
     due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
         COUNT(DISTINCT word_id) AS due_words,
@@ -82,8 +86,12 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
             SUM(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 ELSE 0 END) AS established,
             SUM(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mature
             FROM learning_units u LEFT JOIN sense_srs_state p ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
-            WHERE {usable_unit_sql()} GROUP BY u.word_id)""", (user_id,)).fetchone()
-    legacy = conn.execute("SELECT COUNT(*) FROM srs_state WHERE user_id=? AND sense_migrated=0", (user_id,)).fetchone()[0]
+            JOIN words w ON w.id=u.word_id
+            WHERE {usable_unit_sql()} AND {learnable_word_sql('?')}
+            GROUP BY u.word_id)""", (user_id,user_id,user_id)).fetchone()
+    legacy = conn.execute(f"""SELECT COUNT(*) FROM srs_state p JOIN words w ON w.id=p.word_id
+        WHERE p.user_id=? AND p.sense_migrated=0 AND {learnable_word_sql('p.user_id')}""",
+        (user_id,)).fetchone()[0]
     upcoming = conn.execute(f"""SELECT MIN(q.ready_at) AS next_relearning_at
         FROM relearning_queue q JOIN learning_units u ON u.id=q.learning_unit_id JOIN words w ON w.id=u.word_id
         JOIN sense_srs_state p ON p.user_id=q.user_id AND p.learning_unit_id=u.id AND p.retired_at IS NULL
