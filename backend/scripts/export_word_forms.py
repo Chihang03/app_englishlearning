@@ -60,6 +60,8 @@ def main() -> None:
             finally:
                 glossary.cleanup()
     write_word_forms(entries,args.output)
+    from build_morphology_bundle import build_bundle
+    build_bundle(data/'vocabulary_catalog.json', args.output, args.dictionary_root)
     print(f"Exported dictionary spelling hints to {args.output}")
 
 

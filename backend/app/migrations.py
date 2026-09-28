@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 
 def run_migrations(db_path: Path) -> None:
@@ -129,12 +129,53 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 13 (fixed learning examples)")
 
+        if version < 14:
+            conn.execute("BEGIN")
+            _migrate_to_v14(conn)
+            conn.execute("PRAGMA user_version = 14")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 14 (lexical identities)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v14(conn: sqlite3.Connection) -> None:
+    # Additive only: no learner state, sense ID or history is rewritten.
+    conn.execute("""CREATE TABLE IF NOT EXISTS lexical_units (
+        id INTEGER PRIMARY KEY, owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        word_id INTEGER REFERENCES words(id) ON DELETE CASCADE, unit_key TEXT NOT NULL,
+        headword TEXT NOT NULL, normalized_headword TEXT NOT NULL, pos_group TEXT NOT NULL,
+        identity_status TEXT NOT NULL CHECK(identity_status IN ('verified','legacy','needs_review')),
+        provenance_json TEXT NOT NULL DEFAULT '{}', active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)))""")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_lexical_units_scope_key ON lexical_units(COALESCE(owner_id,0),unit_key)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_lexical_units_surface ON lexical_units(normalized_headword,pos_group)")
+    if 'lexical_unit_id' not in {r[1] for r in conn.execute('PRAGMA table_info(word_senses)')}:
+        conn.execute("ALTER TABLE word_senses ADD COLUMN lexical_unit_id INTEGER REFERENCES lexical_units(id)")
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_word_senses_lexical_unit ON word_senses(lexical_unit_id,active)')
+    conn.execute("""CREATE TABLE IF NOT EXISTS word_forms (
+        id INTEGER PRIMARY KEY, lexical_unit_id INTEGER NOT NULL REFERENCES lexical_units(id) ON DELETE CASCADE,
+        spelling TEXT NOT NULL, normalized_form TEXT NOT NULL, form_type TEXT NOT NULL,
+        scope_sense_id INTEGER REFERENCES word_senses(id) ON DELETE CASCADE,
+        verification TEXT NOT NULL CHECK(verification IN ('verified','candidate','rejected')),
+        evidence_kind TEXT NOT NULL, provenance_json TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)))""")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_word_forms_identity ON word_forms(lexical_unit_id,normalized_form,form_type,COALESCE(scope_sense_id,0))")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_word_forms_reverse ON word_forms(normalized_form,verification,active)")
+    conn.execute("""CREATE TABLE IF NOT EXISTS lexical_relations (
+        id INTEGER PRIMARY KEY, from_unit_id INTEGER NOT NULL REFERENCES lexical_units(id) ON DELETE CASCADE,
+        to_unit_id INTEGER NOT NULL REFERENCES lexical_units(id) ON DELETE CASCADE,
+        relation_type TEXT NOT NULL CHECK(relation_type IN
+            ('derived_adverb','derived_noun','derived_adjective','lexicalized_from','related')),
+        verification TEXT NOT NULL CHECK(verification IN ('verified','candidate','rejected')),
+        semantic_transfer_allowed INTEGER NOT NULL DEFAULT 0 CHECK(semantic_transfer_allowed=0),
+        provenance_json TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        UNIQUE(from_unit_id,to_unit_id,relation_type), CHECK(from_unit_id!=to_unit_id))""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_lexical_relations_to ON lexical_relations(to_unit_id)")
 
 
 def _migrate_to_v13(conn: sqlite3.Connection) -> None:

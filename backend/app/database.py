@@ -13,6 +13,8 @@ from .content_overrides import apply_word_overrides
 from .senses import authored_sense, migrate_legacy_progress, save_senses, validate_senses
 from .learning_filters import basic_word_sql
 from .security import utc_now_iso
+from .morphology import seed_morphology
+from .word_forms import WORD_FORMS_PATH
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -65,6 +67,9 @@ def init_database() -> None:
     run_migrations(DB_PATH)
     seed_words()
     seed_vocabulary_catalog()
+    with connect() as conn:
+        catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
+        seed_morphology(conn, WORD_FORMS_PATH.read_bytes() if WORD_FORMS_PATH.exists() else b'', catalog_bytes)
 
 
 def _enable_wal() -> None:

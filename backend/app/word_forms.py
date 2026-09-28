@@ -4,6 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 import json
 from pathlib import Path
+import re
 
 from .ing_usage import ing_usage_label
 
@@ -24,11 +25,14 @@ FORM_LABELS = {
 
 
 def pos_family(pos: str) -> str:
-    for family, names in (("verb", ("动词", "verb")), ("pronoun", ("代词", "pronoun")),
+    # English labels must match whole words: 'adverb' is not a verb.
+    normalized = pos.strip().casefold()
+    for family, names in (("adverb", ("副词", "adverb")), ("verb", ("动词", "verb")), ("pronoun", ("代词", "pronoun")),
                           ("numeral", ("数词", "numeral", "cardinal number", "ordinal number")),
                           ("noun", ("名词", "noun")),
-                          ("adjective", ("形容词", "adjective")), ("adverb", ("副词", "adverb"))):
-        if any(name in pos.casefold() for name in names):
+                          ("adjective", ("形容词", "adjective"))):
+        if any((name in normalized if not name.isascii() else
+                re.search(rf"\b{re.escape(name)}\b", normalized)) for name in names):
             return family
     return ""
 

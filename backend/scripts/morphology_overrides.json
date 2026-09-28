@@ -1,0 +1,721 @@
+{
+  "reviewed_at": "2026-09-28",
+  "units": [
+    {
+      "key": "say:verb",
+      "word": "say",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0903650",
+        "record_sha256": "4679b8944e65eb88fcb236641f19c5de9f485752538032451e12e0d6206f7237"
+      },
+      "forms": [
+        {
+          "spelling": "says",
+          "form_types": [
+            "third_person_singular"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked say[verb] → says; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "said",
+          "form_types": [
+            "past",
+            "past_participle"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked say[verb] → said; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "saying",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked say[verb] → saying; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "walk:verb",
+      "word": "walk",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus1138410",
+        "record_sha256": "ac59c006e437fefda2c08c37e40d9418b4d5f36c829660858564cad5e917af71"
+      },
+      "forms": [
+        {
+          "spelling": "walks",
+          "form_types": [
+            "third_person_singular"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked walk[verb] → walks; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "walked",
+          "form_types": [
+            "past",
+            "past_participle"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked walk[verb] → walked; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "walking",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked walk[verb] → walking; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "book:noun",
+      "word": "book",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0113460",
+        "record_sha256": "8fb05b0fd35e10e1e1b12a6dde28ff69473b46d89f27cad937033b2bf35617fd"
+      },
+      "forms": [
+        {
+          "spelling": "books",
+          "form_types": [
+            "plural"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked book[noun] → books; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "small:adjective",
+      "word": "small",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0957610",
+        "record_sha256": "ff2812d2621b17c0f731763c4f490cb5166697868b25e5e5121824d3866bc697"
+      },
+      "forms": [
+        {
+          "spelling": "smaller",
+          "form_types": [
+            "comparative"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked small[adjective] → smaller; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "smallest",
+          "form_types": [
+            "superlative"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked small[adjective] → smallest; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "good:adjective",
+      "word": "good",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0422850",
+        "record_sha256": "412d4316c1ab29be93d36a3eec9955c3dd2b45e313b735d0d57f1c4fa8b1fbf9"
+      },
+      "forms": [
+        {
+          "spelling": "better",
+          "form_types": [
+            "comparative"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked good[adjective] → better; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "best",
+          "form_types": [
+            "superlative"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked good[adjective] → best; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "go:verb",
+      "word": "go",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0419260",
+        "record_sha256": "78597f5dceb30df382e0edd6f60b5b871fed38edda19d4cc7098d90be7d51578"
+      },
+      "forms": [
+        {
+          "spelling": "goes",
+          "form_types": [
+            "third_person_singular"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked go[verb] → goes; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "going",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked go[verb] → going; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "went",
+          "form_types": [
+            "past"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked go[verb] → went; grammatical form only; independent entries at the same spelling remain separate."
+        },
+        {
+          "spelling": "gone",
+          "form_types": [
+            "past_participle"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked go[verb] → gone; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "mouse:noun",
+      "word": "mouse",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0664820",
+        "record_sha256": "c331c6148e03c43ea970ee763cf04acf139355bb125ff065aa1bf7d0cf796bd1"
+      },
+      "forms": [
+        {
+          "spelling": "mice",
+          "form_types": [
+            "plural"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked mouse[noun] → mice; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "child:noun",
+      "word": "child",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0175770",
+        "record_sha256": "c0b174f6409c0613ea98c436f61348d48e1d108196964b703a0528489b98e3a0"
+      },
+      "forms": [
+        {
+          "spelling": "children",
+          "form_types": [
+            "plural"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked child[noun] → children; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "build:verb",
+      "word": "build",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0132910",
+        "record_sha256": "43fb0dba8c67c3da9790a48b75a6d7aaaafb3546fea29e5fd4086559b4e068bd"
+      },
+      "forms": [
+        {
+          "spelling": "building",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked build[verb] → building; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "meet:verb",
+      "word": "meet",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0629890",
+        "record_sha256": "8c30ac307ecdd3f0d9ae316a6e2c6c0f01d05f76df04085c84b64c03d52b527a"
+      },
+      "forms": [
+        {
+          "spelling": "meeting",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked meet[verb] → meeting; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "paint:verb",
+      "word": "paint",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0741390",
+        "record_sha256": "a3e96f9aad411ecb3a83d542dbd1fda06e8ea0173c917627898b65bd3cae6460"
+      },
+      "forms": [
+        {
+          "spelling": "painting",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked paint[verb] → painting; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "feel:verb",
+      "word": "feel",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0355300",
+        "record_sha256": "ad63eb8a60091f5bf44dcb4083c14761d334d9a4ffcb4d6455936ab31b569e75"
+      },
+      "forms": [
+        {
+          "spelling": "feeling",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked feel[verb] → feeling; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "mean:verb",
+      "word": "mean",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0627370",
+        "record_sha256": "a5b7fdd337f0f90e772eae0b05a03a300ef501fbc211d089c4de745a5853bf72"
+      },
+      "forms": [
+        {
+          "spelling": "meaning",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "reviewed_override",
+          "review_note": "2026-09-28: checked mean[verb] → meaning; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "begin:verb",
+      "word": "begin",
+      "pos_group": "verb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0084170",
+        "record_sha256": "c71def19b6920fe1328773cadefab03b6ea02643b3b84ad9b123e878e16847ae"
+      },
+      "forms": [
+        {
+          "spelling": "beginning",
+          "form_types": [
+            "ing"
+          ],
+          "evidence_kind": "dictionary_inflection",
+          "review_note": "2026-09-28: checked begin[verb] → beginning; grammatical form only; independent entries at the same spelling remain separate."
+        }
+      ]
+    },
+    {
+      "key": "absolute:adjective",
+      "word": "absolute",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0003080",
+        "record_sha256": "785c7549364483835e85e8d73acb849fa6c83394493d320aae2b0fd8662e6c17"
+      },
+      "forms": []
+    },
+    {
+      "key": "absolutely:adverb",
+      "word": "absolutely",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0003110",
+        "record_sha256": "f28f7ee27b75db1754d98651b68fe8fc0ac9339045b8337bbaca72fe3ad3ba65"
+      },
+      "forms": []
+    },
+    {
+      "key": "real:adjective",
+      "word": "real",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0848870",
+        "record_sha256": "28e8c3ca59ddfeac9cc1bafb821a859d2b5d5cd800c8ad88670b521d48bc6728"
+      },
+      "forms": []
+    },
+    {
+      "key": "really:adverb",
+      "word": "really",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0849140",
+        "record_sha256": "a50fb097f626fb0697e7c18a5a3507227c45a8044bb41d64b399686e278b74ac"
+      },
+      "forms": []
+    },
+    {
+      "key": "actual:adjective",
+      "word": "actual",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0008300",
+        "record_sha256": "0ed917b2cf973bd71c9d6a0d51bee1446e11ec5afb665f5fad3f424d79f7c70a"
+      },
+      "forms": []
+    },
+    {
+      "key": "actually:adverb",
+      "word": "actually",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0008340",
+        "record_sha256": "302478b2012ad21b9e7a8a18b19abaa925634131bc6bc758f2e4c9b5b30a9119"
+      },
+      "forms": []
+    },
+    {
+      "key": "eventual:adjective",
+      "word": "eventual",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0338050",
+        "record_sha256": "ca98b75e9a582a840bf95580037e5081acf7c083203d4a1fbfd31a1a84bbbd50"
+      },
+      "forms": []
+    },
+    {
+      "key": "eventually:adverb",
+      "word": "eventually",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0338070",
+        "record_sha256": "8222a09b342cf08a8d368dd480d52f6d8e1ccb92b9b62c5a6eaab9bb70515577"
+      },
+      "forms": []
+    },
+    {
+      "key": "probable:adjective",
+      "word": "probable",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0817590",
+        "record_sha256": "d8dea59c9b13e22cee70743590249321733963adb7782f141edf8f7acd47dddc"
+      },
+      "forms": []
+    },
+    {
+      "key": "probably:adverb",
+      "word": "probably",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0817620",
+        "record_sha256": "63e88a56088339c772f1102fb03ae394fe1d79555b4ee4e50cb268450e0270db"
+      },
+      "forms": []
+    },
+    {
+      "key": "hard:adjective",
+      "word": "hard",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0450550",
+        "record_sha256": "083df06435174123984ed9568681266e53322c68d203481b12cef3b3605f3ff9"
+      },
+      "forms": []
+    },
+    {
+      "key": "hardly:adverb",
+      "word": "hardly",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0451070",
+        "record_sha256": "3fd4884a519728ae89472af1f8fbf2f2b113e4f1000af1d00f980dd999814f5b"
+      },
+      "forms": []
+    },
+    {
+      "key": "late:adjective",
+      "word": "late",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0567050",
+        "record_sha256": "433313ae3532a3efb864f1b741bdd1436f22bd06a844fffcfabd5f56745ba368"
+      },
+      "forms": []
+    },
+    {
+      "key": "lately:adverb",
+      "word": "lately",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0567130",
+        "record_sha256": "a546b97c4a64519b7606e5da098fa65bef23565156216f95317a70aeec645cab"
+      },
+      "forms": []
+    },
+    {
+      "key": "near:adjective",
+      "word": "near",
+      "pos_group": "adjective",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0682060",
+        "record_sha256": "599bbfec8fcbc9f3aaa13457faa06b88e81846e7307042283518e877f644a047"
+      },
+      "forms": []
+    },
+    {
+      "key": "nearly:adverb",
+      "word": "nearly",
+      "pos_group": "adverb",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0682170",
+        "record_sha256": "003de13ff75c0d279a0f94d1e31e247f8587be2727c2f514a4bd74ceef21040d"
+      },
+      "forms": []
+    },
+    {
+      "key": "saying:noun",
+      "word": "saying",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0903700",
+        "record_sha256": "9b98bb03a376b2b3d1bf29cd310ff1e034430bea647003311281e603f950a9ec"
+      },
+      "forms": []
+    },
+    {
+      "key": "building:noun",
+      "word": "building",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0132950",
+        "record_sha256": "9acc3b4294d4c82dbafaa3084ec42dae2cf81662c0a4853a005919b7155888bc"
+      },
+      "forms": []
+    },
+    {
+      "key": "meeting:noun",
+      "word": "meeting",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0629920",
+        "record_sha256": "70ff3f6bfe679ee0557fc86cd06ccd89226291436857ddaa7e2675a98e883f2d"
+      },
+      "forms": []
+    },
+    {
+      "key": "painting:noun",
+      "word": "painting",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0741580",
+        "record_sha256": "303c2d66de8ebe8a4975279ce4bb4ec9968c9a943c45a1be4dc672d9f84e1d12"
+      },
+      "forms": []
+    },
+    {
+      "key": "feeling:noun",
+      "word": "feeling",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0355340",
+        "record_sha256": "606a47f978b97de66ef53171e0a346c0e4e158ee28c9c1e78dcdb41bf8c73bf9"
+      },
+      "forms": []
+    },
+    {
+      "key": "meaning:noun",
+      "word": "meaning",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0627450",
+        "record_sha256": "ae73972d6b48b6f0198555151214ace592e0976ee4f9f9439646258099a364ac"
+      },
+      "forms": []
+    },
+    {
+      "key": "beginning:noun",
+      "word": "beginning",
+      "pos_group": "noun",
+      "source": {
+        "language": "en",
+        "entry_id": "m_en_gbus0084200",
+        "record_sha256": "e55203109872006cd982ccdf8decac4e19f11fbccffb7167b59d2925f1e00edf"
+      },
+      "forms": []
+    }
+  ],
+  "relations": [
+    {
+      "from": "absolute:adjective",
+      "to": "absolutely:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "real:adjective",
+      "to": "really:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "actual:adjective",
+      "to": "actually:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "eventual:adjective",
+      "to": "eventually:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "probable:adjective",
+      "to": "probably:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "hard:adjective",
+      "to": "hardly:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "late:adjective",
+      "to": "lately:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "near:adjective",
+      "to": "nearly:adverb",
+      "relation_type": "derived_adverb",
+      "review_note": "Reviewed lexical derivation; no automatic meaning, mastery or review transfer. The dictionary does not explicitly provide this parent link."
+    },
+    {
+      "from": "say:verb",
+      "to": "saying:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    },
+    {
+      "from": "build:verb",
+      "to": "building:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    },
+    {
+      "from": "meet:verb",
+      "to": "meeting:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    },
+    {
+      "from": "paint:verb",
+      "to": "painting:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    },
+    {
+      "from": "feel:verb",
+      "to": "feeling:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    },
+    {
+      "from": "mean:verb",
+      "to": "meaning:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    },
+    {
+      "from": "begin:verb",
+      "to": "beginning:noun",
+      "relation_type": "lexicalized_from",
+      "review_note": "Reviewed independent noun identity; the noun must never merge into the verb inflection."
+    }
+  ],
+  "supplements": [
+    {
+      "word": "saying",
+      "language": "zh",
+      "entry_id": "e_b-en-zh_hans0032619",
+      "record_sha256": "35fcea11ae6e7f7a9f4fc243dd260cab5abf7b33a5267fd04b6cbfff5e85c571",
+      "sense_keys": [
+        "zh:b-en-zh_hans0032619.002"
+      ],
+      "memberships": [
+        {
+          "list_id": "starter_examples",
+          "position": 10001
+        }
+      ]
+    }
+  ]
+}

@@ -10,6 +10,34 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 
 @unittest.skipUnless(importlib.util.find_spec('lxml'), 'optional Mac export dependencies are not installed')
 class DictionaryExportTests(unittest.TestCase):
+    def test_adverb_does_not_export_verb_inflections(self):
+        from dictionary_senses import parse_record
+        markup = '<div><span class="se1"><span class="pos">adverb</span></span></div>'
+        forms = parse_record(markup, 'hard', 'en', ['hard', 'hards', 'harder'])['inflections']
+        self.assertNotIn('verb', forms)
+        self.assertEqual(forms['adverb']['harder'], ['comparative'])
+
+    def test_native_entries_cross_compressed_blocks_and_changed_evidence_fails(self):
+        import hashlib
+        import struct
+        import tempfile
+        import zlib
+        from build_morphology_bundle import dictionary_records, _checked_record
+        entry = b'<d:entry id="entry1" d:title="say"><span>verb</span></d:entry>'
+        body = bytearray(96)
+        for segment in (entry[:23], entry[23:]):
+            compressed = zlib.compress(segment)
+            body += struct.pack('<I', len(compressed) + 8) + bytes(8) + compressed
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'Body.data'
+            path.write_bytes(body)
+            self.assertEqual(list(dictionary_records(path)), [('say', 'entry1', entry)])
+        records = {('en', 'entry1'): ('say', entry)}
+        digest = hashlib.sha256(entry).hexdigest()
+        self.assertEqual(_checked_record(records, 'en', 'entry1', digest, 'say'), ('say', entry))
+        with self.assertRaises(ValueError):
+            _checked_record(records, 'en', 'entry1', 'changed', 'say')
+
     def test_inflection_labels_and_aliases_survive_export(self):
         from dictionary_senses import parse_record
         markup='''<div><span class="gramb"><span class="ps">verb</span>

@@ -276,6 +276,20 @@ cd backend
 
 ## 账号与数据归属
 
+### 词形与词族
+
+学习和复习继续按义项保存。`lexical_units` 区分词汇身份，`word_forms` 保存有作用域和来源证据的屈折形式，`lexical_relations` 保存派生或词汇化关系。`say/says/said/saying` 的已审核动词形式查询复用 say 的原义项；saying 的名词“格言”及 absolute/absolutely 保持独立学习。更多词义弹窗分别展示屈折形式、派生词和词汇化用法，查看时记录实际返回内容的曝光。
+
+`backend/data/word_forms.json` v2 保留原提示投影，并增加源词典指纹、审核单位、词形、关系和 saying 的真实词典补充义项。首版包含 37 个审核单位、25 条语法形式链接和 15 条关系。未审核拼写和旧私有词保留 UNKNOWN；规则和后缀不触发自动合并，已有复习历史不合并，熟练度不沿词族传递。数据库 v14 迁移只增加元数据表和义项关联列，自动备份并保留原 ID、状态与固定例句。
+
+从安装的 Mac 词典重新导出首版证据（需要导出环境中的 lxml）：
+
+```bash
+python3 backend/scripts/build_morphology_bundle.py
+```
+
+`backend/scripts/morphology_overrides.json` 保存首版人工核对及原始记录 SHA-256。源记录变化会中止构建并要求重新审核；catalog 指纹不匹配时运行端停用归并证据。完整词库构建及独立词形导出也会重建该证据，不会静默降回旧格式。分类和迁移回归测试为 `backend/tests/test_morphology.py`。
+
 每个账号有独立的 SRS 进度、复习历史和显示设置。`seed_words.json` 和 `vocabulary_catalog.json` 的词属于**公共词库**（`owner_id` 为 NULL），所有人可见。当前不提供用户新增或批量导入词汇的能力；历史私有词条及其义项、复习进度和学习记录保留，继续按原账号隔离。
 
 ## 时区
