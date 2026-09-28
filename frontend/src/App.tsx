@@ -1021,11 +1021,10 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
           </div>
         )}
       </section>
-      <section className="settings-group panel">
-        <h2><Icon name="user" /> 账号安全</h2>
-        <PasskeySettings onSignedOut={onSessionExpired} />
-        <PasswordForm />
-      </section>
+      <details className="learning-details panel admin-security">
+        <summary><span><Icon name="user" /> 账号安全</span><Icon name="chevron" /></summary>
+        <div className="pb-4"><PasskeySettings onSignedOut={onSessionExpired} /><PasswordForm /></div>
+      </details>
       <button type="button" className="sign-out-button secondary-button" onClick={onSignOut}>退出登录</button>
       <p className="app-version">版本 {version}</p>
     </section>

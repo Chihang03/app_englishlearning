@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 def run_migrations(db_path: Path) -> None:
@@ -108,12 +108,27 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 10 (account roles)")
 
+        if version < 11:
+            conn.execute("BEGIN")
+            _migrate_to_v11(conn)
+            conn.execute("PRAGMA user_version = 11")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 11 (report resolution)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v11(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        "ALTER TABLE content_reports ADD COLUMN resolution_notes TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE content_reports ADD COLUMN resolved_at TEXT",
+        "ALTER TABLE content_reports ADD COLUMN resolved_by INTEGER REFERENCES users(id)",
+    ])
 
 
 def _migrate_to_v10(conn: sqlite3.Connection) -> None:

@@ -134,6 +134,8 @@ class MutedWordsTests(unittest.TestCase):
             before = {table: [tuple(row) for row in conn.execute(f'SELECT * FROM {table}')] for table in tables}
             conn.execute('DROP TABLE user_muted_words')
             conn.execute('ALTER TABLE users DROP COLUMN role')
+            for column in ('resolution_notes', 'resolved_at', 'resolved_by'):
+                conn.execute(f'ALTER TABLE content_reports DROP COLUMN {column}')
             conn.execute('PRAGMA user_version=8')
         migrations.run_migrations(database.DB_PATH)
         migrations.run_migrations(database.DB_PATH)
