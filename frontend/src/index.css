@@ -212,6 +212,15 @@ h1, h2, p { margin: 0; }
 .other-sense p { margin-top: 5px; overflow-wrap: anywhere; }
 .other-sense-example { color: var(--muted); font-size: 14px; line-height: 1.5; }
 .other-sense-example span { display: block; }
+.morphology-group { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+.morphology-group h3 { margin: 0 0 8px; font-size: 16px; font-weight: 650; }
+.morphology-forms { display: grid; gap: 6px; }
+.morphology-forms > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; }
+.morphology-forms > div > span:last-child { color: var(--muted); }
+.morphology-peers { display: flex; flex-wrap: wrap; gap: 8px; }
+.morphology-peers button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); }
+.morphology-peers button span { margin-left: 8px; color: var(--muted); }
+.morphology-back { min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--ink); }
 .sentence-translation { font-size: 14px; color: #697369; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
 .confirmation-marks { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
 .confirmation-row { margin-bottom: 14px; line-height: 1; }

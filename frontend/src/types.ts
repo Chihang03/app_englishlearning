@@ -40,6 +40,43 @@ export type Sense = {
   examples: { id: number; sentence: string; translation_cn?: string | null; target_form: string }[];
 };
 
+export type LexicalClassification = "INFLECTION" | "DERIVED" | "LEXICALIZED_FORM" | "INDEPENDENT" | "UNKNOWN";
+
+export type LexicalPeer = {
+  lexical_unit_id: number;
+  headword: string;
+  pos_group: string;
+  relation_type: string;
+  direction: "incoming" | "outgoing";
+  learnable: boolean;
+};
+
+export type LexicalMetadata = {
+  inflected_forms: { spelling: string; form_types: string[]; label: string; scope_sense_id: number | null }[];
+  derived_words: LexicalPeer[];
+  related_words: LexicalPeer[];
+};
+
+export type LexicalEntry = {
+  lexical_unit_id: number;
+  word_id: number | null;
+  headword: string;
+  pos_group: string;
+  classification: LexicalClassification;
+  learnable: boolean;
+  matched_form?: { spelling: string; form_types: string[] };
+  senses: Sense[];
+  morphology: LexicalMetadata;
+};
+
+export type StudyDetails = {
+  word: string;
+  senses: Sense[];
+  entries: LexicalEntry[];
+  morphology: LexicalMetadata;
+  exposed_sense_ids: number[];
+};
+
 export type ReviewResult = {
   sense_id: number;
   example_id: number;

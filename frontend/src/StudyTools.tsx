@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { errorMessage, isUnauthorized, request } from "./api";
-import type { Card, Sense } from "./types";
+import type { Card, LexicalPeer, StudyDetails } from "./types";
 
 export type StudyTool = "meanings" | "report";
 
@@ -13,14 +13,19 @@ const reportTypes = [
   { value: "other", label: "其他问题" }
 ] as const;
 
+const posLabels: Record<string, string> = {
+  verb: "动词", noun: "名词", adjective: "形容词", adverb: "副词"
+};
+
 export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, onAnswerExposed }: {
   tool: StudyTool; card: Card; showTranslation: boolean;
-  onClose: () => void; onSignedOut: () => void; onAnswerExposed: () => void;
+  onClose: () => void; onSignedOut: () => void; onAnswerExposed: (senseIds: number[]) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const activeRef = useRef(true);
   const submittingRef = useRef(false);
-  const [meanings, setMeanings] = useState<{ word: string; senses: Sense[] } | null>(null);
+  const [meanings, setMeanings] = useState<StudyDetails | null>(null);
+  const [targetUnit, setTargetUnit] = useState<number | null>(null);
   const [category, setCategory] = useState<string>(reportTypes[0].value);
   const [details, setDetails] = useState("");
   const [error, setError] = useState("");
@@ -35,16 +40,17 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
     return () => { activeRef.current = false; dialog?.close(); };
   }, []);
 
-  async function loadMeanings() {
+  async function loadMeanings(target: number | null = targetUnit) {
     setLoading(true);
     setError("");
     try {
-      const payload = await request<{ word: string; senses: Sense[] }>("/api/study/meanings", {
-        method: "POST", body: JSON.stringify({ attempt_id: card.attempt_id })
+      const payload = await request<StudyDetails>("/api/study/meanings", {
+        method: "POST", body: JSON.stringify({ attempt_id: card.attempt_id, target_lexical_unit_id: target })
       });
       if (!activeRef.current) return;
-      onAnswerExposed();
+      onAnswerExposed(payload.exposed_sense_ids);
       setMeanings(payload);
+      setTargetUnit(target);
     } catch (caught) {
       if (!activeRef.current) return;
       if (isUnauthorized(caught)) onSignedOut();
@@ -52,6 +58,23 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
     } finally {
       if (activeRef.current) setLoading(false);
     }
+  }
+
+  function peerGroup(title: string, peers: LexicalPeer[]) {
+    if (!peers.length) return null;
+    return <section className="morphology-group">
+      <h3>{title}</h3>
+      <div className="morphology-peers">{peers.map((peer) => (
+        targetUnit === null && peer.learnable ?
+          <button type="button" key={`${peer.lexical_unit_id}-${peer.relation_type}`} disabled={loading}
+            onClick={() => { void loadMeanings(peer.lexical_unit_id); }}>
+            {peer.direction === "incoming" ? "← " : "→ "}{peer.headword}
+            <span>{posLabels[peer.pos_group] || peer.pos_group}</span>
+          </button> : <span key={`${peer.lexical_unit_id}-${peer.relation_type}`}>
+            {peer.direction === "incoming" ? "← " : "→ "}{peer.headword} · {posLabels[peer.pos_group] || peer.pos_group}
+          </span>
+      ))}</div>
+    </section>;
   }
 
   useEffect(() => {
@@ -91,8 +114,9 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
           <>
             {loading ? <p role="status">正在加载词义…</p> : null}
             {meanings ? <>
+              {targetUnit !== null ? <button type="button" className="morphology-back" disabled={loading}
+                onClick={() => { void loadMeanings(null); }}>← {card.word}</button> : null}
               <p className="dictionary-word">{meanings.word}</p>
-              {meanings.senses.length === 1 ? <p className="sense-hint">词库暂时只收录了这个词义。</p> : null}
               {meanings.senses.length === 0 ? <p className="sense-hint">词库暂时没有可显示的词义。</p> : null}
               {meanings.senses.map((sense) => (
                 <section className="other-sense" key={sense.id}>
@@ -103,6 +127,15 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
                   </p>)}
                 </section>
               ))}
+              {meanings.morphology.inflected_forms.length ? <section className="morphology-group">
+                <h3>屈折形式</h3>
+                <div className="morphology-forms">{meanings.morphology.inflected_forms.map((form) => (
+                  <div key={`${form.spelling}-${form.scope_sense_id}`}><span>{form.spelling}</span><span>{form.label}</span></div>
+                ))}</div>
+              </section> : null}
+              {peerGroup(meanings.morphology.derived_words.every((peer) => peer.direction === "incoming") ? "派生来源" : "派生词", meanings.morphology.derived_words)}
+              {peerGroup(meanings.morphology.related_words.every((peer) => peer.direction === "incoming") ? "词汇化来源" : "词汇化用法", meanings.morphology.related_words.filter((peer) => peer.relation_type === "lexicalized_from"))}
+              {peerGroup("其他关联", meanings.morphology.related_words.filter((peer) => peer.relation_type !== "lexicalized_from"))}
             </> : null}
             {error ? <><p role="alert" className="error-notice">{error}</p>
               <button type="button" className="secondary-button" disabled={loading} onClick={() => { void loadMeanings(); }}>重试</button></> : null}

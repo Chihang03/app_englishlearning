@@ -564,11 +564,11 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     setAnswer(value);
   }
 
-  function markAnswerExposed(source: Card) {
+  function markAnswerExposed(source: Card, exposedSenseIds: number[]) {
     setCard((current) => {
       if (!current) return current;
       const sameAttempt = current.attempt_id === source.attempt_id;
-      const relatedSense = current.id === source.id && current.sense_id !== source.sense_id;
+      const relatedSense = exposedSenseIds.includes(current.sense_id);
       return sameAttempt || relatedSense ? { ...current, answer_exposed: true } : current;
     });
   }
@@ -880,7 +880,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         {page === "study" && studyTool ? <StudyTools key={`${studyTool.card.attempt_id}-${studyTool.tool}`}
           tool={studyTool.tool} card={studyTool.card} showTranslation={studyTool.showTranslation}
           onClose={closeStudyTool} onSignedOut={onSignedOut}
-          onAnswerExposed={() => markAnswerExposed(studyTool.card)} /> : null}
+          onAnswerExposed={(senseIds) => markAnswerExposed(studyTool.card, senseIds)} /> : null}
       </section>
 
       {page === "settings" ? (

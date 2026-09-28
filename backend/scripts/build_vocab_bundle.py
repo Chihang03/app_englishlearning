@@ -420,6 +420,9 @@ def build(
         json.dumps({"format_version": 2, "lists": list_metadata, "words": words}, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
+    from build_morphology_bundle import build_bundle
+    build_bundle(output, output.with_name('word_forms.json'), dictionary_root,
+                 dictionary_paths={'en': english_dictionary, 'zh': chinese_dictionary})
     print(f"Wrote {len(words):,} learnable words across {len(PACKS)} lists to {output}")
     print(f"Saved headword-only source lists to {output.with_name('source_word_lists.json')}")
     sense_count = sum(len(w["senses"]) for w in words)

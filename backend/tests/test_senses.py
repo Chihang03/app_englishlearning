@@ -404,12 +404,15 @@ class SenseLearningTests(unittest.TestCase):
         tables=('words','word_senses','sense_examples','sense_srs_state',
                 'adaptive_memory','review_history','user_sense_examples')
         with database.connect() as conn:
-            before={table:[tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+            columns={table:','.join(row[1] for row in conn.execute(f'PRAGMA table_info({table})')
+                                   if row[1]!='lexical_unit_id') for table in tables}
+            before={table:[tuple(row) for row in conn.execute(f'SELECT {columns[table]} FROM {table} ORDER BY rowid')]
                     for table in tables}
         database.init_database()
         with database.connect() as conn:
             for table in tables:
-                self.assertEqual([tuple(row) for row in conn.execute(f'SELECT * FROM {table} ORDER BY rowid')],before[table],table)
+                self.assertEqual([tuple(row) for row in conn.execute(f'SELECT {columns[table]} FROM {table} ORDER BY rowid')],before[table],table)
+            self.assertEqual(conn.execute('SELECT identity_status FROM lexical_units WHERE word_id=?', (saved['id'],)).fetchone()[0], 'legacy')
         self.assertTrue(self.client.get('/api/dictionary/custom').json()['available'])
         with TestClient(app) as other:
             other.post('/api/auth/register',json={'username':'other','password':'test-password-123'})

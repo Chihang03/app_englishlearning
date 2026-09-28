@@ -31,6 +31,7 @@ from .senses import senses_for_word
 from .study_tools import report_content, word_meanings
 from .muted_words import mute_word, restore_word
 from .http_cache import CachePolicyMiddleware
+from .morphology import resolve_lexical_entries
 
 
 # The streak walks back day by day from today, so history older than this cannot
@@ -83,6 +84,10 @@ class HintInput(BaseModel):
 
 class ExposureInput(BaseModel):
     attempt_id: str = Field(min_length=1,max_length=100)
+
+
+class StudyDetailsInput(ExposureInput):
+    target_lexical_unit_id: int | None = Field(default=None, gt=0)
 
 
 class ContentReportInput(ExposureInput):
@@ -198,9 +203,9 @@ def related_exposure(payload: ExposureInput, user: dict[str, Any] = Depends(get_
 
 
 @app.post("/api/study/meanings")
-def study_meanings(payload: ExposureInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
+def study_meanings(payload: StudyDetailsInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
-        return word_meanings(conn, int(user["id"]), payload.attempt_id)
+        return word_meanings(conn, int(user["id"]), payload.attempt_id, payload.target_lexical_unit_id)
 
 
 @app.post("/api/content-reports")
@@ -289,6 +294,7 @@ def dictionary_lookup(
     user: dict[str, Any] = Depends(get_learner_user),
 ) -> dict[str, Any]:
     with connect() as conn:
+        entries = resolve_lexical_entries(conn, word, int(user['id']))
         entry = row_to_dict(
             conn.execute(
                 """
@@ -311,11 +317,24 @@ def dictionary_lookup(
                 primary = entry["senses"][0]
                 entry.update({key:primary[key] for key in ("part_of_speech","definition_cn","definition_en")})
                 entry["example_sentence"] = primary["examples"][0]["sentence"]
+        # Keep the old direct-headword result. A flat fallback is safe only
+        # when exactly one learnable inflection target exists.
+        targets = [e for e in entries if e['classification'] == 'INFLECTION' and e['learnable']]
+        if entry is None and len(targets) == 1:
+            target = targets[0]
+            primary = target['senses'][0]
+            entry = {'id': target['word_id'], 'word': target['headword'],
+                     'part_of_speech': primary['part_of_speech'], 'definition_cn': primary['definition_cn'],
+                     'definition_en': primary['definition_en'], 'example_sentence': primary['examples'][0]['sentence'],
+                     'senses': target['senses'], 'lexical_unit_id': target['lexical_unit_id'],
+                     'pronunciation': conn.execute('SELECT pronunciation FROM words WHERE id=?', (target['word_id'],)).fetchone()[0]}
     return {
         "word": word,
         "source": "本地词库",
         "available": entry is not None,
         "definition": entry,
+        "entries": entries,
+        "classification": 'UNKNOWN' if not entries else None,
     }
 
 
