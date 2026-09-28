@@ -16,6 +16,7 @@ from .security import utc_now_iso
 from .morphology import seed_morphology
 from .word_forms import WORD_FORMS_PATH
 from .chinese_sentences import sync_database as sync_sentence_translations
+from .chinese_glosses import sync_database as sync_gloss_translations
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -68,6 +69,7 @@ def init_database() -> None:
     run_migrations(DB_PATH)
     seed_words()
     seed_vocabulary_catalog()
+    sync_gloss_translations(DB_PATH, strict=False)
     with connect() as conn:
         catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
         seed_morphology(conn, WORD_FORMS_PATH.read_bytes() if WORD_FORMS_PATH.exists() else b'', catalog_bytes)
@@ -211,11 +213,14 @@ def seed_vocabulary_catalog() -> None:
                 word_id = int(existing["id"])
                 conn.execute(
                     """
-                    UPDATE words SET part_of_speech = ?, definition_cn = ?, definition_en = ?,
+                    UPDATE words SET part_of_speech = ?,
+                        definition_cn = CASE WHEN trim(?) IN ('', '词义待补充')
+                            AND COALESCE(definition_en,'')=COALESCE(?,'') AND part_of_speech=?
+                            THEN definition_cn ELSE ? END, definition_en = ?,
                         example_sentence = ?, example_translation_cn = ?, pronunciation = ?
                     WHERE id = ?
                     """,
-                    (*values, word_id),
+                    (values[0],values[1],values[2],values[0],*values[1:],word_id),
                 )
             conn.executemany(
                 """
