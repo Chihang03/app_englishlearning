@@ -15,6 +15,7 @@ from .learning_filters import basic_word_sql
 from .security import utc_now_iso
 from .morphology import seed_morphology
 from .word_forms import WORD_FORMS_PATH
+from .chinese_sentences import sync_database as sync_sentence_translations
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -70,6 +71,7 @@ def init_database() -> None:
     with connect() as conn:
         catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
         seed_morphology(conn, WORD_FORMS_PATH.read_bytes() if WORD_FORMS_PATH.exists() else b'', catalog_bytes)
+    sync_sentence_translations(DB_PATH, strict=False)
 
 
 def _enable_wal() -> None:

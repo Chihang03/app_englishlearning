@@ -14,6 +14,7 @@ import csv
 import importlib
 import json
 import re
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -21,6 +22,8 @@ from typing import Any
 
 from dictionary_senses import parse_record
 from chinese_glosses import apply_supplements
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.chinese_sentences import apply_sentence_supplements
 
 
 WORD_RE = re.compile(r"^[A-Za-z][A-Za-z'-]*$")
@@ -393,6 +396,8 @@ def build(
 
     supplement_count = apply_supplements(words)
     print(f"Applied {supplement_count:,} saved Chinese sense supplements")
+    sentence_count = apply_sentence_supplements(words)
+    print(f"Applied {sentence_count:,} saved Chinese sentence supplements")
 
     words.sort(key=lambda item: (
         min(next(pack["sort_order"] for pack in PACKS if pack["id"] == member["list_id"])
@@ -431,6 +436,7 @@ def build(
         "word_count": len(words), "sense_count": sense_count, "example_count": example_count,
         "english_only_senses": sum(not s["definition_cn"] for w in words for s in w["senses"]),
         "chinese_supplements": supplement_count,
+        "chinese_sentence_supplements": sentence_count,
         "unpaired_words_by_list": missing,
     }
     output.with_name("vocabulary_export_report.json").write_text(
