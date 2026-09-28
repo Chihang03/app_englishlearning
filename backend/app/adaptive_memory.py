@@ -111,6 +111,9 @@ def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correc
     stored = conn.execute("SELECT * FROM adaptive_memory WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL",
                           (user_id,learning_unit_id)).fetchone()
     card = Card.from_json(stored["card_json"]) if stored else initial_card(conn,user_id,learning_unit_id,current,moment)
+    # Rebind a singleton's legacy FSRS identifier on its first real answer;
+    # all historical curve values stay unchanged until that answer arrives.
+    card.card_id = learning_unit_id
     personal = profile(conn, user_id)
     model = scheduler(personal["forgetting_multiplier"])
     base_probability = scheduler().get_card_retrievability(card,moment) if card.last_review else None
