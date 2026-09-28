@@ -47,7 +47,7 @@ class AdaptiveMemoryTests(unittest.TestCase):
                 'example_id':first['example_id'],'user_answer':'address'})
             self.assertEqual(response.status_code,409)
         with self.at('2026-01-31'):
-            second=self.next();self.assertNotEqual(second['example_id'],first['example_id'])
+            second=self.next();self.assertEqual(second['example_id'],first['example_id'])
             self.assertEqual(second['confirmations'],1)
             result=self.review(second,'address').json()
             self.assertEqual(result['memory']['confirmations'],2)

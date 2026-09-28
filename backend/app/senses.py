@@ -112,14 +112,31 @@ def write_state(conn, user_id: int, sense_id: int, state: dict[str, Any], exampl
 
 
 def example_for_sense(conn, sense_id: int, user_id: int):
-    # Least recently practiced example, independently for each learner. Rotate
-    # only within this sense, never borrow a sentence from a different meaning.
-    return conn.execute("""
-        SELECT e.* FROM sense_examples e
-        LEFT JOIN review_history h ON h.example_id=e.id AND h.user_id=?
+    fixed = conn.execute("""SELECT e.* FROM user_sense_examples f
+        JOIN sense_examples e ON e.id=f.example_id AND e.sense_id=f.sense_id
+        WHERE f.user_id=? AND f.sense_id=? AND e.active=1""", (user_id,sense_id)).fetchone()
+    if fixed is not None:
+        return fixed
+    # If a catalog removes the fixed sentence, pick an active replacement once.
+    # New senses prefer the headword spelling, without borrowing another sense.
+    example = conn.execute("""SELECT e.* FROM (
+            SELECT example_id,created_at AS seen_at,0 AS source,id AS record_id FROM study_attempts
+            WHERE user_id=? AND sense_id=?
+            UNION ALL
+            SELECT example_id,review_time,1,id FROM review_history WHERE user_id=? AND sense_id=?
+        ) seen JOIN sense_examples e ON e.id=seen.example_id AND e.sense_id=? AND e.active=1
+        ORDER BY seen.seen_at,seen.source,seen.record_id LIMIT 1""",
+        (user_id,sense_id,user_id,sense_id,sense_id)).fetchone()
+    if example is None:
+        example = conn.execute("""SELECT e.* FROM sense_examples e
+        JOIN word_senses s ON s.id=e.sense_id JOIN words w ON w.id=s.word_id
         WHERE e.sense_id=? AND e.active=1
-        GROUP BY e.id ORDER BY COALESCE(MAX(h.id),0),e.id LIMIT 1
-    """, (user_id,sense_id)).fetchone()
+        ORDER BY lower(e.target_form)!=lower(w.word),e.id LIMIT 1""", (sense_id,)).fetchone()
+    if example is not None:
+        conn.execute("""INSERT INTO user_sense_examples(user_id,sense_id,example_id) VALUES(?,?,?)
+            ON CONFLICT(user_id,sense_id) DO UPDATE SET example_id=excluded.example_id""",
+            (user_id,sense_id,example["id"]))
+    return example
 
 
 def senses_for_word(conn, word_id: int, user_id: int) -> list[dict[str, Any]]:

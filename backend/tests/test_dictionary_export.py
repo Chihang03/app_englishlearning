@@ -10,6 +10,36 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 
 @unittest.skipUnless(importlib.util.find_spec('lxml'), 'optional Mac export dependencies are not installed')
 class DictionaryExportTests(unittest.TestCase):
+    def test_inflection_labels_and_aliases_survive_export(self):
+        from dictionary_senses import parse_record
+        markup='''<div><span class="gramb"><span class="ps">verb</span>
+          <span class="infg"><span class="gr">past tense </span><span class="inf">wrote</span>
+          <span class="gr">past participle </span><span class="inf">written</span></span>
+          </span></div>'''
+        forms=parse_record(markup,'write','zh',['write','writes','writing','wrote','written','writer'])['inflections']['verb']
+        self.assertEqual(forms['wrote'],['past']);self.assertEqual(forms['written'],['past_participle'])
+        self.assertEqual(forms['writing'],['ing']);self.assertEqual(forms['writes'],['third_person_singular'])
+        self.assertNotIn('writer',forms)
+
+    def test_homograph_inflections_keep_part_of_speech(self):
+        from dictionary_senses import parse_record
+        markup='''<div><span class="gramb"><span class="ps">verb</span>
+          <span class="infg"><span class="gr">past tense, past participle </span><span class="inf">said</span></span>
+          </span><span class="gramb"><span class="ps">noun</span></span></div>'''
+        forms=parse_record(markup,'say','zh',['say','said','says','saying'])['inflections']
+        self.assertEqual(forms['verb']['said'],['past','past_participle'])
+        self.assertNotIn('said',forms['noun'])
+        self.assertEqual(forms['noun']['says'],['plural'])
+
+    def test_umbrella_participle_label_does_not_label_past_variant_as_ing(self):
+        from dictionary_senses import parse_record
+        markup='''<div><span class="gramb"><span class="ps">verb</span>
+          <span class="infg"><span class="gr">present participle etc. </span>
+          <span class="inf">travelling</span><span class="inf">travelled</span></span></span></div>'''
+        forms=parse_record(markup,'travel','zh',['travel','travelling','travelled'])['inflections']['verb']
+        self.assertEqual(forms['travelling'],['ing'])
+        self.assertEqual(forms['travelled'],['past','past_participle'])
+
     def test_plural_variant_inside_sense_does_not_hide_headword(self):
         from dictionary_senses import parse_record
         markup = '''<div><span class="gramb"><span class="ps">noun</span>

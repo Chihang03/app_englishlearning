@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 def run_migrations(db_path: Path) -> None:
@@ -122,12 +122,42 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 12 (persistent content corrections)")
 
+        if version < 13:
+            conn.execute("BEGIN")
+            _migrate_to_v13(conn)
+            conn.execute("PRAGMA user_version = 13")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 13 (fixed learning examples)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v13(conn: sqlite3.Connection) -> None:
+    conn.execute("""CREATE TABLE user_sense_examples (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        sense_id INTEGER NOT NULL REFERENCES word_senses(id) ON DELETE CASCADE,
+        example_id INTEGER NOT NULL REFERENCES sense_examples(id) ON DELETE CASCADE,
+        PRIMARY KEY(user_id,sense_id))""")
+    # Issued cards count as first exposure even if the learner never answered.
+    # v5 history predates attempts, so compare both sources chronologically.
+    conn.execute("""INSERT INTO user_sense_examples(user_id,sense_id,example_id)
+        SELECT user_id,sense_id,example_id FROM (
+            SELECT seen.*,ROW_NUMBER() OVER (
+                PARTITION BY seen.user_id,seen.sense_id ORDER BY seen.seen_at,seen.source,seen.record_id) AS position
+            FROM (
+                SELECT user_id,sense_id,example_id,created_at AS seen_at,0 AS source,id AS record_id
+                FROM study_attempts
+                UNION ALL
+                SELECT user_id,sense_id,example_id,review_time,1,id FROM review_history
+                WHERE sense_id IS NOT NULL AND example_id IS NOT NULL
+            ) seen JOIN sense_examples e ON e.id=seen.example_id AND e.sense_id=seen.sense_id
+            WHERE e.active=1
+        ) WHERE position=1""")
 
 
 def _migrate_to_v12(conn: sqlite3.Connection) -> None:

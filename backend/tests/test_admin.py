@@ -109,6 +109,7 @@ class AdminTests(unittest.TestCase):
         with database.connect() as conn:
             before = tuple(conn.execute("SELECT * FROM review_history").fetchone())
             conn.execute("UPDATE users SET username='admin' WHERE id=?", (self.uid,))
+            conn.execute("DROP TABLE user_sense_examples")
             conn.execute("DROP TABLE admin_content_edits")
             conn.execute("DROP TABLE admin_content_overrides")
             conn.execute("ALTER TABLE users DROP COLUMN role")

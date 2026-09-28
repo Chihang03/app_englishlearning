@@ -17,6 +17,7 @@ export type Card = {
   sense_id: number;
   example_id: number;
   answer_form: string;
+  answer_form_label?: string | null;
   is_new_word: boolean;
   word: string;
   part_of_speech: string;

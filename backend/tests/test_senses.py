@@ -162,7 +162,7 @@ class SenseLearningTests(unittest.TestCase):
         other=self.next();self.assertEqual(other['sense_id'],second['sense_id'])
         self.assertFalse(other['is_relearning']);self.review(other,'addressed')
         retry=self.next();self.assertEqual(retry['sense_id'],first['sense_id'])
-        self.assertTrue(retry['is_relearning']);self.assertNotEqual(retry['example_id'],first['example_id'])
+        self.assertTrue(retry['is_relearning']);self.assertEqual(retry['example_id'],first['example_id'])
         self.review(retry,'address')
         self.assertEqual(self.next()['word'],'bank')
 
@@ -294,13 +294,69 @@ class SenseLearningTests(unittest.TestCase):
             self.assertEqual(response['memory']['confirmations'],1)  # Only two seconds apart.
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],1)
 
-    def test_sentence_rotation_and_due_reviews_survive_list_switch(self):
+    def test_fixed_sentence_and_due_reviews_survive_list_switch(self):
         first=self.next();self.review(first,'address')
         self.client.patch('/api/settings',json={'selected_word_list_ids':[]})
         with database.connect() as conn:
             conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE sense_id=?",(first['sense_id'],))
         second=self.next();self.assertEqual(second['sense_id'],first['sense_id'])
-        self.assertNotEqual(second['example_id'],first['example_id']);self.assertEqual(second['definition_cn'],'地址')
+        self.assertEqual(second['example_id'],first['example_id']);self.assertEqual(second['definition_cn'],'地址')
+
+    def test_new_sense_prefers_headword_and_shows_nonbase_form_hint(self):
+        first=self.next();self.review(first,'address')
+        changed=self.next()
+        self.assertEqual(changed['answer_form'],'addressed')
+        self.assertEqual(changed['answer_form_label'],'过去式／过去分词')
+        self.review(changed,'addressed')
+        with database.connect() as conn:
+            conn.execute("""INSERT INTO sense_examples(sense_id,sentence,target_form,source)
+                VALUES(?,'We must address this problem.','address','test')""",(changed['sense_id'],))
+        # Another learner has not seen this meaning and should start with its
+        # headword example, while the existing learner keeps the original one.
+        with TestClient(app) as other:
+            other.post('/api/auth/register',json={'username':'forms','password':'test-password-123'})
+            card=other.get('/api/next').json()['card']
+            other.post('/api/review',json={'word_id':card['id'],'sense_id':card['sense_id'],
+                'example_id':card['example_id'],'attempt_id':card['attempt_id'],'user_answer':'address'})
+            base=other.get('/api/next').json()['card']
+            self.assertEqual(base['sense_id'],changed['sense_id'])
+            self.assertEqual(base['answer_form'],'address');self.assertIsNone(base['answer_form_label'])
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=? AND sense_id=?",
+                (self.uid,changed['sense_id']))
+        self.assertEqual(self.next()['example_id'],changed['example_id'])
+
+    def test_archived_fixed_example_gets_one_active_replacement(self):
+        first=self.next();self.review(first,'address')
+        with database.connect() as conn:
+            conn.execute('UPDATE sense_examples SET active=0 WHERE id=?',(first['example_id'],))
+            conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=?",(self.uid,))
+        replacement=self.next()
+        self.assertNotEqual(replacement['example_id'],first['example_id'])
+        self.review(replacement,'address')
+        with database.connect() as conn:
+            conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=?",(self.uid,))
+        self.assertEqual(self.next()['example_id'],replacement['example_id'])
+
+    def test_v13_pins_earliest_exposure_and_preserves_history(self):
+        first=self.next();self.review(first,'address')
+        with database.connect() as conn:
+            alternate=conn.execute('SELECT id FROM sense_examples WHERE sense_id=? AND id!=?',
+                (first['sense_id'],first['example_id'])).fetchone()[0]
+            # Simulate an earlier issued, unanswered card followed by rotation.
+            conn.execute("""INSERT INTO study_attempts(id,user_id,sense_id,example_id,created_at,completed_at)
+                VALUES('first-ever',?,?,?,'2000-01-01T00:00:00+00:00','2000-01-01T00:01:00+00:00')""",
+                (self.uid,first['sense_id'],alternate))
+            before=[tuple(r) for r in conn.execute('SELECT * FROM review_history')]
+            conn.execute('DROP TABLE user_sense_examples');conn.execute('PRAGMA user_version=12')
+        migrations.run_migrations(database.DB_PATH)
+        with database.connect() as conn:
+            fixed=conn.execute('SELECT example_id FROM user_sense_examples WHERE user_id=? AND sense_id=?',
+                (self.uid,first['sense_id'])).fetchone()[0]
+            self.assertEqual(fixed,alternate)
+            self.assertEqual(before,[tuple(r) for r in conn.execute('SELECT * FROM review_history')])
+            self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(),[])
+        self.assertTrue(list(self.directory.glob('test.db.bak-v12*')))
 
     def test_cet6_does_not_repeat_completed_cet4_senses(self):
         self.review(self.next(),'address');self.review(self.next(),'addressed')

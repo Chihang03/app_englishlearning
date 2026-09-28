@@ -197,6 +197,8 @@ python3 -m venv .venv-vocab-export
 .venv-vocab-export/bin/python scripts/build_vocab_bundle.py --source-dir /path/to/wordlist-sources
 ```
 
+`word_forms.json` 保存按词头和词性区分的词典词形信息。构建器同时导出该文件，也可单独运行 `scripts/export_word_forms.py` 更新词形，不重建学习例句。它读取词典屈折字段中的过去式、过去分词等标签，并用实际索引词形补齐规则变化；短语和派生词不会直接作为屈折词形导出。
+
 构建器读取 Mac 已安装的英汉词典和 New Oxford American Dictionary，按原文义项分组提取词性、解释及例句。英汉词典中的同组数据优先；只有人工核对的映射或词性一致且例句完全相同的唯一匹配，才跨词典合并。`sense_overrides.json` 保存人工映射及预期英文解释，源解释变化时导出会要求重新核对。没有可靠中文对应的词使用原义项的英文解释，不拼接整词的中文释义。
 
 `backend/data/chinese_gloss_supplements.json` 保存中文补充释义及每条记录的来源、匹配方法、稳定义项键、预期英文解释和词性；只填缺失的中文，重建词库时继续应用。`scripts/supplement_chinese_from_dictionary.py` 从本地词典提取补充：词性须一致，英文解释或例句须完全匹配；另可匹配两部原词典在该词性下都只有一个义项的单义词。单义判断包含原词典中没有可学例句的义项，不只检查学习词库。无法确定对应关系的多义词继续保留英文。词典义项中的复数/变体提示不会再被误当成短语而跳过整组解释。
@@ -213,7 +215,7 @@ backend/.venv-vocab-export/bin/python backend/scripts/supplement_chinese_from_di
 
 每个可学义项都必须有实际词典例句。构建器排除带 sb/sth 的模板和过短示例；词典省略的句末标点会被补齐。支持词典索引中明确记录的常见变形，例如 address → addressed；每条例句保存 `target_form`，卡片挖空与评分采用句中词形。独立的 Tatoeba 备用句没有义项对应关系，因此保留快照供人工核对，不会自动配给某个意思。
 
-设置页显示“可学词数 / 原词表词数”，未找到可靠配对的词列在 `vocabulary_export_report.json` 中。重新生成后部署 `source_word_lists.json`、`vocabulary_catalog.json` 和导出报告即可，服务器及访问者设备不需要 Mac 词典或导出依赖。
+设置页显示“可学词数 / 原词表词数”，未找到可靠配对的词列在 `vocabulary_export_report.json` 中。重新生成后部署 `source_word_lists.json`、`vocabulary_catalog.json`、`word_forms.json` 和导出报告即可，服务器及访问者设备不需要 Mac 词典或导出依赖。
 
 ## 一词多义学习与进度迁移
 
@@ -237,7 +239,7 @@ backend/.venv-vocab-export/bin/python backend/scripts/supplement_chinese_from_di
 
 运行后端验证：`cd backend && .venv/bin/python -m unittest discover -s tests -v`；前端验证：`cd frontend && npm run build`。v7 升级前自动用 SQLite backup API 备份，保留 WAL 中尚未检查点的数据。
 
-每张卡只显示当前例句所属义项的解释和词性。学习页右上角的三点菜单提供“更多词义”和“报告错误”，左上角返回首页；首页通过底部导航进入设置。答题前后都可以打开“更多词义”，查看词库收录的解释与例句，当前义项会标记为“当前词义”；只有一个义项时明确提示。打开菜单或弹窗时暂停自动跳题，答对后可通过菜单的“下一题”继续。已有多个例句的义项会按当前用户的练习历史轮换例句。
+每张卡只显示当前例句所属义项的解释和词性。学习页右上角的三点菜单提供“更多词义”和“报告错误”，左上角返回首页；首页通过底部导航进入设置。答题前后都可以打开“更多词义”，查看词库收录的解释与例句，当前义项会标记为“当前词义”；只有一个义项时明确提示。打开菜单或弹窗时暂停自动跳题，答对后可通过菜单的“下一题”继续。例句按账号和义项固定，后续复习与错题巩固沿用首次学习的例句。新义项优先选择答案与词头相同的原形例句；没有原形例句时使用该义项已有的例句。原句被词库归档后才选择并固定一个有效替代句。词性旁显示非原形提示，包括第三人称单数、过去式、过去分词、复数、比较级和最高级。-ing 答案结合固定例句，在明确结构下细化为动名词、现在分词或现在分词·进行时；不确定或多处挖空用法不同的句子保留 -ing 形式。
 
 `POST /api/study/meanings` 使用当前 `attempt_id` 加载词义，在返回内容前持久化当前题目的答案暴露和其他义项的预览记录。答题前查看词义后，后续正确作答沿用辅助作答规则，不计为独立通过。报告错误只显示挖空例句，不揭示答案或改变学习进度。
 
@@ -291,3 +293,5 @@ cd backend
 ## 部署提醒
 
 公网部署时至少要做到：走 HTTPS 并设置 `COOKIE_SECURE=true`；设置 `REGISTRATION_CODE` 以免被任意注册；把 `DATA_DIR` 指向持久化目录。
+
+数据库 v13 在升级前通过 SQLite backup API 备份，新增 `user_sense_examples` 保存每个账号、每个义项的固定例句。升级时比较已发题记录和答题历史，固定最早仍有效的例句；原学习历史、复习计划与账号数据保留。
