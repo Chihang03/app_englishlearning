@@ -1,4 +1,4 @@
-"""Local sense/example storage, migration and independently scheduled cards."""
+"""Dictionary sources, legacy history and shared teaching progress."""
 from __future__ import annotations
 
 import hashlib
@@ -78,6 +78,8 @@ def save_senses(conn, word_id: int, senses: list[dict[str, Any]]) -> None:
                 VALUES(?,?,?,?,?,1) ON CONFLICT(sense_id,sentence) DO UPDATE SET
                     translation_cn=excluded.translation_cn,target_form=excluded.target_form,source=excluded.source,active=1
             """, (sense_id,example["sentence"],example.get("translation_cn"),example["target_form"],example.get("source") or sense.get("source") or "本地词库"))
+    from .learning_units import ensure_word_units
+    ensure_word_units(conn, word_id)
 
 
 def authored_sense(word: dict[str, Any], source: str = "用户词库") -> list[dict[str, Any]]:
@@ -111,44 +113,23 @@ def migrate_legacy_progress(conn) -> None:
 
 
 def write_state(conn, user_id: int, sense_id: int, state: dict[str, Any], example_id: int, *, ignore_existing: bool = False) -> None:
+    from .learning_units import unit_for_sense, anchor_for_unit
+    unit_id = unit_for_sense(conn, sense_id)
+    sense_id = anchor_for_unit(conn, unit_id)
     action = "DO NOTHING" if ignore_existing else "DO UPDATE SET " + ",".join(f"{f}=excluded.{f}" for f in (*STATE_FIELDS,"last_example_id"))
+    if not ignore_existing:
+        action += ',learning_unit_id=excluded.learning_unit_id,retired_at=NULL'
     fields = ",".join(STATE_FIELDS)
-    conn.execute(f"""INSERT INTO sense_srs_state(user_id,sense_id,{fields},last_example_id)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,sense_id) {action}""",
-        (user_id,sense_id,*(state[f] for f in STATE_FIELDS),example_id))
-
-
-def example_for_sense(conn, sense_id: int, user_id: int):
-    fixed = conn.execute("""SELECT e.* FROM user_sense_examples f
-        JOIN sense_examples e ON e.id=f.example_id AND e.sense_id=f.sense_id
-        WHERE f.user_id=? AND f.sense_id=? AND e.active=1""", (user_id,sense_id)).fetchone()
-    if fixed is not None:
-        return fixed
-    # If a catalog removes the fixed sentence, pick an active replacement once.
-    # New senses prefer the headword spelling, without borrowing another sense.
-    example = conn.execute("""SELECT e.* FROM (
-            SELECT example_id,created_at AS seen_at,0 AS source,id AS record_id FROM study_attempts
-            WHERE user_id=? AND sense_id=?
-            UNION ALL
-            SELECT example_id,review_time,1,id FROM review_history WHERE user_id=? AND sense_id=?
-        ) seen JOIN sense_examples e ON e.id=seen.example_id AND e.sense_id=? AND e.active=1
-        ORDER BY seen.seen_at,seen.source,seen.record_id LIMIT 1""",
-        (user_id,sense_id,user_id,sense_id,sense_id)).fetchone()
-    if example is None:
-        example = conn.execute("""SELECT e.* FROM sense_examples e
-        JOIN word_senses s ON s.id=e.sense_id JOIN words w ON w.id=s.word_id
-        WHERE e.sense_id=? AND e.active=1
-        ORDER BY lower(e.target_form)!=lower(w.word),e.id LIMIT 1""", (sense_id,)).fetchone()
-    if example is not None:
-        conn.execute("""INSERT INTO user_sense_examples(user_id,sense_id,example_id) VALUES(?,?,?)
-            ON CONFLICT(user_id,sense_id) DO UPDATE SET example_id=excluded.example_id""",
-            (user_id,sense_id,example["id"]))
-    return example
+    conn.execute(f"""INSERT INTO sense_srs_state(user_id,sense_id,{fields},last_example_id,learning_unit_id)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,sense_id) {action}""",
+        (user_id,sense_id,*(state[f] for f in STATE_FIELDS),example_id,unit_id))
 
 
 def senses_for_word(conn, word_id: int, user_id: int) -> list[dict[str, Any]]:
-    rows = conn.execute("""SELECT s.*,COALESCE(p.status,'New') AS status,
-        p.next_review_date FROM word_senses s LEFT JOIN sense_srs_state p ON p.sense_id=s.id AND p.user_id=?
+    # Several dictionary definitions expose the same teaching progress.
+    rows = conn.execute("""SELECT s.*,b.learning_unit_id,COALESCE(p.status,'New') AS status,p.next_review_date
+        FROM word_senses s JOIN learning_unit_senses b ON b.sense_id=s.id
+        LEFT JOIN sense_srs_state p ON p.learning_unit_id=b.learning_unit_id AND p.user_id=? AND p.retired_at IS NULL
         WHERE s.word_id=? AND s.active=1 ORDER BY s.position,s.id""", (user_id,word_id)).fetchall()
     return [{**dict(s), "examples": [dict(e) for e in conn.execute(
         "SELECT * FROM sense_examples WHERE sense_id=? AND active=1 ORDER BY id", (s["id"],))]} for s in rows]

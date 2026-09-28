@@ -417,7 +417,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         readCache.clear();
         review = await request<ReviewResult>("/api/review", {
           method: "POST",
-          body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id, active_response_ms: Math.round(activeTimeRef.current) })
+          body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, learning_unit_id: card.learning_unit_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id, active_response_ms: Math.round(activeTimeRef.current) })
         });
         readCache.clear();
       } catch (caught) {

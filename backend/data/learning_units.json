@@ -1,0 +1,29 @@
+{
+  "format_version": 1,
+  "words": [
+    {
+      "word": "abandon",
+      "groups": [
+        {
+          "key": "abandon:v:core",
+          "pos_group": "verb",
+          "definition_cn": "放弃；抛弃；遗弃",
+          "example_strategy": "rotate",
+          "provenance": {"kind": "reviewed_learning_group", "date": "2026-09-29", "basis": "用户确认将四个相近用法合为同一学习知识点"},
+          "senses": [
+            {"key": "en:m_en_gbus0000850.006", "expected_definition_en": "cease to support or look after (someone); desert"},
+            {"key": "en:m_en_gbus0000850.013", "expected_definition_en": "leave (a place or vehicle) empty or uninhabited, without intending to return"},
+            {"key": "en:m_en_gbus0000850.015", "expected_definition_en": "condemn someone or something to (a specified fate) by ceasing to take an interest in them"},
+            {"key": "en:m_en_gbus0000850.017", "expected_definition_en": "give up completely (a course of action, a practice, or a way of thinking)"}
+          ]
+        }
+      ],
+      "coverage": {
+        "cet4": {
+          "units": ["abandon:v:core"],
+          "provenance": {"kind": "reviewed_course_scope", "date": "2026-09-29", "basis": "本应用首批审核的四级学习范围；不是官方考试义项大纲"}
+        }
+      }
+    }
+  ]
+}

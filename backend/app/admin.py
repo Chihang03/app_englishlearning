@@ -65,7 +65,7 @@ def user_detail(user_id: int, user: dict[str, Any] = Depends(get_admin_user)) ->
             COUNT(CASE WHEN review_time >= ? AND review_time < ? THEN 1 END) AS today_reviews,
             MAX(review_time) AS last_review_at FROM review_history WHERE user_id=?""", (start, end, user_id)).fetchone()
         states = {row["status"]: row["total"] for row in conn.execute("""SELECT status,COUNT(*) AS total
-            FROM sense_srs_state WHERE user_id=? GROUP BY status""", (user_id,))}
+            FROM sense_srs_state WHERE user_id=? AND retired_at IS NULL GROUP BY status""", (user_id,))}
         learned_words = conn.execute("""SELECT COUNT(DISTINCT word_id) FROM (
             SELECT word_id FROM review_history WHERE user_id=?
             UNION SELECT s.word_id FROM study_attempts a JOIN word_senses s ON s.id=a.sense_id WHERE a.user_id=?

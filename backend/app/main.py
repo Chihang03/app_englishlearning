@@ -71,6 +71,7 @@ app.include_router(passkeys_router)
 class ReviewInput(BaseModel):
     word_id: int
     sense_id: int | None = None
+    learning_unit_id: int | None = Field(default=None, gt=0)
     example_id: int | None = None
     user_answer: str = Field(default="", max_length=200)
     attempt_id: str | None = Field(default=None, max_length=100)
@@ -132,7 +133,7 @@ def stats(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
             """
             SELECT COUNT(*) AS total, COALESCE(SUM(is_correct), 0) AS correct,
                 COUNT(DISTINCT CASE WHEN is_independent=1 THEN word_id END) AS success_words,
-                COUNT(DISTINCT CASE WHEN is_independent=1 THEN sense_id END) AS success_senses,
+                COUNT(DISTINCT CASE WHEN is_independent=1 THEN COALESCE(learning_unit_id,-sense_id) END) AS success_senses,
                 COALESCE(SUM(is_first_attempt),0) AS first_total,
                 COALESCE(SUM(CASE WHEN is_first_attempt=1 AND is_correct=1 THEN 1 ELSE 0 END),0) AS first_correct
             FROM review_history
@@ -187,7 +188,7 @@ def review(payload: ReviewInput, user: dict[str, Any] = Depends(get_learner_user
     with connect() as conn:
         return record_sense_review(conn,int(user["id"]),user_today(user),payload.word_id,
                                    payload.sense_id,payload.example_id,payload.user_answer,
-                                   payload.attempt_id,user_timezone(user),payload.active_response_ms)
+                                   payload.attempt_id,user_timezone(user),payload.active_response_ms,payload.learning_unit_id)
 
 
 @app.post("/api/study/hint")

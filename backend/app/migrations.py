@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 18
 
 
 def run_migrations(db_path: Path) -> None:
@@ -153,12 +153,83 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 16 (sense learning eligibility)")
 
+        if version < 17:
+            conn.execute("BEGIN")
+            _migrate_to_v17(conn)
+            conn.execute("PRAGMA user_version = 17")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 17 (curriculum learning units)")
+
+        if version < 18:
+            conn.execute("BEGIN")
+            _migrate_to_v18(conn)
+            conn.execute("PRAGMA user_version = 18")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 18 (shared learning state)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v17(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        """CREATE TABLE IF NOT EXISTS learning_units (
+            id INTEGER PRIMARY KEY, lexical_unit_id INTEGER NOT NULL REFERENCES lexical_units(id),
+            word_id INTEGER NOT NULL REFERENCES words(id), unit_key TEXT NOT NULL,
+            representative_sense_id INTEGER NOT NULL REFERENCES word_senses(id),
+            display_definition_cn TEXT NOT NULL, display_definition_en TEXT,
+            position INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+            example_strategy TEXT NOT NULL DEFAULT 'fixed' CHECK(example_strategy IN ('fixed','rotate')),
+            verification TEXT NOT NULL CHECK(verification IN ('legacy','reviewed')),
+            provenance_json TEXT NOT NULL DEFAULT '{}', UNIQUE(word_id,unit_key))""",
+        """CREATE TABLE IF NOT EXISTS learning_unit_senses (
+            sense_id INTEGER PRIMARY KEY REFERENCES word_senses(id),
+            learning_unit_id INTEGER NOT NULL REFERENCES learning_units(id))""",
+        "CREATE INDEX IF NOT EXISTS idx_learning_unit_members ON learning_unit_senses(learning_unit_id,sense_id)",
+        """CREATE TABLE IF NOT EXISTS word_list_learning_units (
+            list_id TEXT NOT NULL REFERENCES vocabulary_lists(list_id),
+            learning_unit_id INTEGER NOT NULL REFERENCES learning_units(id), position INTEGER NOT NULL,
+            verification TEXT NOT NULL CHECK(verification IN ('legacy','reviewed')),
+            provenance_json TEXT NOT NULL DEFAULT '{}', PRIMARY KEY(list_id,learning_unit_id))""",
+        """CREATE TABLE IF NOT EXISTS word_list_learning_scopes (
+            list_id TEXT NOT NULL REFERENCES vocabulary_lists(list_id), word_id INTEGER NOT NULL REFERENCES words(id),
+            verification TEXT NOT NULL CHECK(verification IN ('legacy','reviewed')),
+            provenance_json TEXT NOT NULL DEFAULT '{}', PRIMARY KEY(list_id,word_id))""",
+        """CREATE TABLE IF NOT EXISTS learning_unit_merges (
+            id INTEGER PRIMARY KEY, learning_unit_id INTEGER NOT NULL REFERENCES learning_units(id),
+            config_key TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL,
+            reverted_at TEXT)""",
+        """CREATE TABLE IF NOT EXISTS learning_group_blocks (
+            config_key TEXT PRIMARY KEY, blocked_at TEXT NOT NULL)""",
+    ])
+
+
+def _migrate_to_v18(conn: sqlite3.Connection) -> None:
+    # Keep original IDs and source history. Active state has one row per user/unit;
+    # retired source rows remain available in addition to the merge receipt.
+    for table in ('sense_srs_state','adaptive_memory','relearning_queue','user_sense_examples'):
+        if 'learning_unit_id' not in {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}:
+            conn.execute(f'ALTER TABLE {table} ADD COLUMN learning_unit_id INTEGER REFERENCES learning_units(id)')
+        if 'retired_at' not in {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}:
+            conn.execute(f'ALTER TABLE {table} ADD COLUMN retired_at TEXT')
+        conn.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_learning_unit ON {table}(user_id,learning_unit_id) WHERE retired_at IS NULL')
+    for table in ('study_attempts','review_history','sense_exposures'):
+        if 'learning_unit_id' not in {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}:
+            conn.execute(f'ALTER TABLE {table} ADD COLUMN learning_unit_id INTEGER REFERENCES learning_units(id)')
+    conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_open_learning_attempt ON study_attempts(user_id,learning_unit_id) WHERE completed_at IS NULL')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_unit_review_history ON review_history(user_id,learning_unit_id,review_time)')
+    # Historical import helpers still write source IDs. The server resolves the
+    # same unit in all cases; this does not transfer progress across lexical units.
+    for table in ('sense_srs_state','adaptive_memory','relearning_queue','user_sense_examples','study_attempts','review_history','sense_exposures'):
+        key = 'id=NEW.id' if table in ('study_attempts','review_history') else 'user_id=NEW.user_id AND sense_id=NEW.sense_id'
+        conn.execute(f'''CREATE TRIGGER IF NOT EXISTS bind_{table}_learning_unit AFTER INSERT ON {table}
+            WHEN NEW.learning_unit_id IS NULL BEGIN
+            UPDATE {table} SET learning_unit_id=(SELECT learning_unit_id FROM learning_unit_senses WHERE sense_id=NEW.sense_id)
+            WHERE {key}; END''')
 
 
 def _migrate_to_v15(conn: sqlite3.Connection) -> None:

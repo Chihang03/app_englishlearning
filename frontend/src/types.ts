@@ -15,6 +15,7 @@ export type Card = {
   is_relearning: boolean;
   id: number;
   sense_id: number;
+  learning_unit_id: number;
   example_id: number;
   answer_form: string;
   answer_form_label?: string | null;
@@ -32,6 +33,7 @@ export type Card = {
 
 export type Sense = {
   id: number;
+  learning_unit_id: number;
   part_of_speech: string;
   definition_cn: string;
   definition_en?: string | null;
@@ -79,6 +81,7 @@ export type StudyDetails = {
 
 export type ReviewResult = {
   sense_id: number;
+  learning_unit_id: number;
   example_id: number;
   word: string;
   other_senses: Sense[];
