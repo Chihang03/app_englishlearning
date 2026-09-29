@@ -25,7 +25,7 @@ _DUE_SENSES_SQL = f"""SELECT p.*,u.word_id,q.ready_at,q.queue_order,
     LEFT JOIN relearning_queue q ON q.user_id=p.user_id AND q.learning_unit_id=u.id AND q.retired_at IS NULL
     LEFT JOIN adaptive_memory m ON m.user_id=p.user_id AND m.learning_unit_id=u.id AND m.retired_at IS NULL
     WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()} AND (w.owner_id IS NULL OR w.owner_id=?)
-      AND {learnable_word_sql('p.user_id')}
+      AND {learnable_word_sql('p.user_id', unit_expression='u.id')}
       AND (p.status!='Mature' OR m.learning_unit_id IS NOT NULL)
       AND ((q.learning_unit_id IS NULL AND p.next_review_date<=?) OR q.ready_at<=?)"""
 
@@ -34,7 +34,7 @@ def selected_filter(user_id: int) -> tuple[str, tuple[int, int, int, int]]:
     return f"""(w.owner_id=? OR (w.owner_id IS NULL AND EXISTS (
         SELECT 1 FROM word_list_learning_units m JOIN user_vocabulary_lists v ON v.list_id=m.list_id
         WHERE m.learning_unit_id=u.id AND v.user_id=? AND v.selected=1)))
-        AND {learnable_word_sql('?')}""", (user_id,user_id,user_id,user_id)
+        AND {learnable_word_sql('?', unit_expression='u.id')}""", (user_id,user_id,user_id,user_id)
 
 
 def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
@@ -49,11 +49,15 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         AND NOT EXISTS(SELECT 1 FROM srs_state l WHERE l.word_id=w.id AND l.user_id=?)
         AND NOT EXISTS(SELECT 1 FROM learning_units lu JOIN sense_srs_state p ON p.learning_unit_id=lu.id
             WHERE lu.word_id=w.id AND p.retired_at IS NULL AND p.user_id=?)""", (*args,user_id,user_id)).fetchone()[0]
+    # Migrated legacy rows defer to unit progress, so a skipped pronoun cannot
+    # count as learned solely because an independent noun is still available.
     # Progress follows the current learning exclusions without deleting history.
     learned = conn.execute(f"""SELECT COUNT(*) FROM words w JOIN (
-        SELECT word_id FROM srs_state WHERE user_id=? UNION
+        SELECT word_id FROM srs_state WHERE user_id=? AND sense_migrated=0 UNION
         SELECT u.word_id FROM learning_units u JOIN sense_srs_state p ON p.learning_unit_id=u.id
+            JOIN words w ON w.id=u.word_id
             WHERE p.user_id=? AND p.retired_at IS NULL
+              AND {learnable_word_sql('p.user_id', unit_expression='u.id')}
     ) learned ON learned.word_id=w.id
         WHERE {learnable_word_sql('?')}""",
         (user_id,user_id,user_id,user_id)).fetchone()[0]
@@ -61,16 +65,16 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         SELECT DISTINCT word_id FROM ({_DUE_SENSES_SQL})
         ) SELECT COUNT(*) AS learned_senses,
         COUNT(DISTINCT CASE WHEN p.status IN ('Learning','Reviewing')
-            AND {learnable_word_sql('p.user_id')}
+            AND {learnable_word_sql('p.user_id', unit_expression='u.id')}
             AND u.word_id NOT IN (SELECT word_id FROM due_word_ids)
             AND EXISTS(SELECT 1 FROM review_history h WHERE h.user_id=p.user_id
                 AND h.learning_unit_id=p.learning_unit_id AND h.is_correct=1)
             THEN u.word_id END) AS learning,
         COUNT(CASE WHEN p.status IN ('Reviewing','Mature') THEN 1 END) AS mastered_senses,
-        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND {learnable_word_sql('p.user_id')} THEN u.word_id END) AS lapse_words
+        COUNT(DISTINCT CASE WHEN p.wrong_count>0 AND p.status!='Mature' AND {learnable_word_sql('p.user_id', unit_expression='u.id')} THEN u.word_id END) AS lapse_words
         FROM sense_srs_state p JOIN learning_units u ON u.id=p.learning_unit_id JOIN words w ON w.id=u.word_id
         WHERE p.user_id=? AND p.retired_at IS NULL AND {usable_unit_sql()}
-        AND {learnable_word_sql('p.user_id')}""",
+        AND {learnable_word_sql('p.user_id', unit_expression='u.id')}""",
         (user_id,user_id,today.isoformat(),now,user_id)).fetchone()
     due = conn.execute(f"""SELECT COUNT(*) AS due_senses,
         COUNT(DISTINCT word_id) AS due_words,
@@ -87,7 +91,7 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
             SUM(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mature
             FROM learning_units u LEFT JOIN sense_srs_state p ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
             JOIN words w ON w.id=u.word_id
-            WHERE {usable_unit_sql()} AND {learnable_word_sql('?')}
+            WHERE {usable_unit_sql()} AND {learnable_word_sql('?', unit_expression='u.id')}
             GROUP BY u.word_id)""", (user_id,user_id,user_id)).fetchone()
     legacy = conn.execute(f"""SELECT COUNT(*) FROM srs_state p JOIN words w ON w.id=p.word_id
         WHERE p.user_id=? AND p.sense_migrated=0 AND {learnable_word_sql('p.user_id')}""",
@@ -96,7 +100,7 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
         FROM relearning_queue q JOIN learning_units u ON u.id=q.learning_unit_id JOIN words w ON w.id=u.word_id
         JOIN sense_srs_state p ON p.user_id=q.user_id AND p.learning_unit_id=u.id AND p.retired_at IS NULL
         WHERE q.user_id=? AND q.retired_at IS NULL AND {usable_unit_sql()} AND p.status!='Mature' AND q.ready_at>?
-        AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('q.user_id')}""", (user_id,now,user_id)).fetchone()
+        AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('q.user_id', unit_expression='u.id')}""", (user_id,now,user_id)).fetchone()
     return {"total_learned": learned, "new_words": new_words, "new_senses": new["senses"],
             "words_with_new_senses": new["words"], "due_review": due["due_senses"],
             **dict(progress), **dict(due), **dict(complete), "legacy_unmapped_words": legacy,
@@ -160,7 +164,7 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
         JOIN word_senses s ON s.id=a.sense_id JOIN words w ON w.id=s.word_id
         JOIN sense_examples e ON e.id=a.example_id
         WHERE a.user_id=? AND a.completed_at IS NULL AND s.active=1 AND s.learning_enabled=1 AND e.active=1
-        AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('a.user_id')}
+        AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('a.user_id', unit_expression='a.learning_unit_id')}
         ORDER BY a.created_at,a.id LIMIT 1""",
         (user_id,user_id)).fetchone()
     # Catalog updates can archive a round; retire it so it cannot block a replacement.
@@ -182,7 +186,7 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
             JOIN learning_units u ON u.id=q.learning_unit_id JOIN words w ON w.id=u.word_id
             JOIN sense_srs_state p ON p.learning_unit_id=u.id AND p.user_id=q.user_id AND p.retired_at IS NULL
             WHERE q.user_id=? AND q.retired_at IS NULL AND {usable_unit_sql()} AND p.status!='Mature' AND q.ready_at>?
-            AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('q.user_id')}""", (user_id,now,user_id)).fetchone()
+            AND (w.owner_id IS NULL OR w.owner_id=?) AND {learnable_word_sql('q.user_id', unit_expression='u.id')}""", (user_id,now,user_id)).fetchone()
         visible, args = selected_filter(user_id)
         row = conn.execute(f"""SELECT u.id AS learning_unit_id FROM learning_units u JOIN words w ON w.id=u.word_id
             LEFT JOIN word_frequencies f ON f.headword=lower(trim(w.word))
@@ -257,10 +261,11 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
     if conn.execute("SELECT 1 FROM user_muted_words WHERE user_id=? AND word=lower(trim(?))",
                     (user_id,row["word"])).fetchone():
         raise HTTPException(status_code=409,detail="此单词已设为不再学习，请加载下一题。")
-    if not conn.execute(f"SELECT 1 FROM words w WHERE w.id=? AND {learnable_word_sql('?')}",
-                        (word_id,user_id,user_id)).fetchone():
-        raise HTTPException(status_code=409,detail="此单词已跳过，请加载下一题。")
     unit_id = unit_for_sense(conn,sense_id)
+    if not conn.execute(f"""SELECT 1 FROM learning_units u JOIN words w ON w.id=u.word_id
+        WHERE u.id=? AND {learnable_word_sql('?', unit_expression='u.id')}""",
+                        (unit_id,user_id,user_id)).fetchone():
+        raise HTTPException(status_code=409,detail="此单词已跳过，请加载下一题。")
     if submitted_unit_id is not None and submitted_unit_id != unit_id:
         raise HTTPException(status_code=409,detail="本轮学习义项不匹配，请加载下一题。")
     anchor_id = anchor_for_unit(conn,unit_id)
