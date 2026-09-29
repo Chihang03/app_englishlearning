@@ -380,5 +380,6 @@ def update_settings(user_id: int, values: dict[str, str]) -> dict[str, str]:
             conn.execute(f"""UPDATE study_attempts SET completed_at=?
                 WHERE user_id=? AND completed_at IS NULL AND sense_id IN (
                     SELECT s.id FROM word_senses s JOIN words w ON w.id=s.word_id
-                    WHERE {basic_word_sql()})""", (utc_now_iso(), user_id))
+                    JOIN learning_unit_senses binding ON binding.sense_id=s.id
+                    WHERE {basic_word_sql(unit_expression='binding.learning_unit_id')})""", (utc_now_iso(), user_id))
     return get_settings(user_id)
