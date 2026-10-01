@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "语境学词 · Context",
+  "short_name": "语境学词",
+  "lang": "zh-CN",
+  "start_url": "/#home",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f2",
+  "theme_color": "#f7f7f2",
+  "icons": [{ "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
+}

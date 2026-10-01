@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 
 def run_migrations(db_path: Path) -> None:
@@ -174,12 +174,38 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 19 (word frequencies)")
 
+        if version < 20:
+            conn.execute("BEGIN")
+            _migrate_to_v20(conn)
+            conn.execute("PRAGMA user_version = 20")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 20 (learning reminders)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v20(conn: sqlite3.Connection) -> None:
+    _run(conn, [
+        """CREATE TABLE IF NOT EXISTS push_subscriptions (
+            endpoint TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            session_hash TEXT NOT NULL, origin TEXT NOT NULL,
+            p256dh TEXT NOT NULL, auth TEXT NOT NULL,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_push_session ON push_subscriptions(session_hash)",
+        """CREATE TABLE IF NOT EXISTS push_deliveries (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            local_day TEXT NOT NULL, endpoint_hash TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('claimed','sent','failed')),
+            attempts INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
+            PRIMARY KEY(user_id,local_day,endpoint_hash))""",
+    ])
 
 
 def _migrate_to_v19(conn: sqlite3.Connection) -> None:

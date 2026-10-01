@@ -181,6 +181,7 @@ def logout(request: Request, response: Response) -> dict[str, str]:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         with connect() as conn:
+            conn.execute("DELETE FROM push_subscriptions WHERE session_hash = ?", (hash_token(token),))
             conn.execute("DELETE FROM sessions WHERE token_hash = ?", (hash_token(token),))
     response.delete_cookie(SESSION_COOKIE, path="/")
     return {"status": "signed out"}
