@@ -1,8 +1,9 @@
 const API_BASE = "";
-const writeListeners = new Set<() => void>();
+export type ApiWrite = { path: string; method: string; body?: BodyInit | null };
+const writeListeners = new Set<(write: ApiWrite) => void>();
 let pendingWrites = 0;
 
-export function onApiWrite(listener: () => void) {
+export function onApiWrite(listener: (write: ApiWrite) => void) {
   writeListeners.add(listener);
   return () => { writeListeners.delete(listener); };
 }
@@ -37,7 +38,9 @@ function readDetail(body: unknown, fallback: string): string {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const writing = !["GET", "HEAD"].includes((init?.method ?? "GET").toUpperCase());
+  const method = (init?.method ?? "GET").toUpperCase();
+  // /api/next allocates a server attempt, despite its GET transport.
+  const writing = !["GET", "HEAD"].includes(method) || path === "/api/next";
   const controller = new AbortController();
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, 15000);
@@ -70,7 +73,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       pendingWrites--;
       // Even a lost response may have reached the server. Invalidate on all
       // write completions, including speech settings saved by another component.
-      for (const listener of writeListeners) listener();
+      for (const listener of writeListeners) listener({ path, method, body: init?.body });
     }
   }
 }

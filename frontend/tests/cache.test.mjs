@@ -63,6 +63,44 @@ test("expired data and failed requests are retried", async () => {
   assert.equal(await cache.get("/stats", 0), 3);
 });
 
+test("writes invalidate affected resources while preserving unrelated reads", async () => {
+  const calls = [];
+  const cache = new ReadCache(async (path) => { calls.push(path); return path; });
+  const paths = ["/api/stats", "/api/settings", "/api/word-lists", "/api/muted-words"];
+  await Promise.all(paths.map((path) => cache.get(path, 10000)));
+  calls.length = 0;
+  cache.invalidateWrite({ path: "/api/review", method: "POST" });
+  await Promise.all(paths.map((path) => cache.get(path, 10000)));
+  assert.deepEqual(calls.splice(0), ["/api/stats", "/api/word-lists"]);
+  cache.invalidateWrite({ path: "/api/settings", method: "PATCH", body: JSON.stringify({ speech_rate: 175 }) });
+  await Promise.all(paths.map((path) => cache.get(path, 10000)));
+  assert.deepEqual(calls.splice(0), ["/api/settings"]);
+  cache.invalidateWrite({ path: "/api/settings", method: "PATCH", body: JSON.stringify({ selected_word_list_ids: [] }) });
+  await Promise.all(paths.map((path) => cache.get(path, 10000)));
+  assert.deepEqual(calls.splice(0), ["/api/stats", "/api/settings", "/api/word-lists"]);
+  cache.invalidateWrite({ path: "/api/push/subscription", method: "POST" });
+  await Promise.all(paths.map((path) => cache.get(path, 10000)));
+  assert.deepEqual(calls, []);
+  cache.invalidateWrite({ path: "/api/words/7/mute", method: "POST" });
+  await Promise.all(paths.map((path) => cache.get(path, 10000)));
+  assert.deepEqual(calls, ["/api/stats", "/api/word-lists", "/api/muted-words"]);
+});
+
+test("display snapshots survive failed background reads but never hide auth or forced-refresh errors", async () => {
+  let error;
+  const cache = new ReadCache(async () => { if (error) throw error; return "saved"; });
+  await cache.get("/api/settings", 0);
+  const displayed = [];
+  error = new TypeError("offline");
+  await cache.load("/api/settings", 0, (value) => displayed.push(value));
+  assert.deepEqual(displayed, ["saved"]);
+  await assert.rejects(cache.load("/api/settings", 0, () => {}, true), /offline/);
+  error = Object.assign(new Error("signed out"), { status: 401 });
+  await assert.rejects(cache.load("/api/settings", 0, () => {}), /signed out/);
+  cache.invalidate(["/api/settings"]);
+  assert.equal(await cache.peek("/api/settings"), undefined);
+});
+
 test("separate account caches never reuse another account's response", async () => {
   const first = new ReadCache(async () => "learner A");
   const second = new ReadCache(async () => "learner B");
@@ -198,4 +236,19 @@ test("API bypasses HTTP cache and invalidates on both successful and lost write 
     assert.equal(writes, 2);
     assert.equal(api.hasPendingWrites(), false);
   } finally { unsubscribe(); globalThis.fetch = originalFetch; }
+});
+
+test("GET next is tracked as an attempt write even when its response is lost", async () => {
+  const originalFetch = globalThis.fetch;
+  const writes = [];
+  const stop = api.onApiWrite((write) => writes.push(write));
+  try {
+    globalThis.fetch = async () => {
+      assert.equal(api.hasPendingWrites(), true);
+      throw new TypeError("lost attempt response");
+    };
+    await assert.rejects(api.request("/api/next"), /lost attempt response/);
+    assert.deepEqual(writes, [{ path: "/api/next", method: "GET", body: undefined }]);
+    assert.equal(api.hasPendingWrites(), false);
+  } finally { stop(); globalThis.fetch = originalFetch; }
 });

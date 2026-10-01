@@ -6,6 +6,7 @@ import { AdminReports, AdminReportDetail } from "./AdminReports";
 import { AdminChevron, AdminHeader, useAdminRead } from "./adminData";
 import type { AdminSession } from "./adminData";
 import { version } from "./version.json";
+import { activateAppUpdate } from "./appWorker";
 import type { User } from "./types";
 
 type Overview = {
@@ -85,7 +86,9 @@ export function AdminDashboard({ user, onSignedOut, onSessionChanged, accountSec
       timezone={user.timezone} onBack={() => navigate("admin/reports")} /> : null}
     {error ? <p className="warning-notice" role="alert">{error}</p> : null}
     {page === "admin" ? <>
-      {updateAvailable ? <button type="button" className="secondary-button admin-update" onClick={() => window.location.reload()}>更新应用</button> : null}
+      {updateAvailable ? <button type="button" className="secondary-button admin-update" onClick={() => {
+        void activateAppUpdate().then(() => window.location.reload()).catch(() => {});
+      }}>更新应用</button> : null}
       <details className="learning-details panel admin-security"><summary><span>账号安全</span><AdminChevron /></summary><div className="pb-4">{accountSecurity}</div></details>
       <button type="button" className="sign-out-button secondary-button" disabled={endingSession} onClick={() => { void signOut(); }}>退出登录</button>
       <p className="app-version">版本 {version}</p>

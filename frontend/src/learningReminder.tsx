@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { request } from "./api";
+import { registerAppWorker } from "./appWorker";
 
 type PushConfig = { enabled: boolean; public_key: string | null };
-let registration: Promise<ServiceWorkerRegistration> | undefined;
 
 function supportsPush() {
   if (!window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window)
@@ -14,10 +14,7 @@ function supportsPush() {
 }
 
 function registerWorker() {
-  registration ??= navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" })
-    .then(() => navigator.serviceWorker.ready)
-    .catch((error) => { registration = undefined; throw error; });
-  return registration;
+  return registerAppWorker().then(() => navigator.serviceWorker.ready);
 }
 
 function applicationKey(value: string) {
