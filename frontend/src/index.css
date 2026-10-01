@@ -103,6 +103,10 @@ h1, h2, p { margin: 0; }
 .metric-card:nth-child(3) .metric-icon { color: #859560; }
 .metric-card strong { font-size: 26px; font-weight: 550; line-height: 1.3; overflow-wrap: anywhere; max-width: 100%; }
 .metric-label { margin-top: 4px; font-size: 13px; }
+.study-time { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 18px; }
+.study-time > span { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.study-time svg { width: 18px; height: 18px; color: var(--accent); }
+.study-time strong { font-size: 20px; font-weight: 550; text-align: right; }
 .learning-details { margin-top: 16px; padding: 0 18px; }
 .learning-details summary { min-height: 60px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; cursor: pointer; list-style: none; }
 .learning-details summary::-webkit-details-marker, .study-menu summary::-webkit-details-marker { display: none; }

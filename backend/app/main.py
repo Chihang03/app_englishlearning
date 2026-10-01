@@ -148,6 +148,12 @@ def stats(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
             (user_id, day_start, day_end),
         ).fetchone()
         metrics = learning_metrics(conn,user_id,today)
+        # Time spent remains part of the learner's history even when a word is
+        # muted or its course is deselected. Older untimed reviews add nothing.
+        total_study_time_ms = conn.execute(
+            "SELECT COALESCE(SUM(active_response_ms), 0) FROM review_history WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()[0]
 
         streak_cutoff = utc_iso_from(datetime.now(timezone.utc) - timedelta(days=STREAK_LOOKBACK_DAYS))
         history_rows = conn.execute(
@@ -174,6 +180,7 @@ def stats(user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     correct_today = int(today_row["correct"])
     return {
         "today_learning": total_today,
+        "total_study_time_ms": int(total_study_time_ms),
         "today_completed_cards": int(today_row["completed_cards"]),
         "today_accuracy": round((correct_today / total_today) * 100) if total_today else 0,
         "today_success": int(today_row["success_words"]),

@@ -18,6 +18,47 @@ class CompletedCardStatsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def timed_review(self, card, answer, milliseconds):
+        return self.client.post('/api/review', json={
+            'word_id': card['id'], 'sense_id': card['sense_id'],
+            'example_id': card['example_id'], 'attempt_id': card['attempt_id'],
+            'user_answer': answer, 'active_response_ms': milliseconds})
+
+    def test_total_study_time_includes_all_answers_and_preserves_filtered_history(self):
+        self.assertEqual(self.stats()['total_study_time_ms'], 0)
+        card = self.next()
+        self.assertEqual(self.stats()['total_study_time_ms'], 0)
+        self.assertEqual(self.timed_review(card, 'wrong', 4200).status_code, 200)
+        self.assertEqual(self.stats()['total_study_time_ms'], 4200)
+        self.assertEqual(self.timed_review(card, card['answer_form'], 1800).status_code, 200)
+        self.assertEqual(self.stats()['total_study_time_ms'], 6000)
+        self.assertEqual(self.timed_review(card, card['answer_form'], 1800).status_code, 409)
+        second = self.next()
+        # Legacy clients without timing data must not erase or inflate the sum.
+        self.assertEqual(self.review(second, second['answer_form']).status_code, 200)
+        with database.connect() as conn:
+            conn.execute("UPDATE review_history SET review_time='2025-01-01T00:00:00+00:00' WHERE user_id=?", (self.uid,))
+        self.assertEqual(self.client.patch('/api/auth/me', json={'timezone': 'America/New_York'}).status_code, 200)
+        self.assertEqual(self.client.patch('/api/settings', json={'skip_basic_600': True, 'selected_word_list_ids': []}).status_code, 200)
+        self.assertEqual(self.client.post(f"/api/words/{card['id']}/mute").status_code, 200)
+        self.assertEqual(self.stats()['total_study_time_ms'], 6000)
+
+    def test_total_study_time_is_isolated_by_account(self):
+        card = self.next()
+        self.assertEqual(self.timed_review(card, card['answer_form'], 12345).status_code, 200)
+        self.assertEqual(self.client.post('/api/auth/logout').status_code, 200)
+        registered = self.client.post('/api/auth/register', json={
+            'username': 'other-learner', 'password': 'test-password-123'})
+        self.assertEqual(registered.status_code, 200, registered.text)
+        self.assertEqual(self.stats()['total_study_time_ms'], 0)
+        other = self.next()
+        self.assertEqual(self.timed_review(other, other['answer_form'], 300000).status_code, 200)
+        self.assertEqual(self.stats()['total_study_time_ms'], 300000)
+        self.assertEqual(self.client.post('/api/auth/logout').status_code, 200)
+        self.assertEqual(self.client.post('/api/auth/login', json={
+            'username': 'learner', 'password': 'test-password-123'}).status_code, 200)
+        self.assertEqual(self.stats()['total_study_time_ms'], 12345)
+
     def test_repeated_errors_correction_and_retries_count_one_completed_round(self):
         card = self.next()
         for _ in range(10):

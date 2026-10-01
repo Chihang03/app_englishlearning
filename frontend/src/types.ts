@@ -109,6 +109,7 @@ export type ReviewResult = {
 };
 
 export type Stats = {
+  total_study_time_ms: number;
   memory_model?: {
     target_retention: number;
     personalized: boolean;
