@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -33,6 +33,7 @@ from .study_tools import report_content, word_meanings
 from .muted_words import mute_word, restore_word
 from .http_cache import CachePolicyMiddleware
 from .morphology import resolve_lexical_entries
+from .meaning_catalog import catalog_snapshot
 
 
 # The streak walks back day by day from today, so history older than this cannot
@@ -48,6 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Context Vocabulary Trainer", lifespan=lifespan)
 app.add_middleware(CachePolicyMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Cross-origin requests are only needed when the frontend is served from a
 # different origin than the API. The default deployment serves both from the
@@ -91,6 +93,7 @@ class ExposureInput(BaseModel):
 
 class StudyDetailsInput(ExposureInput):
     target_lexical_unit_id: int | None = Field(default=None, gt=0)
+    content_cached: bool = False
 
 
 class ContentReportInput(ExposureInput):
@@ -210,7 +213,17 @@ def related_exposure(payload: ExposureInput, user: dict[str, Any] = Depends(get_
 @app.post("/api/study/meanings")
 def study_meanings(payload: StudyDetailsInput, user: dict[str, Any] = Depends(get_learner_user)) -> dict[str, Any]:
     with connect() as conn:
-        return word_meanings(conn, int(user["id"]), payload.attempt_id, payload.target_lexical_unit_id)
+        return word_meanings(conn, int(user["id"]), payload.attempt_id,
+                             payload.target_lexical_unit_id, content_cached=payload.content_cached)
+
+
+@app.get("/api/study/meaning-catalog")
+def study_meaning_catalog(request: Request, user: dict[str, Any] = Depends(get_learner_user)) -> Response:
+    with connect() as conn:
+        body, etag = catalog_snapshot(conn, int(user["id"]))
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    return Response(content=body, media_type="application/json", headers={"ETag": etag})
 
 
 @app.post("/api/content-reports")

@@ -14,6 +14,8 @@ import type { StudyTool } from "./StudyTools";
 import { ApiError, errorMessage, hasPendingWrites, isUnauthorized, onApiWrite, request } from "./api";
 import { version } from "./version.json";
 import { ReadCache } from "./readCache";
+import { StudyContentCache } from "./studyContentCache";
+import { MeaningExposureQueue } from "./meaningExposure";
 import { canReloadForUpdate, useForegroundRefresh, useVersionUpdate } from "./lifecycle";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
@@ -146,6 +148,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   const readCache = useMemo(() => new ReadCache(request), [user.id]);
   const enableLearningReminder = useLearningReminder(user.id);
   const openedFromNotification = useRef(new URLSearchParams(window.location.search).get("notification") === "study");
+  const studyContentCache = useMemo(() => new StudyContentCache(user.id), [user.id]);
+  const meaningExposureQueue = useMemo(() => new MeaningExposureQueue(user.id), [user.id]);
   const [resumeRequested, setResumeRequested] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
@@ -389,6 +393,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     setLoading(true);
     setMessage("");
     try {
+      await meaningExposureQueue.flush();
       const payload = await request<{ card: Card | null; message?: string; retry_after_seconds?: number }>("/api/next");
       readCache.clear();
       if (!mountedRef.current) return;
@@ -429,6 +434,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     await guarded(async () => {
       let review: ReviewResult;
       try {
+        await meaningExposureQueue.flush(card.attempt_id);
         readCache.clear();
         review = await request<ReviewResult>("/api/review", {
           method: "POST",
@@ -710,6 +716,10 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     navigator.serviceWorker?.addEventListener("message", openStudy);
     if (fromNotification) syncPage();
     const unsubscribe = onApiWrite(() => { readCache.clear(); setWriteEpoch((value) => value + 1); });
+    void meaningExposureQueue.flush().catch(() => {});
+    void studyContentCache.syncCatalog(version).catch((error) => {
+      if (isUnauthorized(error)) onSignedOut();
+    });
     void guarded(async () => { await Promise.all([loadStats(), loadSettings(), loadWordLists()]); });
     return () => {
       mountedRef.current = false;
@@ -736,8 +746,15 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         return;
       }
       if (force) await syncSpeech();
+      if (force) await meaningExposureQueue.flush();
       if (!mountedRef.current) return;
       readCache.clear();
+      if (force) {
+        await studyContentCache.syncCatalog(version, true);
+        await studyContentCache.clear();
+      } else {
+        void studyContentCache.syncCatalog(version).catch(() => {});
+      }
       // Finish all reads before allowing a version reload, even if one fails.
       const downloads = await Promise.allSettled([loadStats(true), loadSettings(), loadWordLists()]);
       const failed = downloads.find((download) => download.status === "rejected" && isUnauthorized(download.reason))
@@ -900,6 +917,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         </StudyDeck>
         {page === "study" && studyTool ? <StudyTools key={`${studyTool.card.attempt_id}-${studyTool.tool}`}
           tool={studyTool.tool} card={studyTool.card} showTranslation={studyTool.showTranslation}
+          contentCache={studyContentCache} exposureQueue={meaningExposureQueue}
           onClose={closeStudyTool} onSignedOut={onSignedOut}
           onAnswerExposed={(senseIds) => markAnswerExposed(studyTool.card, senseIds)} /> : null}
       </section>
@@ -917,7 +935,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           <button type="button" className="icon-button" onClick={() => navigate("settings")} aria-label="返回设置"><Icon name="back" /></button>
           <h1>不再学习的单词</h1><span className="header-spacer" />
         </header>
-        <MutedWords onRestore={restoreMutedWord} onSignedOut={onSignedOut} />
+        <MutedWords onRestore={restoreMutedWord} onSignedOut={onSignedOut} readCache={readCache} />
       </section> : null}
 
       {isWordListPage ? (

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent } from "react";
-import { errorMessage, isUnauthorized, request } from "./api";
+import { errorMessage, isUnauthorized } from "./api";
+import type { ReadCache } from "./readCache";
 
-export function MutedWords({ onRestore, onSignedOut }: {
-  onRestore: (word: string) => Promise<void>; onSignedOut: () => void;
+export function MutedWords({ onRestore, onSignedOut, readCache }: {
+  onRestore: (word: string) => Promise<void>; onSignedOut: () => void; readCache: ReadCache;
 }) {
   const [words, setWords] = useState<{ word: string; muted_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ export function MutedWords({ onRestore, onSignedOut }: {
     setLoading(true);
     setError("");
     try {
-      const payload = await request<{ words: typeof words }>("/api/muted-words");
+      const payload = await readCache.get<{ words: typeof words }>("/api/muted-words", 5 * 60000);
       if (activeRef.current) setWords(payload.words);
     } catch (caught) {
       if (!activeRef.current) return;

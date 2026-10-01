@@ -79,6 +79,57 @@ class StudyToolsTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.text)
         self.assertFalse(result.json()["is_independent"])
 
+    def test_compact_meanings_still_record_exposure_before_cached_content_is_shown(self):
+        payload = {"attempt_id": self.card["attempt_id"], "content_cached": True}
+        response = self.client.post("/api/study/meanings", json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(set(response.json()), {"exposed_sense_ids"})
+        self.assertIn(self.card["sense_id"], response.json()["exposed_sense_ids"])
+        with database.connect() as conn:
+            self.assertEqual(conn.execute("SELECT answer_exposed FROM study_attempts WHERE id=?",
+                                          (self.card["attempt_id"],)).fetchone()[0], 1)
+            self.assertGreater(conn.execute("SELECT COUNT(*) FROM sense_exposures WHERE user_id=?",
+                                                  (self.uid,)).fetchone()[0], 0)
+        review = self.client.post("/api/review", json={"word_id": self.card["id"],
+            "sense_id": self.card["sense_id"], "example_id": self.card["example_id"],
+            "attempt_id": self.card["attempt_id"], "user_answer": self.card["answer_form"]})
+        self.assertEqual(review.status_code, 200, review.text)
+        self.assertFalse(review.json()["is_independent"])
+
+    def test_meaning_catalog_compares_content_and_has_no_study_side_effects(self):
+        first = self.client.get("/api/study/meaning-catalog")
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.headers["cache-control"], "no-store")
+        words = first.json()["words"]
+        self.assertEqual(len(words), 2)
+        address = next(word for word in words if word["word"] == "address")
+        self.assertEqual(len(address["senses"]), 2)
+        self.assertTrue(address["senses"][0]["examples"])
+        etag = first.headers["etag"]
+        unchanged = self.client.get("/api/study/meaning-catalog", headers={"If-None-Match": etag})
+        self.assertEqual(unchanged.status_code, 304)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute("SELECT SUM(answer_exposed) FROM study_attempts").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM sense_exposures").fetchone()[0], 0)
+            conn.execute("UPDATE word_senses SET definition_cn='内容更新' WHERE id=?", (address["senses"][0]["id"],))
+        changed = self.client.get("/api/study/meaning-catalog", headers={"If-None-Match": etag})
+        self.assertEqual(changed.status_code, 200)
+        self.assertNotEqual(changed.headers["etag"], etag)
+        self.assertEqual(next(word for word in changed.json()["words"] if word["word"] == "address")
+                         ["senses"][0]["definition_cn"], "内容更新")
+
+    def test_meaning_catalog_requires_authentication_and_scopes_private_words(self):
+        with database.connect() as conn:
+            conn.execute("UPDATE words SET owner_id=? WHERE word='address'", (self.uid,))
+        mine = self.client.get("/api/study/meaning-catalog")
+        self.assertIn("address", [word["word"] for word in mine.json()["words"]])
+        with TestClient(app) as other:
+            self.assertEqual(other.get("/api/study/meaning-catalog").status_code, 401)
+            other.post("/api/auth/register", json={"username": "other", "password": "test-password-123"})
+            theirs = other.get("/api/study/meaning-catalog")
+            self.assertNotIn("address", [word["word"] for word in theirs.json()["words"]])
+            self.assertNotEqual(theirs.headers["etag"], mine.headers["etag"])
+
     def test_completed_attempt_can_show_meanings_and_be_reported(self):
         response = self.client.post("/api/review", json={"word_id": self.card["id"],
             "sense_id": self.card["sense_id"], "example_id": self.card["example_id"],

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { errorMessage, isUnauthorized, request } from "./api";
+import type { StudyContentCache } from "./studyContentCache";
+import type { MeaningExposureQueue } from "./meaningExposure";
 import type { Card, LexicalPeer, StudyDetails } from "./types";
 
 export type StudyTool = "meanings" | "report";
@@ -17,13 +19,15 @@ const posLabels: Record<string, string> = {
   verb: "动词", noun: "名词", adjective: "形容词", adverb: "副词"
 };
 
-export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, onAnswerExposed }: {
+export function StudyTools({ tool, card, showTranslation, contentCache, exposureQueue, onClose, onSignedOut, onAnswerExposed }: {
   tool: StudyTool; card: Card; showTranslation: boolean;
+  contentCache: StudyContentCache; exposureQueue: MeaningExposureQueue;
   onClose: () => void; onSignedOut: () => void; onAnswerExposed: (senseIds: number[]) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const activeRef = useRef(true);
   const submittingRef = useRef(false);
+  const meaningPendingRef = useRef(false);
   const [meanings, setMeanings] = useState<StudyDetails | null>(null);
   const [targetUnit, setTargetUnit] = useState<number | null>(null);
   const [category, setCategory] = useState<string>(reportTypes[0].value);
@@ -48,21 +52,33 @@ export function StudyTools({ tool, card, showTranslation, onClose, onSignedOut, 
   }, []);
 
   async function loadMeanings(target: number | null = targetUnit) {
+    if (meaningPendingRef.current) return;
+    meaningPendingRef.current = true;
     setLoading(true);
     setError("");
     try {
-      const payload = await request<StudyDetails>("/api/study/meanings", {
-        method: "POST", body: JSON.stringify({ attempt_id: card.attempt_id, target_lexical_unit_id: target })
-      });
+      const cached = await contentCache.get(card.id, target);
+      const { durable, response } = exposureQueue.expose(card.attempt_id, target, Boolean(cached?.complete));
+      if (cached && durable && activeRef.current) {
+        onAnswerExposed([card.sense_id]);
+        setMeanings(cached.content);
+        setTargetUnit(target);
+        setLoading(false);
+      }
+      const payload = await response;
+      if ("senses" in payload) await contentCache.set(card.id, target, payload);
       if (!activeRef.current) return;
       onAnswerExposed(payload.exposed_sense_ids);
-      setMeanings(payload);
+      const content = "senses" in payload ? payload : cached?.content;
+      if (!content) throw new Error("词义缓存已失效，请重试。");
+      setMeanings({ ...content, exposed_sense_ids: payload.exposed_sense_ids });
       setTargetUnit(target);
     } catch (caught) {
       if (!activeRef.current) return;
       if (isUnauthorized(caught)) onSignedOut();
       else setError(errorMessage(caught));
     } finally {
+      meaningPendingRef.current = false;
       if (activeRef.current) setLoading(false);
     }
   }

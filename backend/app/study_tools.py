@@ -23,8 +23,10 @@ def attempt_content(conn, user_id: int, attempt_id: str):
     return row
 
 
-def word_meanings(conn, user_id: int, attempt_id: str, target_unit_id: int | None = None):
-    # Record exposure before returning any answer-bearing definitions/examples.
+def word_meanings(conn, user_id: int, attempt_id: str, target_unit_id: int | None = None,
+                  *, content_cached: bool = False):
+    # The server records exposure even when the client already displayed a
+    # durable copy; grading waits for this transaction to finish.
     record_related_exposure(conn, user_id, attempt_id)
     content = attempt_content(conn, user_id, attempt_id)
     morphology = morphology_for_unit(conn, content['lexical_unit_id'], user_id)
@@ -62,6 +64,9 @@ def word_meanings(conn, user_id: int, attempt_id: str, target_unit_id: int | Non
     conn.executemany('UPDATE study_attempts SET answer_exposed=1 WHERE user_id=? AND sense_id=? AND completed_at IS NULL',
                      [(user_id, sid) for sid in exposed])
     exposed.add(content['sense_id'])
+    if content_cached:
+        # The client already has the display data; return only the exposure set.
+        return {'exposed_sense_ids': sorted(exposed)}
     return {'word': word, 'senses': senses, 'entries': entries, 'morphology': morphology,
             'exposed_sense_ids': sorted(exposed)}
 
