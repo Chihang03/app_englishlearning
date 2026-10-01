@@ -25,6 +25,7 @@ from .database import (
     update_settings,
 )
 from .passkeys import router as passkeys_router
+from .push import router as push_router
 from .security import local_day_bounds, resolve_timezone, today_in, utc_iso_from, utc_now_iso
 from .sense_learning import learning_metrics, next_sense_card, record_sense_review, record_hint, record_related_exposure
 from .senses import senses_for_word
@@ -66,6 +67,7 @@ if CORS_ORIGINS:
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(passkeys_router)
+app.include_router(push_router)
 
 
 class ReviewInput(BaseModel):

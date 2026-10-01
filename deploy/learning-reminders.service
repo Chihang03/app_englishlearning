@@ -1,0 +1,19 @@
+[Unit]
+Description=Default evening learning reminders
+After=englishlearning.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=englishlearning
+Group=englishlearning
+WorkingDirectory=/opt/englishlearning/app/backend
+EnvironmentFile=/etc/englishlearning.env
+EnvironmentFile=/etc/englishlearning-push.env
+ExecStart=/opt/englishlearning/app/backend/.venv/bin/python -m app.learning_reminders
+TimeoutStartSec=300
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/englishlearning

@@ -1,0 +1,11 @@
+[Unit]
+Description=Check default learning reminders each minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+RandomizedDelaySec=0
+Unit=learning-reminders.service
+
+[Install]
+WantedBy=timers.target

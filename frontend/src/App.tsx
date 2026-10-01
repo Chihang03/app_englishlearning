@@ -8,6 +8,7 @@ import { StudyDeck } from "./StudyDeck";
 import type { PreviousQuestion } from "./StudyDeck";
 import { StudyTools } from "./StudyTools";
 import { MutedWords } from "./MutedWords";
+import { useLearningReminder } from "./learningReminder";
 import { BASE_WPM, SPEECH_SPEEDS, useSpeechSettings } from "./speechSettings";
 import type { StudyTool } from "./StudyTools";
 import { ApiError, errorMessage, hasPendingWrites, isUnauthorized, onApiWrite, request } from "./api";
@@ -94,6 +95,16 @@ function App() {
   }, []);
   useForegroundRefresh(() => { if (user === undefined) void checkSession(); });
 
+  useEffect(() => {
+    const markNotification = (event: MessageEvent) => {
+      if (event.data?.type === "OPEN_STUDY" && user == null) {
+        window.history.replaceState(null, "", "/?notification=study#study");
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", markNotification);
+    return () => navigator.serviceWorker?.removeEventListener("message", markNotification);
+  }, [user]);
+
   if (user === undefined) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f7f7f4]">
@@ -133,6 +144,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   checkVersion: () => Promise<void>;
 }) {
   const readCache = useMemo(() => new ReadCache(request), [user.id]);
+  const enableLearningReminder = useLearningReminder(user.id);
+  const openedFromNotification = useRef(new URLSearchParams(window.location.search).get("notification") === "study");
   const [resumeRequested, setResumeRequested] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
@@ -679,8 +692,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
 
   useEffect(() => {
     mountedRef.current = true;
-    // Each authenticated session starts at Home, including after a reload.
-    window.history.replaceState(null, "", "#home");
+    const fromNotification = openedFromNotification.current;
+    window.history.replaceState(null, "", fromNotification ? "/#study" : "#home");
     const syncPage = () => {
       closeStudyTool();
       const next = pageFromHash();
@@ -691,6 +704,11 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     };
     window.addEventListener("popstate", syncPage);
     window.addEventListener("hashchange", syncPage);
+    const openStudy = (event: MessageEvent) => {
+      if (event.data?.type === "OPEN_STUDY") navigate("study");
+    };
+    navigator.serviceWorker?.addEventListener("message", openStudy);
+    if (fromNotification) syncPage();
     const unsubscribe = onApiWrite(() => { readCache.clear(); setWriteEpoch((value) => value + 1); });
     void guarded(async () => { await Promise.all([loadStats(), loadSettings(), loadWordLists()]); });
     return () => {
@@ -699,6 +717,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       readCache.clear();
       window.removeEventListener("popstate", syncPage);
       window.removeEventListener("hashchange", syncPage);
+      navigator.serviceWorker?.removeEventListener("message", openStudy);
       cancelSpeechRef.current?.();
     };
   }, []);
@@ -913,7 +932,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           <button type="button" onClick={() => navigate("home")} aria-current={page === "home" ? "page" : undefined}>
             <Icon name="home" /><span>首页</span>
           </button>
-          <button type="button" className="nav-study" onClick={() => navigate("study")}>
+          <button type="button" className="nav-study" onClick={() => { void enableLearningReminder(); navigate("study"); }}>
             <span className="nav-study-icon"><Icon name="arrow" /></span>
             <span>{hasStarted ? "继续学习" : "开始学习"}</span>
           </button>

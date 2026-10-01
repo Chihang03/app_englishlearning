@@ -193,7 +193,7 @@ class WordFrequencyTests(unittest.TestCase):
         self.sync()
         with database.connect() as conn:
             self.assertEqual(self.table_snapshots(conn), before)
-            self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], 19)
+            self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], migrations.SCHEMA_VERSION)
             self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])
         self.assertTrue(list(self.directory.glob('test.db.bak-v18-*')))
         self.assertFalse(self.sync())
