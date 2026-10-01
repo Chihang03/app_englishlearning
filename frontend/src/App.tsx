@@ -738,6 +738,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     refreshingRef.current = true;
     setRefreshing(true);
     if (force) setMessage("");
+    let syncCatalogInBackground = false;
     try {
       const session = await request<{ user: User }>("/api/auth/me");
       if (!mountedRef.current) return;
@@ -750,8 +751,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       if (!mountedRef.current) return;
       readCache.clear();
       if (force) {
-        await studyContentCache.syncCatalog(version, true);
         await studyContentCache.clear();
+        syncCatalogInBackground = true;
       } else {
         void studyContentCache.syncCatalog(version).catch(() => {});
       }
@@ -764,6 +765,13 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     } finally {
       refreshingRef.current = false;
       if (mountedRef.current) setRefreshing(false);
+      // The full dictionary is a durable background download, not part of the
+      // overview refresh that controls the button's busy state.
+      if (syncCatalogInBackground && mountedRef.current) {
+        void studyContentCache.syncCatalog(version, true).catch((error) => {
+          if (isUnauthorized(error)) onSignedOut();
+        });
+      }
     }
   }
   useEffect(() => {

@@ -91,11 +91,22 @@ try {
   console.log("PASS failed exposure retains visible cached meanings and retry succeeds");
 
   await page.getByRole("button", { name: "返回首页", exact: true }).click();
+  const catalogGate = gate();
+  await page.route("**/api/study/meaning-catalog", async (route) => {
+    await catalogGate.promise;
+    await route.continue();
+  });
+  const catalogStarted = page.waitForRequest((request) =>
+    new URL(request.url()).pathname === "/api/study/meaning-catalog");
   const catalogCheck = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/api/study/meaning-catalog");
   await page.getByRole("button", { name: "刷新学习数据" }).click();
+  await catalogStarted;
+  await page.waitForFunction(() => document.querySelector('[aria-label="刷新学习数据"]')?.getAttribute("aria-busy") === "false", null, { timeout: 5000 });
+  console.log("PASS overview refresh finishes while the full meaning catalog is still downloading");
+  catalogGate.resolve();
   assert.equal((await catalogCheck).status(), 304);
-  await page.waitForFunction(() => document.querySelector('[aria-label="刷新学习数据"]')?.getAttribute("aria-busy") === "false");
+  await page.unroute("**/api/study/meaning-catalog");
   await page.getByRole("button", { name: "继续学习", exact: true }).click();
   const before = calls.length;
   await openMeanings();
