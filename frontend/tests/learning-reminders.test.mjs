@@ -8,7 +8,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 const origin = process.env.APP_TEST_URL;
 assert.ok(origin && ["localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Use a disposable local server");
 const ecdh = createECDH("prime256v1"); ecdh.generateKeys();
-const subscription = { endpoint: "https://web.push.apple.com/local-ui-test", keys: {
+const subscription = { endpoint: `https://web.push.apple.com/local-ui-test-${randomBytes(8).toString("hex")}`, keys: {
   p256dh: ecdh.getPublicKey().toString("base64url"), auth: randomBytes(16).toString("base64url")
 } };
 
