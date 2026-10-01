@@ -16,6 +16,7 @@ import { version } from "./version.json";
 import { ReadCache } from "./readCache";
 import { StudyContentCache } from "./studyContentCache";
 import { MeaningExposureQueue } from "./meaningExposure";
+import { formatStudyTime } from "./studyTime";
 import { canReloadForUpdate, useForegroundRefresh, useVersionUpdate } from "./lifecycle";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
@@ -24,6 +25,7 @@ import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordLis
 const SPEECH_START_TIMEOUT_MS = 8000;
 
 const emptyStats: Stats = {
+  total_study_time_ms: 0,
   today_learning: 0,
   today_completed_cards: 0,
   today_accuracy: 0,
@@ -997,6 +999,10 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
           <Metric icon="spark" label="可学新词" value={value(stats.new_words)} />
           <Metric icon="check" label="长期熟记" value={value(stats.mature)} />
         </div>
+        <div className="study-time panel">
+          <span><Icon name="clock" />总学习时长</span>
+          <strong>{ready ? formatStudyTime(stats.total_study_time_ms) : "—"}</strong>
+        </div>
       </section>
       <details className="learning-details panel">
         <summary><span><Icon name="chart" /> 更多学习数据</span><Icon name="chevron" /></summary>
@@ -1127,11 +1133,12 @@ function WordListPage({ list, ready, selected, settingsSaving, onBack, onToggle 
   );
 }
 
-type IconName = "home" | "settings" | "arrow" | "back" | "more" | "sound" | "book" | "spark" | "check" | "refresh" | "chart" | "chevron" | "user";
+type IconName = "home" | "settings" | "arrow" | "back" | "more" | "sound" | "book" | "spark" | "check" | "refresh" | "chart" | "chevron" | "user" | "clock";
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
     home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h5v-7h4v7h5V9" /></>,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
     settings: <><path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3Z" /><circle cx="12" cy="12" r="3" /></>,
     arrow: <><path d="M4 12h16m-6-6 6 6-6 6" /></>,
     back: <><path d="M20 12H4m6-6-6 6 6 6" /></>,
