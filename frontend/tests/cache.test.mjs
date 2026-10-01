@@ -5,15 +5,20 @@ import ts from "typescript";
 
 // Exercise the actual TypeScript module without adding a second bundler/runtime.
 async function loadSource(name) {
-  const source = readFileSync(new URL(`../src/${name}.ts`, import.meta.url), "utf8");
+  let source = readFileSync(new URL(`../src/${name}.ts`, import.meta.url), "utf8");
+  if (name === "studyContentCache") source = source.replace('import { ApiError } from "./api";',
+    "const ApiError = globalThis.__cacheTestApiError;");
   const { outputText } = ts.transpileModule(source, { compilerOptions: {
     target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ES2020
   } });
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
 }
 const { ReadCache } = await loadSource("readCache");
-const { watchForeground, canReloadForUpdate } = await loadSource("foreground");
 const api = await loadSource("api");
+globalThis.__cacheTestApiError = api.ApiError;
+const { StudyContentCache } = await loadSource("studyContentCache");
+delete globalThis.__cacheTestApiError;
+const { watchForeground, canReloadForUpdate } = await loadSource("foreground");
 const deferred = () => {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -64,6 +69,56 @@ test("separate account caches never reuse another account's response", async () 
   assert.equal(await first.get("/stats", 10000), "learner A");
   assert.equal(await second.get("/stats", 10000), "learner B");
   first.clear();
+});
+
+test("study content keeps the fifty most recent word views and expires old entries", async () => {
+  const originalNow = Date.now;
+  let now = 1000;
+  Date.now = () => now;
+  try {
+    const cache = new StudyContentCache(7, 50, 10000);
+    for (let id = 1; id <= 50; id++) await cache.set(id, null, { word: String(id) });
+    assert.equal((await cache.get(1, null)).content.word, "1");
+    await cache.set(51, null, { word: "51" });
+    assert.equal(await cache.get(2, null), undefined);
+    assert.equal(await cache.get(1, 99), undefined);
+    assert.equal((await cache.get(1, null)).content.word, "1");
+    now += 10000;
+    assert.equal(await cache.get(1, null), undefined);
+    await cache.set(1, 99, { word: "related" });
+    assert.equal((await cache.get(1, 99)).content.word, "related");
+    await cache.clear();
+    assert.equal(await cache.get(1, 99), undefined);
+  } finally { Date.now = originalNow; }
+});
+
+test("app version changes compare dictionary content and preserve unchanged local meanings", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  const words = (definition) => [{ id: 7, word: "bank", senses: [{ id: 8, learning_unit_id: 9,
+    part_of_speech: "名词", definition_cn: definition, definition_en: null, examples: [] }] }];
+  let revision = 1;
+  globalThis.fetch = async (_path, options) => {
+    requests.push(options.headers["If-None-Match"] ?? null);
+    if (options.headers["If-None-Match"] === `"${revision}"`) {
+      return new Response(null, { status: 304, headers: { ETag: `"${revision}"` } });
+    }
+    return new Response(JSON.stringify({ words: words(`meaning ${revision}`) }),
+      { headers: { ETag: `"${revision}"` } });
+  };
+  try {
+    const cache = new StudyContentCache(7);
+    await cache.syncCatalog("v1");
+    assert.equal((await cache.get(7, null)).content.senses[0].definition_cn, "meaning 1");
+    await cache.set(7, null, { word: "bank", senses: [{ definition_cn: "rich 1" }] });
+    await cache.syncCatalog("v2");
+    assert.deepEqual(requests, [null, '"1"']);
+    assert.equal((await cache.get(7, null)).content.senses[0].definition_cn, "rich 1");
+    revision = 2;
+    await cache.syncCatalog("v3");
+    assert.deepEqual(requests, [null, '"1"', '"1"']);
+    assert.equal((await cache.get(7, null)).content.senses[0].definition_cn, "meaning 2");
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("foreground refresh covers long background stays, history restore and reconnection", () => {
