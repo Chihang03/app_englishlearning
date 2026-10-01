@@ -63,8 +63,11 @@ export function MutedWords({ onRestore, onSignedOut, readCache }: {
     setLoading(true);
     setError("");
     try {
-      const payload = await readCache.get<{ words: typeof words }>("/api/muted-words", 5 * 60000);
-      if (activeRef.current) setWords(payload.words);
+      await readCache.load<{ words: typeof words }>("/api/muted-words", 5 * 60000, (payload) => {
+        if (!activeRef.current) return;
+        setWords(payload.words);
+        setLoading(false);
+      });
     } catch (caught) {
       if (!activeRef.current) return;
       if (isUnauthorized(caught)) onSignedOut();

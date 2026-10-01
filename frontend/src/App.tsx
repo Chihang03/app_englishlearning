@@ -17,6 +17,9 @@ import { ReadCache } from "./readCache";
 import { StudyContentCache } from "./studyContentCache";
 import { MeaningExposureQueue } from "./meaningExposure";
 import { formatStudyTime } from "./studyTime";
+import { activateAppUpdate } from "./appWorker";
+import { OfflineLibrary } from "./OfflineLibrary";
+import { rememberLearner, savedLearner } from "./offlineSession";
 import { canReloadForUpdate, useForegroundRefresh, useVersionUpdate } from "./lifecycle";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
 
@@ -76,18 +79,19 @@ function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [connectionError, setConnectionError] = useState(false);
   const authChecking = useRef(false);
-  const signedOut = useCallback(() => setUser(null), []);
+  const signedOut = useCallback(() => { rememberLearner(null); setUser(null); }, []);
   const { available: updateAvailable, check: checkVersion } = useVersionUpdate();
 
   const checkSession = useCallback(async () => {
     if (authChecking.current) return;
+    if (!navigator.onLine) { setConnectionError(true); return; }
     authChecking.current = true;
     setConnectionError(false);
     try {
       const payload = await request<{ user: User }>("/api/auth/me");
       setUser(payload.user);
     } catch (caught) {
-      if (isUnauthorized(caught)) setUser(null);
+      if (isUnauthorized(caught)) { rememberLearner(null); setUser(null); }
       else setConnectionError(true);
     } finally {
       authChecking.current = false;
@@ -97,6 +101,7 @@ function App() {
   useEffect(() => {
     void checkSession();
   }, []);
+  useEffect(() => { if (user !== undefined) rememberLearner(user); }, [user]);
   useForegroundRefresh(() => { if (user === undefined) void checkSession(); });
 
   useEffect(() => {
@@ -110,6 +115,8 @@ function App() {
   }, [user]);
 
   if (user === undefined) {
+    const cached = connectionError ? savedLearner() : null;
+    if (cached) return <OfflineLibrary key={cached.id} user={cached} onRetry={() => { void checkSession(); }} />;
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f7f7f4]">
         {connectionError ? <>
@@ -147,7 +154,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   user: User; onSignedOut: () => void; onSessionChanged: (user: User) => void; updateAvailable: boolean;
   checkVersion: () => Promise<void>;
 }) {
-  const readCache = useMemo(() => new ReadCache(request), [user.id]);
+  const readCache = useMemo(() => new ReadCache(request, user.id), [user.id]);
   const enableLearningReminder = useLearningReminder(user.id);
   const openedFromNotification = useRef(new URLSearchParams(window.location.search).get("notification") === "study");
   const studyContentCache = useMemo(() => new StudyContentCache(user.id), [user.id]);
@@ -364,26 +371,29 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   }
 
   async function loadStats(force = false) {
-    const payload = await readCache.get<Stats>("/api/stats", 10000, force);
-    if (!mountedRef.current) return;
-    setStats(payload);
-    setStatsReady(true);
+    await readCache.load<Stats>("/api/stats", 10000, (payload) => {
+      if (!mountedRef.current) return;
+      setStats(payload);
+      setStatsReady(true);
+    }, force);
   }
 
-  async function loadSettings() {
-    const payload = await readCache.get<Settings>("/api/settings", 30000);
-    if (mountedRef.current && !settingsSavingRef.current) {
-      setSettings(payload);
-      applySpeechSettings(payload);
-    }
+  async function loadSettings(force = false) {
+    await readCache.load<Settings>("/api/settings", 30000, (payload) => {
+      if (mountedRef.current && !settingsSavingRef.current) {
+        setSettings(payload);
+        applySpeechSettings(payload);
+      }
+    }, force);
   }
 
-  async function loadWordLists() {
-    const payload = await readCache.get<{ lists: WordList[] }>("/api/word-lists", 30000);
-    if (mountedRef.current) {
-      setWordLists(payload.lists);
-      setWordListsReady(true);
-    }
+  async function loadWordLists(force = false) {
+    await readCache.load<{ lists: WordList[] }>("/api/word-lists", 30000, (payload) => {
+      if (mountedRef.current) {
+        setWordLists(payload.lists);
+        setWordListsReady(true);
+      }
+    }, force);
   }
 
   async function loadNext(preserveDraft = false) {
@@ -397,7 +407,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     try {
       await meaningExposureQueue.flush();
       const payload = await request<{ card: Card | null; message?: string; retry_after_seconds?: number }>("/api/next");
-      readCache.clear();
       if (!mountedRef.current) return;
       // Changing a filter may keep an unrelated round. Preserve its answer,
       // hints and result while updating the server's remaining count.
@@ -437,12 +446,11 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       let review: ReviewResult;
       try {
         await meaningExposureQueue.flush(card.attempt_id);
-        readCache.clear();
+        readCache.invalidate(["/api/stats"]);
         review = await request<ReviewResult>("/api/review", {
           method: "POST",
           body: JSON.stringify({ word_id: card.id, sense_id: card.sense_id, learning_unit_id: card.learning_unit_id, example_id: card.example_id, user_answer: value, attempt_id: card.attempt_id, active_response_ms: Math.round(activeTimeRef.current) })
         });
-        readCache.clear();
       } catch (caught) {
         // Another device or a lost response may already have completed this round.
         if (caught instanceof ApiError && caught.status === 409) {
@@ -535,10 +543,9 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     if (menuRef.current) menuRef.current.open = false;
     cancelSpeechRef.current?.();
     let advance = false;
-    readCache.clear();
+    readCache.invalidate(["/api/stats", "/api/word-lists", "/api/muted-words"]);
     try {
       const payload = await request<{ word: string }>(`/api/words/${target.id}/mute`, { method: "POST" });
-      readCache.clear();
       if (!mountedRef.current) return;
       setLastMutedWord(payload.word);
       // Muting applies to every sense and duplicate of this word. An unrelated
@@ -564,10 +571,9 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     if (mutePendingRef.current) throw new Error("请等待当前操作完成。");
     mutePendingRef.current = true;
     setMutePending(true);
-    readCache.clear();
+    readCache.invalidate(["/api/stats", "/api/word-lists", "/api/muted-words"]);
     try {
       await request(`/api/muted-words/${encodeURIComponent(word)}`, { method: "DELETE" });
-      readCache.clear();
       if (!mountedRef.current) return;
       setLastMutedWord((current) => current === word ? null : current);
       void guarded(async () => { await Promise.all([loadStats(), loadWordLists()]); });
@@ -653,7 +659,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     setSettingsSaving(true);
     const previous = settings;
     setSettings({ ...previous, ...next });
-    readCache.clear();
+    readCache.invalidateWrite({ path: "/api/settings", method: "PATCH", body: JSON.stringify(next) });
     void guarded(async () => {
       try {
         const payload = await request<Settings>("/api/settings", {
@@ -665,7 +671,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         if (mountedRef.current) setSettings(previous);
         throw caught;
       } finally {
-        readCache.clear();
         settingsSavingRef.current = false;
         if (mountedRef.current) setSettingsSaving(false);
       }
@@ -717,7 +722,15 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     };
     navigator.serviceWorker?.addEventListener("message", openStudy);
     if (fromNotification) syncPage();
-    const unsubscribe = onApiWrite(() => { readCache.clear(); setWriteEpoch((value) => value + 1); });
+    const unsubscribe = onApiWrite((write) => {
+      readCache.invalidateWrite(write);
+      setWriteEpoch((value) => value + 1);
+      // Speech changes also save settings outside this component. Revalidate
+      // the invalidated snapshot without trusting an out-of-order PATCH body.
+      if (write.path === "/api/settings") void loadSettings().catch((error) => {
+        if (isUnauthorized(error)) onSignedOut();
+      });
+    });
     void meaningExposureQueue.flush().catch(() => {});
     void studyContentCache.syncCatalog(version).catch((error) => {
       if (isUnauthorized(error)) onSignedOut();
@@ -726,7 +739,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     return () => {
       mountedRef.current = false;
       unsubscribe();
-      readCache.clear();
       window.removeEventListener("popstate", syncPage);
       window.removeEventListener("hashchange", syncPage);
       navigator.serviceWorker?.removeEventListener("message", openStudy);
@@ -751,7 +763,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       if (force) await syncSpeech();
       if (force) await meaningExposureQueue.flush();
       if (!mountedRef.current) return;
-      readCache.clear();
       if (force) {
         await studyContentCache.clear();
         syncCatalogInBackground = true;
@@ -759,7 +770,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         void studyContentCache.syncCatalog(version).catch(() => {});
       }
       // Finish all reads before allowing a version reload, even if one fails.
-      const downloads = await Promise.allSettled([loadStats(true), loadSettings(), loadWordLists()]);
+      const downloads = await Promise.allSettled([loadStats(true), loadSettings(true), loadWordLists(true)]);
       const failed = downloads.find((download) => download.status === "rejected" && isUnauthorized(download.reason))
         ?? downloads.find((download) => download.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
@@ -784,10 +795,14 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
 
   useEffect(() => {
     const draft = Boolean(card && !result?.is_correct && answer.length > 0);
+    let active = true;
     if (updateAvailable && canReloadForUpdate({ page, draft,
       busy: hasPendingWrites() || refreshing || sessionEnding || submitting || loading || settingsSaving || mutePending || hintPending || resumeRequested || Boolean(studyTool) })) {
-      window.location.reload();
+      void activateAppUpdate().then(() => {
+        if (active && navigator.onLine && !document.hidden && !hasPendingWrites()) window.location.reload();
+      }).catch(() => {});
     }
+    return () => { active = false; };
   }, [updateAvailable, page, card, result, answer, refreshing, sessionEnding, submitting, loading, settingsSaving, mutePending, hintPending, resumeRequested, studyTool, writeEpoch]);
 
   useEffect(() => {

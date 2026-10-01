@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import { version } from "./version.json";
 import { watchForeground } from "./foreground";
+import { registerAppWorker } from "./appWorker";
 export { canReloadForUpdate } from "./foreground";
 
 export function useForegroundRefresh(refresh: () => void) {
@@ -12,6 +13,7 @@ export function useForegroundRefresh(refresh: () => void) {
 
 export function useVersionUpdate() {
   const [available, setAvailable] = useState(false);
+  const [workerReady, setWorkerReady] = useState(false);
   const checking = useRef<Promise<void> | undefined>(undefined);
   const lastChecked = useRef(0);
   const active = useRef(false);
@@ -41,5 +43,19 @@ export function useVersionUpdate() {
     const timer = window.setInterval(backgroundCheck, 5 * 60000);
     return () => { active.current = false; window.clearInterval(timer); };
   }, []);
-  return { available, check: () => check(true) };
+  useEffect(() => {
+    let active = true;
+    const ready = (event: MessageEvent) => {
+      if (event.data?.type === "APP_SHELL_READY") setWorkerReady(true);
+    };
+    navigator.serviceWorker?.addEventListener("message", ready);
+    void registerAppWorker().then((registration) => {
+      if (!active) return;
+      if (registration.waiting) setWorkerReady(true);
+    }).catch(() => {});
+    return () => { active = false; navigator.serviceWorker?.removeEventListener("message", ready); };
+  }, []);
+  // A migrated push-only worker may still be waiting even when the page itself
+  // already runs the newest JS. Activate it at the same safe Home boundary.
+  return { available: available || workerReady, check: () => check(true) };
 }

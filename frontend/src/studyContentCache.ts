@@ -8,7 +8,7 @@ type Entry = {
   expires: number;
   accessedAt: number;
 };
-type CatalogWord = { id: number; word: string; senses: StudyDetails["senses"] };
+export type CatalogWord = { id: number; word: string; senses: StudyDetails["senses"] };
 type Catalog = { accountId: number; etag: string; checkedAt: number; appVersion: string; words: CatalogWord[] };
 export type CachedMeanings = { content: StudyDetails; complete: boolean };
 
@@ -82,6 +82,11 @@ export class StudyContentCache {
   private useCatalog(catalog: Catalog) {
     this.catalog = catalog;
     this.catalogIndex = new Map(catalog.words.map((word) => [word.id, word]));
+  }
+
+  async savedWords(): Promise<CatalogWord[]> {
+    await this.loadCatalog();
+    return this.catalog?.words ?? [];
   }
 
   // ETag hashes the actual account-visible definitions and examples. An app

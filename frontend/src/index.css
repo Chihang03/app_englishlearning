@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+.offline-library { padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.offline-library h1 { font-size: 24px; font-weight: 700; }
+.offline-search { width: 100%; margin: 20px 0; padding: 12px 14px; border: 1px solid #d8ddd8; border-radius: 12px; background: white; font-size: 16px; }
+.offline-words { display: grid; gap: 8px; }
+.offline-words button { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 14px; border-radius: 12px; background: white; text-align: left; }
+.offline-words strong { font-size: 18px; }
+.offline-sense { margin-top: 16px; padding: 16px; }
+.offline-sense h2 { font-weight: 600; }
+.offline-sense p { margin-top: 12px; line-height: 1.7; }
+
 :root {
   color: #111827;
   background: #f7f7f4;
