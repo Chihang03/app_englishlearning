@@ -185,6 +185,7 @@ h1, h2, p { margin: 0; }
 .question-labels { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .pill { display: inline-flex; align-items: center; border-radius: 20px; background: #edf1e6; color: var(--accent); font-size: 12px; padding: 5px 12px; }
 .pronunciation-button { background: #f2f3ec; color: var(--accent); }
+.pronunciation-button.is-busy:disabled { opacity: 1; cursor: default; }
 .english-sentence { font-size: clamp(22px, 6vw, 28px); font-weight: 550; line-height: 1.45; letter-spacing: -.025em; overflow-wrap: anywhere; }
 /* Only the English sentence scrolls when it exceeds the visible space. The
    heading and meanings stay outside that scroll area, above the keyboard. */
