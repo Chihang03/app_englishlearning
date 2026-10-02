@@ -339,6 +339,15 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       };
       try {
         synth.cancel();
+        // iOS otherwise uses its default audio category, which can obey the
+        // Ring/Silent switch. Reapply before each word or sentence (including
+        // after returning from the background); other browsers may lack this API.
+        try {
+          const audioSession = (navigator as Navigator & {
+            audioSession?: { type: string };
+          }).audioSession;
+          if (audioSession) audioSession.type = "playback";
+        } catch { /* An unavailable audio-session setting must not block speech. */ }
         utterance = new SpeechSynthesisUtterance(clean);
         const voice = voices.find((item) => item.voiceURI === speech.voiceURI);
         if (voice) utterance.voice = voice;
