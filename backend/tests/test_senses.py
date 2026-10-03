@@ -364,8 +364,8 @@ class SenseLearningTests(unittest.TestCase):
             card=self.next();self.review(card,'address')
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],1)
             self.assertEqual(self.review(card,'address').status_code,409)
-        # Force this card due to isolate the local-day boundary from the new
-        # known-word interval (which would otherwise be 30 days).
+        # Force this card due to isolate the local-day boundary from the
+        # model's first interval (which would otherwise be eight days).
         with database.connect() as conn:
             conn.execute("UPDATE sense_srs_state SET next_review_date='2026-01-02' WHERE sense_id=?",(card['sense_id'],))
         with patch('app.main.user_today',return_value=date(2026,1,2)), \
@@ -374,7 +374,7 @@ class SenseLearningTests(unittest.TestCase):
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],0)
             card=self.next();response=self.review(card,'address').json()
             self.assertEqual(response['srs_state']['correct_count'],2)
-            self.assertEqual(response['srs_state']['next_review_date'],'2026-02-01')
+            self.assertEqual(response['srs_state']['next_review_date'],'2026-01-10')
             self.assertEqual(response['memory']['confirmations'],1)  # Only two seconds apart.
             self.assertEqual(self.client.get('/api/stats').json()['today_success'],1)
 

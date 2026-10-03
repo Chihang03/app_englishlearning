@@ -1,6 +1,5 @@
-"""FSRS memory estimates, a bounded prior for known words, and personal calibration.
+"""FSRS memory estimates and personal forgetting-speed calibration.
 
-The prior is a product policy, not a claim that one answer proves prior knowledge.
 Calibration learns a scalar forgetting speed from genuinely delayed, unassisted
 answers; it is evaluated chronologically before changing future intervals.
 """
@@ -14,11 +13,10 @@ from fsrs import Card, Rating, Scheduler, State
 
 from .learning_units import anchor_for_unit
 
-MODEL_VERSION = "fsrs-6.3.0-prior-v1"
-TARGET_RETENTION = 0.9
+MODEL_VERSION = "fsrs-6.3.0-retention80-v2"
+TARGET_RETENTION = 0.8
 MIN_CALIBRATION_SAMPLES = 150
 CALIBRATION_BATCH = 50
-MATURE_STABILITY_DAYS = 180
 MATURE_AUDIT_DAYS = 180
 
 
@@ -28,7 +26,7 @@ def instant(value: str) -> datetime:
 
 def scheduler(multiplier: float = 1.0) -> Scheduler:
     # Calibrated P(recall) = base_P(recall) ** multiplier. Solving for a
-    # calibrated 90% target yields this target for the underlying FSRS model.
+    # calibrated 80% target yields this target for the underlying FSRS model.
     return Scheduler(desired_retention=TARGET_RETENTION ** (1 / multiplier),
                      learning_steps=(), relearning_steps=(), maximum_interval=365,
                      enable_fuzzing=False)
@@ -105,8 +103,7 @@ def initial_card(conn, user_id: int, learning_unit_id: int, current, now: dateti
 
 def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correct: bool,
                    independent: bool, practice: bool, assisted: bool,
-                   today: date, now: str, active_response_ms: int | None,
-                   allow_known_prior: bool) -> dict[str, Any]:
+                   today: date, now: str, active_response_ms: int | None) -> dict[str, Any]:
     moment = instant(now)
     stored = conn.execute("SELECT * FROM adaptive_memory WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL",
                           (user_id,learning_unit_id)).fetchone()
@@ -120,7 +117,9 @@ def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correc
     eligible = (stored is not None and not practice and not assisted and card.last_review is not None
                 and (moment - card.last_review).total_seconds() >= 86400)
     prediction = base_probability ** personal["forgetting_multiplier"] if eligible else None
-    known = bool(stored["known_candidate"]) if stored else False
+    # Keep the legacy field for stored/API compatibility; no special known-word
+    # prior or interval cap is applied, including to existing candidates.
+    known = False
     confirmations = stored["confirmations"] if stored else 0
     first = stored["first_independent_at"] if stored else None
     last = stored["last_independent_at"] if stored else None
@@ -133,15 +132,6 @@ def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correc
                 confirmations += 1
                 first = first or now
                 last = now
-            if stored is None and current is None:
-                # Only brand-new history recorded with v7 hint tracking qualifies.
-                historical = conn.execute("SELECT 1 FROM review_history WHERE user_id=? AND learning_unit_id=? LIMIT 1",
-                                          (user_id,learning_unit_id)).fetchone()
-                exposed = conn.execute("SELECT 1 FROM sense_exposures WHERE user_id=? AND learning_unit_id=?",
-                                       (user_id,learning_unit_id)).fetchone()
-                known = historical is None and exposed is None and allow_known_prior
-                if known:
-                    card.stability = 30.0
         else:
             known = False
             confirmations = 0
@@ -155,7 +145,7 @@ def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correc
         confirmations = 0
         first = last = None
 
-    # Recompute due after initializing the known-word prior. Personal retention
+    # Compute due from the model. Personal retention
     # affects scheduling, while the stored FSRS stability retains its definition.
     # Use the public recall API to solve the interval, rather than relying on
     # private library formulas. Round to the app's calendar-day scheduling unit.
@@ -168,11 +158,12 @@ def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correc
         else:
             high = middle
     interval = max(1, round(high))
-    if known and confirmations < 3:
-        interval = min(interval,30 if confirmations == 1 else 60)
-    mature = (independent and confirmations >= 3 and card.stability >= MATURE_STABILITY_DAYS
-              and interval >= MATURE_AUDIT_DAYS
-              and first is not None and (moment - instant(first)).total_seconds() >= 90 * 86400)
+    # Stability is defined at 90% by FSRS; test the actual calibrated probability
+    # at the audit horizon instead of using stability or confirmation counters.
+    audit_probability = (model.get_card_retrievability(
+        probe, moment + timedelta(days=MATURE_AUDIT_DAYS))
+        ** personal["forgetting_multiplier"])
+    mature = independent and audit_probability >= TARGET_RETENTION
     if mature:
         interval = MATURE_AUDIT_DAYS
     card.due = moment + timedelta(days=interval)
@@ -185,6 +176,7 @@ def advance_memory(conn, user_id: int, learning_unit_id: int, current, *, correc
     return {"interval_days": interval, "next_review_date": (today + timedelta(days=interval)).isoformat(),
             "mature": mature, "known_candidate": known, "confirmations": confirmations,
             "stability_days": round(card.stability or 0,2), "difficulty": round(card.difficulty or 0,2),
+            "audit_recall_probability": audit_probability,
             "base_recall_probability": base_probability if eligible else None,
             "predicted_recall_probability": prediction, "model_version": MODEL_VERSION,
             "target_retention": TARGET_RETENTION,

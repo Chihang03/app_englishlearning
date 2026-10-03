@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import test_senses as fixtures
 from app import database, migrations
-from app.adaptive_memory import fit_multiplier, log_loss, maybe_calibrate, scheduler
-from fsrs import Card, Rating
+from app.adaptive_memory import TARGET_RETENTION, fit_multiplier, log_loss, maybe_calibrate, scheduler
+from fsrs import Card, Rating, State
 
 
 class AdaptiveMemoryTests(unittest.TestCase):
@@ -32,39 +32,42 @@ class AdaptiveMemoryTests(unittest.TestCase):
     def hint(self, card, kind='pronunciation', client=None):
         return (client or self.client).post('/api/study/hint',json={'attempt_id':card['attempt_id'],'kind':kind})
 
-    def test_known_word_three_delayed_answers_and_mature_audit_failure(self):
+    def test_model_only_first_answer_and_delayed_mature_audit_failure(self):
+        moment = datetime(2026,1,1,4,tzinfo=timezone.utc)
+        expected, _ = scheduler().review_card(Card(), Rating.Good, moment)
         with self.at('2026-01-01'):
             first=self.next();result=self.review(first,'address').json()
-            self.assertTrue(result['memory']['known_candidate'])
-            self.assertEqual(result['srs_state']['next_review_date'],'2026-01-31')
+            self.assertFalse(result['memory']['known_candidate'])
+            self.assertAlmostEqual(result['memory']['stability_days'],expected.stability,places=2)
+            self.assertEqual(result['memory']['target_retention'],0.8)
+            self.assertEqual(result['srs_state']['interval_days'],8)
+            self.assertEqual(result['srs_state']['status'],'Reviewing')
             self.assertIsNone(result['memory']['predicted_recall_probability'])
             self.review(self.next(),'addressed')
-        with self.at('2026-01-30'):
+        with self.at('2026-01-08'):
             self.assertIsNone(self.next())
             self.assertEqual(self.client.get('/api/stats').json()['due_review'],0)
-            # Compatibility requests also cannot manufacture early confirmations.
             response=self.client.post('/api/review',json={'word_id':first['id'],'sense_id':first['sense_id'],
                 'example_id':first['example_id'],'user_answer':'address'})
             self.assertEqual(response.status_code,409)
-        with self.at('2026-01-31'):
-            second=self.next();self.assertEqual(second['example_id'],first['example_id'])
-            self.assertEqual(second['confirmations'],1)
-            result=self.review(second,'address').json()
-            self.assertEqual(result['memory']['confirmations'],2)
-            self.assertAlmostEqual(result['memory']['predicted_recall_probability'],0.9,places=4)
-            self.assertEqual(result['srs_state']['next_review_date'],'2026-04-01')
-            self.review(self.next(),'addressed')
-        with self.at('2026-04-01'):
-            third=self.next();result=self.review(third,'address').json()
-            self.assertEqual(result['srs_state']['status'],'Mature')
-            self.assertGreaterEqual(result['memory']['stability_days'],180)
-            self.assertEqual(result['memory']['confirmations'],3)
-            self.assertEqual(result['srs_state']['next_review_date'],'2026-09-28')
-            self.review(self.next(),'addressed')
-            self.assertEqual(self.client.get('/api/stats').json()['mature'],1)
-        with self.at('2026-09-27'):
+        for _ in range(10):
+            due=result['srs_state']['next_review_date']
+            with self.at(due):
+                card=self.next();self.assertEqual(card['example_id'],first['example_id'])
+                result=self.review(card,'address').json()
+                self.review(self.next(),'addressed')
+                if result['srs_state']['status']=='Mature':
+                    self.assertGreaterEqual(result['memory']['audit_recall_probability'],0.8)
+                    self.assertEqual(result['srs_state']['interval_days'],180)
+                    self.assertEqual(self.client.get('/api/stats').json()['mature'],1)
+                    break
+                self.assertLess(result['memory']['audit_recall_probability'],0.8)
+        else:
+            self.fail('Repeated delayed independent answers never reached maturity')
+        audit_day=result['srs_state']['next_review_date']
+        with self.at((datetime.fromisoformat(audit_day)-timedelta(days=1)).date().isoformat()):
             self.assertEqual(self.client.get('/api/stats').json()['due_review'],0)
-        with self.at('2026-09-28'):
+        with self.at(audit_day):
             self.assertEqual(self.client.get('/api/stats').json()['due_review'],2)
             audit=self.next();self.assertEqual(audit['status'],'Mature')
             failed=self.review(audit,'bad').json()
@@ -72,6 +75,61 @@ class AdaptiveMemoryTests(unittest.TestCase):
             self.assertFalse(failed['memory']['known_candidate'])
             self.assertEqual(failed['memory']['confirmations'],0)
             self.assertEqual(self.client.get('/api/stats').json()['mature'],0)
+
+    def seeded_review(self, stability, multiplier=1.0):
+        with self.at('2026-01-01'):
+            first=self.next();self.review(first,'address')
+        moment=datetime(2026,1,1,4,tzinfo=timezone.utc)
+        card=Card(card_id=first['learning_unit_id'],state=State.Review,step=None,
+                  stability=stability,difficulty=5,last_review=moment)
+        with database.connect() as conn:
+            conn.execute("UPDATE adaptive_memory SET card_json=?,known_candidate=1,confirmations=0,first_independent_at=NULL,last_independent_at=NULL WHERE learning_unit_id=?",
+                         (card.to_json(),first['learning_unit_id']))
+            conn.execute("UPDATE sense_srs_state SET next_review_date='2026-01-02' WHERE learning_unit_id=?",(first['learning_unit_id'],))
+            if multiplier!=1:
+                conn.execute("INSERT INTO memory_profiles(user_id,forgetting_multiplier) VALUES(?,?)",(self.uid,multiplier))
+        with self.at('2026-01-02'):
+            resumed=self.next();self.assertFalse(resumed['known_candidate'])
+            result=self.review(resumed,'address').json()
+        return first, result
+
+    def test_maturity_uses_180_day_probability_without_confirmation_or_age_gate(self):
+        _, result=self.seeded_review(100)
+        self.assertEqual(result['memory']['confirmations'],1)
+        self.assertGreaterEqual(result['memory']['audit_recall_probability'],0.8)
+        self.assertEqual(result['srs_state']['status'],'Mature')
+        self.assertEqual(result['srs_state']['interval_days'],180)
+
+    def test_current_recall_does_not_make_a_short_lived_memory_mature(self):
+        _, result=self.seeded_review(30)
+        self.assertLess(result['memory']['audit_recall_probability'],0.8)
+        self.assertEqual(result['srs_state']['status'],'Reviewing')
+        self.assertGreater(result['srs_state']['interval_days'],60)
+
+    def test_maturity_uses_personal_faster_forgetting(self):
+        _, result=self.seeded_review(100,2)
+        self.assertLess(result['memory']['audit_recall_probability'],0.8)
+        self.assertEqual(result['srs_state']['status'],'Reviewing')
+
+    def test_maturity_uses_personal_slower_forgetting(self):
+        _, result=self.seeded_review(30,0.5)
+        self.assertGreaterEqual(result['memory']['audit_recall_probability'],0.8)
+        self.assertEqual(result['srs_state']['status'],'Mature')
+        self.assertEqual(result['srs_state']['interval_days'],180)
+
+    def test_recent_failure_does_not_add_an_extra_maturity_gate(self):
+        with self.at('2026-01-01'):
+            first=self.next();self.review(first,'wrong');self.review(first,'address')
+        moment=datetime(2026,1,1,4,tzinfo=timezone.utc)
+        card=Card(card_id=first['learning_unit_id'],state=State.Review,step=None,
+                  stability=100,difficulty=5,last_review=moment)
+        with database.connect() as conn:
+            conn.execute("UPDATE adaptive_memory SET card_json=? WHERE learning_unit_id=?",(card.to_json(),first['learning_unit_id']))
+            conn.execute("UPDATE relearning_queue SET ready_at='2000-01-01T00:00:00+00:00'")
+        with self.at('2026-01-02'):
+            result=self.review(self.next(),'address').json()
+        self.assertGreaterEqual(result['memory']['audit_recall_probability'],0.8)
+        self.assertEqual(result['srs_state']['status'],'Mature')
 
     def test_pronunciation_survives_reload_is_assisted_and_does_not_train(self):
         card=self.next();self.assertEqual(self.hint(card).status_code,200)
@@ -94,10 +152,10 @@ class AdaptiveMemoryTests(unittest.TestCase):
         self.assertFalse(result['memory']['known_candidate'])
         self.assertLess(result['srs_state']['interval_days'],30)
 
-    def test_known_failure_returns_to_learning_and_correction_cannot_restore_prior(self):
+    def test_failure_returns_to_learning_and_correction_does_not_increase_stability(self):
         with self.at('2026-01-01'):
             self.review(self.next(),'address');self.review(self.next(),'addressed')
-        with self.at('2026-01-31'):
+        with self.at('2026-01-09'):
             card=self.next();failed=self.review(card,'bad').json()
             self.assertEqual(failed['memory']['confirmations'],0)
             corrected=self.review(card,'address').json()
@@ -130,7 +188,7 @@ class AdaptiveMemoryTests(unittest.TestCase):
         with database.connect() as conn:
             self.assertEqual(conn.execute('SELECT active_response_ms FROM review_history').fetchone()[0],4200)
 
-    def test_open_round_from_before_upgrade_cannot_establish_known_word_prior(self):
+    def test_open_round_from_before_upgrade_uses_the_same_model(self):
         card=self.next()
         with database.connect() as conn:
             conn.execute('UPDATE study_attempts SET tracking_version=0 WHERE id=?',(card['attempt_id'],))
@@ -196,6 +254,9 @@ class MemoryModelMathTests(unittest.TestCase):
         self.assertLess(faster.due,normal.due)
         self.assertGreater(slower.due,normal.due)
         self.assertEqual(normal.stability,faster.stability)
+        self.assertEqual(scheduler().desired_retention,TARGET_RETENTION)
+        self.assertAlmostEqual(scheduler(2).desired_retention**2,TARGET_RETENTION)
+        self.assertAlmostEqual(scheduler(0.5).desired_retention**0.5,TARGET_RETENTION)
         self.assertAlmostEqual(scheduler().get_card_retrievability(initial,later),0.9,places=6)
 
     def test_calibration_is_finite_bounded_and_regularized(self):

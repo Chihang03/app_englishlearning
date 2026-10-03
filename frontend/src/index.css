@@ -237,10 +237,6 @@ h1, h2, p { margin: 0; }
 .morphology-peers button span { margin-left: 8px; color: var(--muted); }
 .morphology-back { min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--ink); }
 .sentence-translation { font-size: 14px; color: #697369; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
-.confirmation-marks { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
-.confirmation-row { margin-bottom: 14px; line-height: 1; }
-.confirmation-mark { display: block; width: 22px; height: 5px; border-radius: 999px; background: #d6ddd2; }
-.confirmation-mark.is-complete { background: var(--accent); }
 .primary-button { min-height: 48px; padding: 11px 21px; background: var(--accent); color: white; border: 1px solid var(--accent); border-radius: 14px; font-size: 15px; font-weight: 600; }
 .primary-button:hover:not(:disabled) { background: #2c614c; }
 .study-empty { min-height: 0; overflow-y: auto; text-align: center; padding: 38px 24px; margin-top: 40px; }
