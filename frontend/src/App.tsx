@@ -866,8 +866,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
 
   const busy = loading || submitting || hintPending || mutePending || Boolean(result?.is_correct);
   const visibleCard = reviewing ? previousQuestion?.card : card;
-  const confirmationCount = result ? (result.memory.known_candidate ? result.memory.confirmations : null)
-    : card?.known_candidate && !card.needs_correction ? card.confirmations : null;
   const isWordListPage = page.startsWith("word-list/");
   const currentWordList = wordLists.find((list) => page === `word-list/${encodeURIComponent(list.list_id)}`);
 
@@ -914,7 +912,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           blocked={loading || submitting || hintPending || mutePending || Boolean(studyTool)} canAdvance={Boolean(card && result?.is_correct)}
           previousContent={previousQuestion ? <StudyCard key={previousQuestion.card.attempt_id} card={previousQuestion.card} result={previousQuestion.result}
             answer={previousQuestion.result.correct_answer} showTranslation={previousQuestion.showTranslation} readOnly
-            marks={previousQuestion.result.memory.known_candidate ? <div className="confirmation-row"><ConfirmationMarks count={previousQuestion.result.memory.confirmations} /></div> : null}
             soundIcon={<Icon name="sound" />} message={reviewMessage} wordHintDisabled={!speechSupported}
             onWordHint={readPreviousQuestion} /> : null}
           onReviewChange={changeReview} onReviewReady={readPreviousQuestion}
@@ -922,7 +919,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           onInteraction={() => { cancelSpeechRef.current?.(); }}>
         {card || loading ? (
           <StudyCard card={card} result={result} answer={answer} showTranslation={settings.show_sentence_translation}
-            marks={confirmationCount !== null ? <div className="confirmation-row"><ConfirmationMarks count={confirmationCount} /></div> : null}
             soundIcon={<Icon name="sound" />} message={message} loading={loading} submitting={submitting}
             readingCorrectAnswer={readingCorrectAnswer} busy={busy || !card}
             wordHintDisabled={!card || !speechSupported || hintPending || loading || submitting || mutePending}
@@ -1032,15 +1028,6 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
         {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">{stats.legacy_unmapped_words} 个旧词的义项待确认</p> : null}
       </details>
     </section>
-  );
-}
-
-function ConfirmationMarks({ count }: { count: number }) {
-  const completed = Math.max(0, Math.min(3, count));
-  return (
-    <span className="confirmation-marks" role="img" aria-label={`熟词确认已完成 ${completed} 次，共 3 次`}>
-      {[0, 1, 2].map((index) => <span key={index} aria-hidden="true" className={`confirmation-mark${index < completed ? " is-complete" : ""}`} />)}
-    </span>
   );
 }
 

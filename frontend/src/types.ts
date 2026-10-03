@@ -97,6 +97,7 @@ export type ReviewResult = {
     stability_days: number;
     difficulty: number;
     predicted_recall_probability: number | null;
+    audit_recall_probability: number;
     target_retention: number;
     personalized: boolean;
   };

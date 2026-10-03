@@ -170,7 +170,7 @@ class MorphologyTests(unittest.TestCase):
         self.assertFalse(result.json()['is_independent'])
         self.assertFalse(result.json()['memory']['known_candidate'])
 
-    def test_derived_first_independent_answer_uses_own_prior(self):
+    def test_derived_first_independent_answer_uses_own_model(self):
         base = self.card_for('absolute', 'adjective')
         self.assertTrue(self.review(base).json()['is_independent'])
         with database.connect() as conn:
@@ -179,7 +179,7 @@ class MorphologyTests(unittest.TestCase):
         derived = self.card_for('absolutely', 'adverb')
         result = self.review(derived)
         self.assertTrue(result.json()['is_independent'])
-        self.assertTrue(result.json()['memory']['known_candidate'])
+        self.assertFalse(result.json()['memory']['known_candidate'])
         self.assertEqual(result.json()['memory']['confirmations'], 1)
         self.assertNotEqual(result.json()['srs_state']['status'], 'Mature')
         with database.connect() as conn:

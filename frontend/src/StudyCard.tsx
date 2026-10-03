@@ -7,7 +7,6 @@ type Props = {
   result: ReviewResult | null;
   answer: string;
   showTranslation: boolean;
-  marks: ReactNode;
   soundIcon: ReactNode;
   message: string;
   loading?: boolean;
@@ -26,7 +25,7 @@ type Props = {
 
 // Both live and completed cards use the same presentation. A previous card
 // freezes the completed round's data; only its editing behavior changes.
-export function StudyCard({ card, result, answer, showTranslation, marks, soundIcon, message,
+export function StudyCard({ card, result, answer, showTranslation, soundIcon, message,
   loading = false, submitting = false, readingCorrectAnswer = false, busy = false,
   wordHintDisabled = false, readOnly = false, inputRef, questionRef,
   onSubmit, onEnter, onWordHint, onAnswerChange }: Props) {
@@ -35,7 +34,6 @@ export function StudyCard({ card, result, answer, showTranslation, marks, soundI
   return <form onSubmit={readOnly ? (event) => event.preventDefault() : onSubmit}
     className={`question-card${readOnly ? " previous-question" : ""}`}
     aria-busy={loading} aria-label={readOnly ? "上一题，仅回看" : "当前题目"}>
-    {marks}
     <div className="question-heading">
       <div className="question-labels">
         <span className="pill">{!card ? "加载中…" : card.status === "New" && !card.needs_correction ? (card.is_new_word ? "新词" : "新用法") : "复习"}</span>

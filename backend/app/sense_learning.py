@@ -137,7 +137,7 @@ def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[
             "attempt_id": attempt["id"], "needs_correction": bool(attempt["hint_used"]),
             "pronunciation_used": bool(attempt["pronunciation_used"]),
             "answer_exposed": bool(attempt["answer_exposed"]),
-            "known_candidate": bool(memory["known_candidate"]) if memory else False,
+            "known_candidate": False,
             "confirmations": memory["confirmations"] if memory else 0,
             "is_relearning": conn.execute("SELECT 1 FROM relearning_queue WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL",
                 (user_id,sense["learning_unit_id"])).fetchone() is not None}
@@ -311,8 +311,7 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
     had_wrong = conn.execute("SELECT 1 FROM review_history WHERE user_id=? AND learning_unit_id=? AND is_correct=0 AND review_time>=? LIMIT 1", (user_id,unit_id,cutoff)).fetchone() is not None
     memory = advance_memory(conn,user_id,unit_id,current,correct=correct,independent=independent,
                             practice=bool(attempt["hint_used"]) or (correct and not independent),
-                            assisted=assisted,today=today,now=now,active_response_ms=active_response_ms,
-                            allow_known_prior=attempt["tracking_version"] == 1)
+                            assisted=assisted,today=today,now=now,active_response_ms=active_response_ms)
     conn.execute("""INSERT INTO review_history(user_id,word_id,sense_id,example_id,review_time,user_answer,
         is_correct,attempt_id,is_independent,is_first_attempt,pronunciation_used,active_response_ms,
         base_recall_probability,predicted_recall_probability,memory_model_version)
@@ -332,7 +331,7 @@ def record_sense_review(conn, user_id: int, today: date, word_id: int, sense_id:
         state = next_state(dict(current) if current else None,correct,had_wrong,today)
     if independent:
         state.update(interval_days=memory["interval_days"],next_review_date=memory["next_review_date"],
-                     status="Mature" if memory["mature"] and not had_wrong else "Reviewing")
+                     status="Mature" if memory["mature"] else "Reviewing")
     # The scheduler can return identity fields from the input; expose only state.
     state = {k:v for k,v in state.items() if k not in ("user_id","sense_id","last_example_id","learning_unit_id","retired_at")}
     write_state(conn,user_id,sense_id,state,example_id)
