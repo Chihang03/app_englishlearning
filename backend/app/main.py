@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from .auth import get_learner_user
 from .admin import router as admin_router
 from .report_review import router as report_review_router
+from .learning_calendar import router as learning_calendar_router
 from .auth import router as auth_router
 from .database import (
     connect,
@@ -70,6 +71,7 @@ if CORS_ORIGINS:
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(report_review_router)
+app.include_router(learning_calendar_router)
 app.include_router(passkeys_router)
 app.include_router(push_router)
 
