@@ -271,6 +271,64 @@ backend/.venv-vocab-export/bin/python backend/scripts/supplement_chinese_from_di
 
 错误报告可选择单词释义、例句、句子翻译、发音或其他问题，并填写最多 2000 字的说明。`POST /api/content-reports` 要求登录并校验题目归属，保存报告者、单词、义项、例句、内容快照和创建时间到数据库 v8 的 `content_reports` 表。同一用户对同一轮题目、同一类型的重试不会重复创建报告。界面只有收到服务器确认才显示提交成功；报告等待人工核对，不自动修改词库。管理员可在服务器数据库中查询 `SELECT id, category, details, content_snapshot, created_at FROM content_reports WHERE status='pending' ORDER BY created_at`。v8 升级前沿用 SQLite backup API 自动备份，原学习记录和计划保持不变。
 
+### 错误报告审核接口
+
+管理员可将待处理报告交给对话模型核对。导出包含问题类型、反馈说明、当前词义、例句、中文翻译、答案词形与必要的原题快照；不包含账号资料或登录信息。已有提交报告接口和管理员网页继续使用同一份数据。
+
+| 接口 | 作用 |
+| --- | --- |
+| `GET /api/admin/report-review/export?limit=100&after_id=0` | 导出待处理报告，返回 `manifest`、`prompt` 和 `result_schema` |
+| `POST /api/admin/report-review/validate` | 核对审核结果并预览处理计划 |
+| `POST /api/admin/report-review/import` | 默认只预览；添加 `?dry_run=false` 才实际导入 |
+
+三个接口均要求管理员登录 Cookie。`validate`、`import` 请求体为 `{"manifest":导出清单,"result":模型返回结果}`。普通学习账号不能读取其他用户的报告或修改公共词库。
+
+模型返回格式如下，`batch` 使用导出清单中的值，必须逐条返回全部报告编号：
+
+```json
+{
+  "batch": "导出清单中的batch",
+  "items": [
+    {
+      "id": 123,
+      "action": "correct",
+      "changes": [{"field": "translation_cn", "value": "她被认为是个天才。"}],
+      "notes": "保留 account 在此义项中表示认为、视为的含义。"
+    }
+  ]
+}
+```
+
+`correct` 提出修正；`no_change` 确认内容正确；`manual` 表示无法判断并保留待处理状态。后两种的 `changes` 必须为空数组。可修改字段为 `definition_cn`、`definition_en`、`sentence`、`translation_cn`、`target_form`、`pronunciation`。没有实际音频时，模型不能凭文本认定朗读正确，提示词要求留待人工核对。
+
+也可通过 `backend/scripts/report_exchange.py` 使用文件批次：
+
+```bash
+# 在可访问数据库的环境导出；默认每批 20 条、最多 100 条。
+backend/.venv/bin/python backend/scripts/report_exchange.py export \
+  --db /path/to/vocabulary.db --output /tmp/report-review
+
+# 只生成审核建议，默认 gpt-6-luna、low；不会修改学习数据。
+backend/.venv/bin/python backend/scripts/report_exchange.py run \
+  --directory /tmp/report-review
+
+# 结合当前数据库校验结果和预览处理计划。
+backend/.venv/bin/python backend/scripts/report_exchange.py validate \
+  --db /path/to/vocabulary.db \
+  --manifest /tmp/report-review/batch-0001.manifest.json \
+  --result /tmp/report-review/batch-0001.result.json
+
+# 预览导入；实际处理时删除 --dry-run，admin-id 使用已有管理员账号 ID。
+backend/.venv/bin/python backend/scripts/report_exchange.py import \
+  --db /path/to/vocabulary.db --admin-id 1 --dry-run \
+  --manifest /tmp/report-review/batch-0001.manifest.json \
+  --result /tmp/report-review/batch-0001.result.json
+```
+
+导出和导入不调用模型。`run` 沿用现有 Codex CLI 登录，使用只读沙箱和临时会话，已完成批次会跳过，无需单独填写 API 密钥。批次可以复制到装有 Codex CLI 的电脑审核，再把结果交回服务器；服务器不必安装 Codex。
+
+实际导入前自动备份 SQLite。导入会校验批次、报告归属及导出后的内容变化；互相冲突的建议、缺失编号、非法答案词形和已被更新的内容会拒绝处理，整批回滚。修正沿用管理员网页的持久化覆盖和修改记录，保留原题快照、义项及例句 ID、学习历史和复习计划。受影响的未完成题目按现有规则结束，下次取题使用修正内容。相同结果重复导入不会重复记录修改。
+
 SRS 按 `(user_id, sense_id)` 独立记录：答对“地址”不会改变 address 的“处理”义项进度。到期义项先复习，然后学习所选词表中的新词和未学义项；同一个义项跨四级/六级共用进度。旧词的其他意思显示为“新义项”，不重复统计为新单词。首页分别显示单词数和义项数。学习概览显示“长期熟记”，要求单词全部当前有效学习义项达到 Mature；更多学习数据显示“已进入间隔复习”，按单词计数，要求该词全部可学义项进入间隔复习。
 
 今日成功要求在一轮新的作答中，未看答案就正确拼写例句所需词形。答错或空答会显示答案；在原题纠正正确只记录练习，不推进 SRS。纠正后至少间隔 20 分钟才会重新出题（后端按整秒向上取整，最长多 1 秒）。其他到期复习优先，其次是已到时间的待巩固义项，再其次是新词；错词尚未到时间时继续学习新词，界面不显示等待时间或倒计时。再次答错会重新纠正、排到队尾并重新计时。离开页面不影响服务器保存的到期时间。如果所选词库已经没有其他可学题目，界面建议选择其他词库，后台在待巩固词到时间时静默重新加载。

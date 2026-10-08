@@ -171,53 +171,62 @@ class ContentUpdate(BaseModel):
 def correct_report_content(report_id: int, payload: ContentUpdate, user: dict[str, Any] = Depends(get_admin_user)) -> dict[str, Any]:
     with connect() as conn:
         conn.execute('BEGIN IMMEDIATE')
-        report = report_detail_from(conn, report_id)
-        if not report['editable']:
-            raise HTTPException(409, '题目已归档，无法修改')
-        before = report['current_content']
-        if before != payload.expected_content:
-            raise HTTPException(409, '内容已被更新，请刷新后再修改')
-        changes = {key: (value or '').strip() for key, value in payload.changes.model_dump(exclude_unset=True).items()}
-        for key in ('definition_en', 'translation_cn', 'pronunciation'):
-            if key in changes and not changes[key]:
-                changes[key] = None
-        changes = {key: value for key, value in changes.items() if before[key] != value}
-        if not changes:
-            raise HTTPException(400, '没有修改内容')
-        after = {**before, **changes}
-        if not (after['definition_cn'] or after['definition_en']):
-            raise HTTPException(400, '至少保留一项释义')
-        if not after['sentence'] or not after['target_form'] or not contains_target(after['sentence'], after['target_form']):
-            raise HTTPException(400, '例句必须包含正确的答案词形')
-        pair = conn.execute('SELECT word_id,sense_id,example_id FROM content_reports WHERE id=?', (report_id,)).fetchone()
-        if conn.execute('SELECT 1 FROM sense_examples WHERE sense_id=? AND sentence=? AND id!=?',
-                (pair['sense_id'], after['sentence'], pair['example_id'])).fetchone():
-            raise HTTPException(409, '此义项已存在相同例句')
-        sense_changes = {key: changes[key] for key in ('definition_cn','definition_en') if key in changes}
-        example_changes = {key: changes[key] for key in ('sentence','translation_cn','target_form') if key in changes}
-        if sense_changes:
-            store_override(conn, 'sense', pair['sense_id'], {key: before[key] for key in ('definition_cn','definition_en')}, sense_changes, user['id'])
-            conn.execute('UPDATE word_senses SET definition_cn=?,definition_en=? WHERE id=?', (after['definition_cn'], after['definition_en'], pair['sense_id']))
-        if example_changes:
-            fields = ('sentence','translation_cn','target_form')
-            store_override(conn, 'example', pair['example_id'], {key: before[key] for key in fields}, {key: after[key] for key in fields}, user['id'])
-            conn.execute('UPDATE sense_examples SET sentence=?,translation_cn=?,target_form=? WHERE id=?',
-                (after['sentence'], after['translation_cn'], after['target_form'], pair['example_id']))
-        word_changes = {key: changes[key] for key in ('pronunciation',) if key in changes}
-        word = dict(conn.execute('SELECT * FROM words WHERE id=?', (pair['word_id'],)).fetchone())
-        for key in sense_changes:
-            if word[key] == before[key]:
-                word_changes[key] = after[key]
-        store_override(conn, 'word', pair['word_id'], {key: word[key] for key in ('pronunciation','definition_cn','definition_en')}, word_changes, user['id'])
-        for key, value in word_changes.items():
-            conn.execute(f'UPDATE words SET {key}=? WHERE id=?', (value, pair['word_id']))
-        now = utc_now_iso()
-        if sense_changes:
-            conn.execute('UPDATE study_attempts SET completed_at=? WHERE sense_id=? AND completed_at IS NULL', (now, pair['sense_id']))
-        elif example_changes:
-            conn.execute('UPDATE study_attempts SET completed_at=? WHERE example_id=? AND completed_at IS NULL', (now, pair['example_id']))
-        conn.execute('INSERT INTO admin_content_edits(report_id,admin_id,before_json,after_json,created_at) VALUES(?,?,?,?,?)',
-            (report_id, user['id'], json.dumps(before,ensure_ascii=False), json.dumps(after,ensure_ascii=False), now))
-        conn.execute("UPDATE content_reports SET status='resolved',resolution_notes=?,resolved_at=?,resolved_by=? WHERE id=?",
-            (payload.resolution_notes.strip(), now, user['id'], report_id))
-        return report_detail_from(conn, report_id)
+        return correct_content_from(conn, report_id, payload, int(user['id']))
+
+
+def checked_content_changes(before: dict, payload: ContentChanges) -> tuple[dict, dict]:
+    changes = {key: (value or '').strip() for key, value in payload.model_dump(exclude_unset=True).items()}
+    for key in ('definition_en', 'translation_cn', 'pronunciation'):
+        if key in changes and not changes[key]:
+            changes[key] = None
+    changes = {key: value for key, value in changes.items() if before[key] != value}
+    if not changes:
+        raise HTTPException(400, '没有修改内容')
+    after = {**before, **changes}
+    if not (after['definition_cn'] or after['definition_en']):
+        raise HTTPException(400, '至少保留一项释义')
+    if not after['sentence'] or not after['target_form'] or not contains_target(after['sentence'], after['target_form']):
+        raise HTTPException(400, '例句必须包含正确的答案词形')
+    return changes, after
+
+
+def correct_content_from(conn, report_id: int, payload: ContentUpdate, admin_id: int) -> dict[str, Any]:
+    report = report_detail_from(conn, report_id)
+    if not report['editable']:
+        raise HTTPException(409, '题目已归档，无法修改')
+    before = report['current_content']
+    if before != payload.expected_content:
+        raise HTTPException(409, '内容已被更新，请刷新后再修改')
+    changes, after = checked_content_changes(before, payload.changes)
+    pair = conn.execute('SELECT word_id,sense_id,example_id FROM content_reports WHERE id=?', (report_id,)).fetchone()
+    if conn.execute('SELECT 1 FROM sense_examples WHERE sense_id=? AND sentence=? AND id!=?',
+            (pair['sense_id'], after['sentence'], pair['example_id'])).fetchone():
+        raise HTTPException(409, '此义项已存在相同例句')
+    sense_changes = {key: changes[key] for key in ('definition_cn','definition_en') if key in changes}
+    example_changes = {key: changes[key] for key in ('sentence','translation_cn','target_form') if key in changes}
+    if sense_changes:
+        store_override(conn, 'sense', pair['sense_id'], {key: before[key] for key in ('definition_cn','definition_en')}, sense_changes, admin_id)
+        conn.execute('UPDATE word_senses SET definition_cn=?,definition_en=? WHERE id=?', (after['definition_cn'], after['definition_en'], pair['sense_id']))
+    if example_changes:
+        fields = ('sentence','translation_cn','target_form')
+        store_override(conn, 'example', pair['example_id'], {key: before[key] for key in fields}, {key: after[key] for key in fields}, admin_id)
+        conn.execute('UPDATE sense_examples SET sentence=?,translation_cn=?,target_form=? WHERE id=?',
+            (after['sentence'], after['translation_cn'], after['target_form'], pair['example_id']))
+    word_changes = {key: changes[key] for key in ('pronunciation',) if key in changes}
+    word = dict(conn.execute('SELECT * FROM words WHERE id=?', (pair['word_id'],)).fetchone())
+    for key in sense_changes:
+        if word[key] == before[key]:
+            word_changes[key] = after[key]
+    store_override(conn, 'word', pair['word_id'], {key: word[key] for key in ('pronunciation','definition_cn','definition_en')}, word_changes, admin_id)
+    for key, value in word_changes.items():
+        conn.execute(f'UPDATE words SET {key}=? WHERE id=?', (value, pair['word_id']))
+    now = utc_now_iso()
+    if sense_changes:
+        conn.execute('UPDATE study_attempts SET completed_at=? WHERE sense_id=? AND completed_at IS NULL', (now, pair['sense_id']))
+    elif example_changes:
+        conn.execute('UPDATE study_attempts SET completed_at=? WHERE example_id=? AND completed_at IS NULL', (now, pair['example_id']))
+    conn.execute('INSERT INTO admin_content_edits(report_id,admin_id,before_json,after_json,created_at) VALUES(?,?,?,?,?)',
+        (report_id, admin_id, json.dumps(before,ensure_ascii=False), json.dumps(after,ensure_ascii=False), now))
+    conn.execute("UPDATE content_reports SET status='resolved',resolution_notes=?,resolved_at=?,resolved_by=? WHERE id=?",
+        (payload.resolution_notes.strip(), now, admin_id, report_id))
+    return report_detail_from(conn, report_id)
