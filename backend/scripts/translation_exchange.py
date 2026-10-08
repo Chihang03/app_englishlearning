@@ -286,7 +286,10 @@ def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = D
         manifest = read_json(manifest_path)
         stem = manifest_path.name.removesuffix('.manifest.json')
         result = directory / f'{stem}.result.json'
-        if manifest.get('task') == 'sentences':
+        if manifest.get('task') == 'content_reports':
+            from app.report_review import validate_response
+            validate = lambda path: validate_response(manifest, read_json(path))
+        elif manifest.get('task') == 'sentences':
             from sentence_translation_exchange import validate_sentences
             validate = lambda path: validate_sentences(catalog, manifest_path, path, glosses)
         else:
