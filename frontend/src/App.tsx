@@ -8,6 +8,7 @@ import { StudyDeck } from "./StudyDeck";
 import type { PreviousQuestion } from "./StudyDeck";
 import { StudyTools } from "./StudyTools";
 import { MutedWords } from "./MutedWords";
+import { LearningCalendar } from "./LearningCalendar";
 import { useLearningReminder } from "./learningReminder";
 import { BASE_WPM, SPEECH_SPEEDS, useSpeechSettings } from "./speechSettings";
 import type { StudyTool } from "./StudyTools";
@@ -143,11 +144,11 @@ function App() {
     onSessionChanged={setUser} updateAvailable={updateAvailable} checkVersion={checkVersion} />;
 }
 
-type Page = "home" | "study" | "settings" | "muted-words" | `word-list/${string}`;
+type Page = "home" | "study" | "settings" | "learning-calendar" | "muted-words" | `word-list/${string}`;
 
 function pageFromHash(): Page {
   const value = window.location.hash.slice(1);
-  return value === "study" || value === "settings" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
+  return value === "study" || value === "settings" || value === "learning-calendar" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
 }
 
 function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVersion }: {
@@ -873,6 +874,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : page === "muted-words" ? "is-managing-words" : ""}`}>
       {page === "home" ? (
         <Home user={user} stats={stats} ready={statsReady} refreshing={refreshing}
+          onOpenCalendar={() => navigate("learning-calendar")}
           onRefresh={() => { void guarded(() => refreshData(true)); }} />
       ) : null}
 
@@ -943,6 +945,14 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           onAnswerExposed={(senseIds) => markAnswerExposed(studyTool.card, senseIds)} /> : null}
       </section>
 
+      {page === "learning-calendar" ? <section className="settings-page page-container" aria-label="学习日历">
+        <header className="settings-header">
+          <button type="button" className="icon-button" onClick={() => navigate("home")} aria-label="返回首页"><Icon name="back" /></button>
+          <h1>学习日历</h1><span className="header-spacer" />
+        </header>
+        <LearningCalendar timezone={user.timezone} onSignedOut={onSignedOut} />
+      </section> : null}
+
       {page === "settings" ? (
         <SettingsPage user={user} settings={settings} wordLists={wordLists} speech={speech} voices={voices}
           settingsSaving={settingsSaving}
@@ -968,7 +978,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       {message && page !== "study" ? <p role="alert" className="global-error error-notice">{message}</p> : null}
       {page !== "study" ? (
         <nav className="bottom-nav" aria-label="主导航">
-          <button type="button" onClick={() => navigate("home")} aria-current={page === "home" ? "page" : undefined}>
+          <button type="button" onClick={() => navigate("home")} aria-current={page === "home" || page === "learning-calendar" ? "page" : undefined}>
             <Icon name="home" /><span>首页</span>
           </button>
           <button type="button" className="nav-study" onClick={() => { void enableLearningReminder(); navigate("study"); }}>
@@ -984,9 +994,10 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   );
 }
 
-function Home({ user, stats, ready, refreshing, onRefresh }: {
+function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar }: {
   user: User; stats: Stats; ready: boolean; refreshing: boolean;
   onRefresh: () => void;
+  onOpenCalendar: () => void;
 }) {
   const value = (count: number) => ready ? count.toLocaleString() : "—";
   return (
@@ -1002,6 +1013,9 @@ function Home({ user, stats, ready, refreshing, onRefresh }: {
           <div><strong>{value(stats.due_words)}</strong><span>即刻复习</span></div>
         </div>
       </section>
+      <button type="button" className="calendar-entry panel" onClick={onOpenCalendar}>
+        <Icon name="calendar" /><strong>学习日历</strong><Icon name="chevron" />
+      </button>
       <section className="overview-section">
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing} aria-label="刷新学习数据"><Icon name="refresh" /> {refreshing ? "刷新中…" : "刷新"}</button></div>
         <div className="overview-grid">
@@ -1135,12 +1149,13 @@ function WordListPage({ list, ready, selected, settingsSaving, onBack, onToggle 
   );
 }
 
-type IconName = "home" | "settings" | "arrow" | "back" | "more" | "sound" | "book" | "spark" | "check" | "refresh" | "chart" | "chevron" | "user" | "clock";
+type IconName = "home" | "settings" | "arrow" | "back" | "more" | "sound" | "book" | "spark" | "check" | "refresh" | "chart" | "chevron" | "user" | "clock" | "calendar";
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
     home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h5v-7h4v7h5V9" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 11h18m-14 4h2m3 0h2m-7 3h2" /></>,
     settings: <><path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3Z" /><circle cx="12" cy="12" r="3" /></>,
     arrow: <><path d="M4 12h16m-6-6 6 6-6 6" /></>,
     back: <><path d="M20 12H4m6-6-6 6 6 6" /></>,

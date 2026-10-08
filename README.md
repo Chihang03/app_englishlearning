@@ -109,6 +109,7 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 ## API 摘要
 
 - `GET /api/stats` 首页统计
+- `GET /api/learning-calendar?month=YYYY-MM` 学习日历，省略月份时返回账户时区的当月；返回每日完成卡片、已记录学习时长、首次作答正确率及月度汇总。
 - `GET /api/next` 获取下一题
 - `POST /api/review` 提交答案并更新 SRS
 学习与设置接口需要登录；健康检查、注册、登录及通行密钥登录流程公开。
