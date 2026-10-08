@@ -17,6 +17,12 @@ from app import database, learning_units
 ROOT = Path(__file__).resolve().parents[1]
 SHIPPED_CONFIG = json.loads((ROOT/'data'/'learning_units.json').read_text())
 ABANDON = next(w for w in json.loads((ROOT/'data'/'vocabulary_catalog.json').read_text())['words'] if w['word']=='abandon')
+# These migration tests exercise the seven previously taught source senses.
+# New dictionary evidence must not change the historical fixture or its order.
+HISTORICAL_KEYS = [f'en:m_en_gbus0000850.{suffix}' for suffix in
+                   ('006', '013', '015', '017', '018', '020', '022')]
+ABANDON['senses'] = [next(s for s in ABANDON['senses'] if s['key'] == key)
+                     for key in HISTORICAL_KEYS]
 
 
 def catalog():

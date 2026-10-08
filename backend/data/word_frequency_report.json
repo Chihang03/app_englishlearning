@@ -18,8 +18,8 @@
     {
       "list_id": "ngsl_core",
       "title": "NGSL 通用高频",
-      "headword_count": 2777,
-      "measured_headword_count": 2777,
+      "headword_count": 2796,
+      "measured_headword_count": 2796,
       "missing_headwords": [],
       "first_50": [
         {
@@ -227,8 +227,8 @@
     {
       "list_id": "ngsl_spoken",
       "title": "NGSL-S 口语",
-      "headword_count": 718,
-      "measured_headword_count": 718,
+      "headword_count": 719,
+      "measured_headword_count": 719,
       "missing_headwords": [],
       "first_50": [
         {
@@ -436,8 +436,8 @@
     {
       "list_id": "nawl",
       "title": "NAWL 学术英语",
-      "headword_count": 883,
-      "measured_headword_count": 883,
+      "headword_count": 916,
+      "measured_headword_count": 916,
       "missing_headwords": [],
       "first_50": [
         {
@@ -491,6 +491,10 @@
         {
           "word": "distribution",
           "zipf": 4.64
+        },
+        {
+          "word": "stadium",
+          "zipf": 4.63
         },
         {
           "word": "incredible",
@@ -635,18 +639,14 @@
         {
           "word": "obtain",
           "zipf": 4.4
-        },
-        {
-          "word": "crystal",
-          "zipf": 4.4
         }
       ]
     },
     {
       "list_id": "tsl",
       "title": "TSL TOEIC",
-      "headword_count": 1112,
-      "measured_headword_count": 1110,
+      "headword_count": 1170,
+      "measured_headword_count": 1168,
       "missing_headwords": [
         "dissatisfy",
         "housekeep"
@@ -667,6 +667,10 @@
         {
           "word": "captain",
           "zipf": 4.89
+        },
+        {
+          "word": "airport",
+          "zipf": 4.84
         },
         {
           "word": "authority",
@@ -707,6 +711,10 @@
         {
           "word": "distribution",
           "zipf": 4.64
+        },
+        {
+          "word": "stadium",
+          "zipf": 4.63
         },
         {
           "word": "assembly",
@@ -785,6 +793,10 @@
           "zipf": 4.49
         },
         {
+          "word": "soccer",
+          "zipf": 4.48
+        },
+        {
           "word": "circuit",
           "zipf": 4.47
         },
@@ -817,11 +829,19 @@
           "zipf": 4.45
         },
         {
+          "word": "administrative",
+          "zipf": 4.45
+        },
+        {
           "word": "pet",
           "zipf": 4.45
         },
         {
           "word": "hungry",
+          "zipf": 4.45
+        },
+        {
+          "word": "photography",
           "zipf": 4.45
         },
         {
@@ -831,34 +851,14 @@
         {
           "word": "mini",
           "zipf": 4.44
-        },
-        {
-          "word": "tag",
-          "zipf": 4.44
-        },
-        {
-          "word": "replacement",
-          "zipf": 4.44
-        },
-        {
-          "word": "pizza",
-          "zipf": 4.43
-        },
-        {
-          "word": "strategic",
-          "zipf": 4.43
-        },
-        {
-          "word": "gym",
-          "zipf": 4.43
         }
       ]
     },
     {
       "list_id": "bsl",
       "title": "BSL 商务英语",
-      "headword_count": 1640,
-      "measured_headword_count": 1640,
+      "headword_count": 1678,
+      "measured_headword_count": 1678,
       "missing_headwords": [],
       "first_50": [
         {
@@ -888,6 +888,10 @@
         {
           "word": "captain",
           "zipf": 4.89
+        },
+        {
+          "word": "airport",
+          "zipf": 4.84
         },
         {
           "word": "mid",
@@ -964,6 +968,10 @@
         {
           "word": "info",
           "zipf": 4.6
+        },
+        {
+          "word": "senator",
+          "zipf": 4.58
         },
         {
           "word": "exclusive",
@@ -1052,28 +1060,23 @@
         {
           "word": "cabinet",
           "zipf": 4.49
-        },
-        {
-          "word": "rape",
-          "zipf": 4.48
-        },
-        {
-          "word": "circuit",
-          "zipf": 4.47
         }
       ]
     },
     {
       "list_id": "cet4",
       "title": "CET-4 四级",
-      "headword_count": 3846,
-      "measured_headword_count": 3840,
+      "headword_count": 3940,
+      "measured_headword_count": 3931,
       "missing_headwords": [
+        "brand-new",
         "clear-cut",
         "high-tech",
         "old-fashioned",
         "so-called",
+        "up-to-date",
         "well-being",
+        "well-known",
         "well-off"
       ],
       "first_50": [
@@ -1282,14 +1285,17 @@
     {
       "list_id": "cet6",
       "title": "CET-6 六级（含四级基础）",
-      "headword_count": 5031,
-      "measured_headword_count": 5025,
+      "headword_count": 5166,
+      "measured_headword_count": 5157,
       "missing_headwords": [
+        "brand-new",
         "clear-cut",
         "high-tech",
         "old-fashioned",
         "so-called",
+        "up-to-date",
         "well-being",
+        "well-known",
         "well-off"
       ],
       "first_50": [
@@ -1498,12 +1504,13 @@
     {
       "list_id": "toefl",
       "title": "TOEFL 托福",
-      "headword_count": 6337,
-      "measured_headword_count": 6316,
+      "headword_count": 6525,
+      "measured_headword_count": 6502,
       "missing_headwords": [
         "avant-garde",
         "bereave",
         "by-product",
+        "cast-iron",
         "contemn",
         "discompose",
         "embosom",
@@ -1521,6 +1528,7 @@
         "subduct",
         "three-dimensional",
         "time-consuming",
+        "upside-down",
         "well-being"
       ],
       "first_50": [
@@ -1729,8 +1737,8 @@
     {
       "list_id": "ielts",
       "title": "IELTS 雅思",
-      "headword_count": 4454,
-      "measured_headword_count": 4442,
+      "headword_count": 4555,
+      "measured_headword_count": 4542,
       "missing_headwords": [
         "close-up",
         "drop-off",
@@ -1743,7 +1751,8 @@
         "part-time",
         "self-defense",
         "self-discipline",
-        "self-sufficient"
+        "self-sufficient",
+        "up-to-date"
       ],
       "first_50": [
         {
@@ -1951,8 +1960,8 @@
     {
       "list_id": "gre",
       "title": "GRE",
-      "headword_count": 6625,
-      "measured_headword_count": 6544,
+      "headword_count": 6844,
+      "measured_headword_count": 6760,
       "missing_headwords": [
         "abnegate",
         "adulate",
@@ -1974,6 +1983,7 @@
         "denunciate",
         "deracinate",
         "dilapidate",
+        "dipsomania",
         "disaffect",
         "discompose",
         "disembody",
@@ -2008,6 +2018,7 @@
         "infelicity",
         "interlope",
         "invigilate",
+        "know-how",
         "long-winded",
         "lucubrate",
         "magniloquent",
@@ -2034,7 +2045,8 @@
         "stultify",
         "tauten",
         "topsy-turvy",
-        "ungrudging"
+        "ungrudging",
+        "valetudinarian"
       ],
       "first_50": [
         {

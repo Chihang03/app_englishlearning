@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from dictionary_senses import parse_record
+from dictionary_alignment import align_senses, preserve_existing_senses
 from chinese_glosses import apply_supplements
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.chinese_sentences import apply_sentence_supplements
@@ -269,6 +270,34 @@ def find_dictionary(root: Path, dictionary_name: str) -> Path:
     return matches[0]
 
 
+def read_traditional_dictionary(path: Path, entries: dict, glossary_class: Any) -> None:
+    from traditional_dictionary_senses import parse_traditional_record, parse_reverse_record, simplify_chinese
+
+    glossary = glossary_class()
+    glossary.read(str(path), formatName="AppleDictBin", direct=True, progressbar=False, html=True)
+    pending = []
+    try:
+        for record in glossary:
+            aliases = re.split(r"\s*[|;]\s*", str(record.s_term))
+            headword = aliases[0].strip()
+            key = normalize(headword)
+            if WORD_RE.fullmatch(headword) and key in entries:
+                senses = parse_traditional_record(record.defi, key, aliases)
+                entries[key].setdefault("mac_tw", {"senses": []})["senses"].extend(senses)
+                pending.extend(senses)
+            elif re.search(r"[\u3400-\u9fff]", headword):
+                for reverse in parse_reverse_record(record.defi, headword, entries):
+                    entries[reverse["word"]].setdefault("mac_reverse", []).append(reverse)
+                    pending.append(reverse)
+    finally:
+        glossary.cleanup()
+    fields = [(item, "definition_cn") for item in pending]
+    fields += [(example, "translation_cn") for item in pending for example in item["examples"]
+               if example.get("translation_cn")]
+    for (item, field), value in zip(fields, simplify_chinese([item[field] for item, field in fields])):
+        item[field] = value
+
+
 
 
 def aligned_senses(entry: dict[str, Any], overrides: dict[str, Any]) -> list[dict[str, Any]]:
@@ -278,38 +307,7 @@ def aligned_senses(entry: dict[str, Any], overrides: dict[str, Any]) -> list[dic
     The same sentence can establish a cross-dictionary link only if it belongs to
     exactly one bilingual sense. Other links must be reviewed in the override file.
     """
-    zh = {s["key"]: s for s in (entry.get("mac_zh") or {}).get("senses", [])}
-    en = list({s["key"]:s for s in (entry.get("mac_en") or {}).get("senses", [])}.values())
-    for sense in en:
-        override = overrides.get(sense["key"])
-        destination = None
-        if override and override["word"] == entry["word"]:
-            if sense["definition_en"] != override["expected_definition_en"]:
-                raise ValueError(f"Dictionary changed: review override {sense['key']}")
-            destination = zh.get(override.get("merge_into"))
-            sense = {**sense, "definition_cn": override["definition_cn"]}
-        if destination is None and not override:
-            sentences = {e["sentence"].casefold() for e in sense["examples"]}
-            def family(pos: str) -> str:
-                return "动词" if "动词" in pos else pos
-            matches = [s for s in zh.values() if family(s["part_of_speech"]) == family(sense["part_of_speech"])
-                       and sentences.intersection(e["sentence"].casefold() for e in s["examples"])]
-            if len(matches) == 1:
-                destination = matches[0]
-        if destination is not None:
-            destination["definition_en"] = destination.get("definition_en") or sense["definition_en"]
-            for ex in sense["examples"]:
-                if not any(e["sentence"] == ex["sentence"] for e in destination["examples"]):
-                    destination["examples"].append(ex)
-        elif override:
-            zh[sense["key"]] = sense
-    chosen = [s for s in zh.values() if s["examples"]]
-    if not chosen:
-        chosen = [s for s in en if s["examples"]]
-    # Every exported learning sense has its own gloss and real dictionary example.
-    for position, sense in enumerate(chosen):
-        sense["position"] = position
-    return chosen
+    return align_senses(entry, overrides)[0]
 
 
 def _headword_export(entries: dict[str, dict[str, Any]], output: Path) -> None:
@@ -331,7 +329,10 @@ def build(
     dictionary_root: Path,
     english_dictionary: Path | None,
     chinese_dictionary: Path | None,
+    traditional_dictionary: Path | None = None,
 ) -> None:
+    previous = json.loads(output.read_text(encoding="utf-8")) if output.exists() else {"words": []}
+    previous_senses = {w["word"]: w["senses"] for w in previous["words"]}
     entries: dict[str, dict[str, Any]] = {}
     if source_dir is not None:
         read_ngsl(source_dir / "NGSL_1.2_stats.csv", entries)
@@ -349,19 +350,30 @@ def build(
         english_dictionary = find_dictionary(dictionary_root, "New Oxford American Dictionary.dictionary")
     if chinese_dictionary is None:
         chinese_dictionary = find_dictionary(dictionary_root, "Simplified Chinese - English.dictionary")
+    if traditional_dictionary is None:
+        traditional_dictionary = find_dictionary(dictionary_root, "Traditional Chinese - English.dictionary")
 
     with tempfile.TemporaryDirectory(prefix="vocab-dictionary-cache-") as cache:
         glossary_class = _pyglossary_class(Path(cache))
+        print(f"Reading {chinese_dictionary.name}", flush=True)
         read_mac_dictionary(chinese_dictionary, entries, "zh", glossary_class)
+        print(f"Reading {english_dictionary.name}", flush=True)
         read_mac_dictionary(english_dictionary, entries, "en", glossary_class)
+        print(f"Reading both directions of {traditional_dictionary.name}", flush=True)
+        read_traditional_dictionary(traditional_dictionary, entries, glossary_class)
 
     override_path = Path(__file__).with_name("sense_overrides.json")
     overrides = json.loads(override_path.read_text(encoding="utf-8")) if override_path.exists() else {}
 
     words: list[dict[str, Any]] = []
     missing: dict[str, list[str]] = defaultdict(list)
+    gaps = []
     for entry in entries.values():
-        senses = aligned_senses(entry, overrides)
+        senses, pending = align_senses(entry, overrides)
+        senses = preserve_existing_senses(entry, senses, previous_senses.get(entry["word"], []))
+        retained_keys = {s["key"] for s in senses}
+        pending = [s for s in pending if s["key"] not in retained_keys]
+        gaps.extend(pending)
         if not senses:
             for list_id in entry["packs"]:
                 missing[list_id].append(entry["word"])
@@ -428,7 +440,7 @@ def build(
     )
     from build_morphology_bundle import build_bundle
     build_bundle(output, output.with_name('word_forms.json'), dictionary_root,
-                 dictionary_paths={'en': english_dictionary, 'zh': chinese_dictionary})
+                 dictionary_paths={'en': english_dictionary, 'zh': chinese_dictionary, 'tw': traditional_dictionary})
     print(f"Wrote {len(words):,} learnable words across {len(PACKS)} lists to {output}")
     print(f"Saved headword-only source lists to {output.with_name('source_word_lists.json')}")
     sense_count = sum(len(w["senses"]) for w in words)
@@ -439,7 +451,12 @@ def build(
         "chinese_supplements": supplement_count,
         "chinese_sentence_supplements": sentence_count,
         "unpaired_words_by_list": missing,
+        "dictionary_sources": [p.name for p in (chinese_dictionary, english_dictionary, traditional_dictionary)],
+        "pending_sense_count": len(gaps),
+        "examples_with_cross_dictionary_provenance": sum("provenance" in e for w in words for s in w["senses"] for e in s["examples"]),
     }
+    output.with_name("dictionary_sense_gaps.json").write_text(
+        readable_json({"format_version": 1, "entries": gaps}), encoding="utf-8")
     output.with_name("vocabulary_export_report.json").write_text(
         readable_json(report), encoding="utf-8")
     print(f"Saved {sense_count:,} paired senses and {example_count:,} examples")
@@ -465,6 +482,7 @@ def main() -> None:
     parser.add_argument("--dictionary-root", type=Path, default=DICTIONARY_ASSETS)
     parser.add_argument("--english-dictionary", type=Path, help="Override the New Oxford American Dictionary package")
     parser.add_argument("--chinese-dictionary", type=Path, help="Override the Simplified Chinese - English package")
+    parser.add_argument("--traditional-dictionary", type=Path, help="Override the Dr. Eye Traditional Chinese - English package")
     parser.add_argument(
         "--output",
         type=Path,
@@ -478,6 +496,7 @@ def main() -> None:
         args.dictionary_root.resolve(),
         args.english_dictionary.resolve() if args.english_dictionary else None,
         args.chinese_dictionary.resolve() if args.chinese_dictionary else None,
+        args.traditional_dictionary.resolve() if args.traditional_dictionary else None,
     )
 
 

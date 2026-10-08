@@ -248,7 +248,15 @@ def seed_vocabulary_catalog() -> None:
                 # A separate legacy gloss is never attached to another sense.
                 matching = [s for s in senses if s["definition_cn"] == starter["definition_cn"]
                             and s["part_of_speech"] == starter["part_of_speech"]]
-                if len(matching) == 1:
+                historical = conn.execute(
+                    "SELECT 1 FROM word_senses WHERE word_id=? AND sense_key=? AND active=1",
+                    (word_id, starter['key']),
+                ).fetchone()
+                if historical:
+                    # A newly matching dictionary sense must not replace the
+                    # curated identity already used by learners' saved cards.
+                    senses += [starter]
+                elif len(matching) == 1:
                     for ex in starter["examples"]:
                         if not any(e["sentence"] == ex["sentence"] for e in matching[0]["examples"]):
                             matching[0]["examples"].append(ex)

@@ -1,4 +1,10 @@
 {
+  "en:m_en_gbus0251960.008": {
+    "word": "daughter",
+    "expected_definition_en": "a girl or woman in relation to either or both of her parents.",
+    "definition_cn": "女儿",
+    "merge_into": "zh:b-en-zh_hans0008927.002"
+  },
   "en:m_en_gbus0071450.008": {
     "word": "bank",
     "expected_definition_en": "the land alongside or sloping down to a river or lake",
