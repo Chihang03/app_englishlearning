@@ -65,6 +65,8 @@ def build_bundle(catalog_path: Path, output: Path, dictionary_root: Path,
     needed |= {(w['language'], w['entry_id']) for w in overrides.get('supplements', [])}
     records, manifests, families = {}, [], {}
     names = {'en': 'New Oxford American Dictionary.dictionary', 'zh': 'Simplified Chinese - English.dictionary'}
+    if dictionary_paths is None or 'tw' in dictionary_paths:
+        names['tw'] = 'Traditional Chinese - English.dictionary'
     for language, name in names.items():
         package = (dictionary_paths or {}).get(language) or find_dictionary(dictionary_root, name)
         body = package / 'Contents' / 'Resources' / 'Body.data'
@@ -181,14 +183,32 @@ def catalog_evidence(catalog_words, records):
     identifiable parent POS is ignored; no string-only merge is permitted.
     """
     inspected, matched, origins = {}, {}, {}
+    from traditional_dictionary_senses import parse_traditional_record, simplify_chinese
+    traditional = {}
+    for identity, (word, raw) in records.items():
+        if identity[0] == 'tw' and word in catalog_words:
+            aliases = [word, *(e['target_form'] for s in catalog_words[word]['senses'] for e in s['examples'])]
+            traditional[identity] = parse_traditional_record(raw.decode('utf-8'), word, aliases)
+    fields = [s for senses in traditional.values() for s in senses]
+    for sense, gloss in zip(fields, simplify_chinese([s['definition_cn'] for s in fields]) if fields else []):
+        sense['definition_cn'] = gloss
     for (language, entry_id), (word, raw) in sorted(records.items()):
         root = html.fromstring(raw.decode('utf-8'))
-        facts = extract_record(root, word, language)
+        if language == 'tw':
+            # Dr. Eye's abbreviated grammatical labels use a different schema.
+            # Verify original sense/example identity; do not infer its grammar
+            # references or derivation links through the Oxford parser.
+            parsed = {'senses': traditional.get((language, entry_id), [])}
+            facts = {'families': {pos_family(s['part_of_speech']) for s in parsed['senses']},
+                     'forms': [], 'references': [], 'derivatives': []}
+        else:
+            facts = extract_record(root, word, language)
         item = catalog_words.get(word)
         source = {'language': language, 'entry_id': entry_id,
                   'record_sha256': hashlib.sha256(raw).hexdigest()}
         aliases = [word, *(e['target_form'] for s in (item or {}).get('senses', []) for e in s['examples'])]
-        parsed = parse_record(raw.decode('utf-8'), word, language, aliases) if item else {'senses': []}
+        if language != 'tw':
+            parsed = parse_record(raw.decode('utf-8'), word, language, aliases) if item else {'senses': []}
         source_senses = {s['key']: s for s in parsed['senses']}
         matched_keys = set()
         for family in facts['families']:
@@ -221,7 +241,7 @@ def catalog_evidence(catalog_words, records):
         expected = {s['key'] for s in unit['expected_senses']}
         if specific:
             return [specific] if specific in expected and specific in record['matched_keys'] else []
-        ambiguous = any(len(origins.get((word, family, lang), set())) > 1 for lang in ('en', 'zh'))
+        ambiguous = any(len(origins.get((word, family, lang), set())) > 1 for lang in ('en', 'zh', 'tw'))
         if not ambiguous:
             return [None]
         exact = sorted(expected.intersection(record['matched_keys']))
@@ -269,7 +289,7 @@ def catalog_evidence(catalog_words, records):
                 # A POS-wide relation cannot identify a same-POS homonym.
                 if any(len(origins.get((headword, family, lang), set())) > 1
                        for headword, family in ((word, derivative['base_pos_group']),
-                                               (derivative['word'], derivative['pos_group'])) for lang in ('en', 'zh')):
+                                               (derivative['word'], derivative['pos_group'])) for lang in ('en', 'zh', 'tw')):
                     continue
                 relations.append({'from': base_key, 'to': target_key, 'relation_type': kind,
                     'verification': 'verified', 'provenance': {**source, 'evidence_kind': 'dictionary_derivative',

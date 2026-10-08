@@ -81,6 +81,38 @@ class SenseLearningTests(unittest.TestCase):
         with database.connect() as conn:
             conn.execute("UPDATE relearning_queue SET ready_at='2000-01-01T00:00:00+00:00' WHERE user_id=?",(self.uid,))
 
+    def test_new_dictionary_match_keeps_existing_curated_sense_and_saved_example(self):
+        seed = {'word': 'address', 'pronunciation': 'address', 'part_of_speech': '名词',
+                'definition_cn': '住址', 'definition_en': None,
+                'example_sentence': 'Their address is in London.', 'example_translation_cn': None}
+        seed_path = self.directory / 'starter.json'
+        seed_path.write_text(json.dumps([seed], ensure_ascii=False))
+        with patch.object(database, 'SEED_PATH', seed_path):
+            database.init_database()
+            with database.connect() as conn:
+                original = conn.execute("""SELECT s.id,e.id AS example_id,b.learning_unit_id
+                    FROM word_senses s JOIN sense_examples e ON e.sense_id=s.id
+                    JOIN learning_unit_senses b ON b.sense_id=s.id
+                    WHERE s.sense_key=?""", (authored_sense(seed)[0]['key'],)).fetchone()
+                conn.execute("""INSERT INTO sense_srs_state(user_id,sense_id,last_example_id,
+                    learning_unit_id,status,next_review_date) VALUES(?,?,?,?,'Reviewing','2099-01-01')""",
+                    (self.uid, original['id'], original['example_id'], original['learning_unit_id']))
+            updated = catalog()
+            updated['words'][0]['senses'][0]['definition_cn'] = '住址'
+            self.catalog_path.write_text(json.dumps(updated, ensure_ascii=False))
+            database.init_database()
+            database.init_database()
+            with database.connect() as conn:
+                self.assertEqual(conn.execute('SELECT active FROM word_senses WHERE id=?',
+                                 (original['id'],)).fetchone()[0], 1)
+                self.assertEqual(conn.execute('SELECT active FROM sense_examples WHERE id=?',
+                                 (original['example_id'],)).fetchone()[0], 1)
+                saved = conn.execute('SELECT * FROM sense_srs_state WHERE user_id=?', (self.uid,)).fetchone()
+                self.assertEqual((saved['sense_id'], saved['last_example_id'], saved['learning_unit_id']),
+                                 (original['id'], original['example_id'], original['learning_unit_id']))
+                self.assertEqual(saved['status'], 'Reviewing')
+                self.assertEqual(saved['next_review_date'], '2099-01-01')
+
     def test_startup_sentence_supplement_updates_the_current_card_without_replacing_it(self):
         from app.chinese_sentences import sync_database
         before = self.next()

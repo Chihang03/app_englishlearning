@@ -3,9 +3,13 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
+import re
 
 from lxml import html
 from dictionary_senses import ancestor, example, nodes, owned, text
+
+SOURCE = "macOS Dictionary"
+DICTIONARY = "Traditional Chinese - English (Dr. Eye)"
 
 POS = {"n.": "名词", "vt.": "及物动词", "vi.": "不及物动词", "v.": "动词",
        "a.": "形容词", "adj.": "形容词", "ad.": "副词", "adv.": "副词",
@@ -34,10 +38,59 @@ def parse_traditional_record(markup: str, word: str, aliases: list[str]) -> list
             if sentence:
                 item = example(text(sentence[0]), word, aliases, "verb" if "动词" in pos else "noun")
                 if item:
+                    translations = nodes(eg, "trans")
+                    item.update(translation_cn=text(translations[0]) if translations else None,
+                                source=SOURCE)
                     examples.append(item)
         senses.append({"key": "zh_tw:" + hashlib.sha256(f"{word}|{pos}|{gloss}".encode()).hexdigest()[:24],
-                       "part_of_speech": pos, "definition_cn": gloss, "definition_en": None, "examples": examples})
+                       "part_of_speech": pos, "definition_cn": gloss, "definition_en": None,
+                       "source": SOURCE, "examples": examples,
+                       "provenance": {"dictionary": DICTIONARY, "direction": "en-zh",
+                                      "entry_id": root.get("id"), "definition_cn_original": gloss}})
     return senses
+
+
+def parse_reverse_record(markup: str, headword: str, entries: dict) -> list[dict]:
+    """Chinese headwords own Chinese ex and English trans, in the same group.
+
+    A single English equivalent identifies a candidate headword, not its sense.
+    Alignment must still require an exact Chinese gloss and unambiguous POS.
+    """
+    root = html.fromstring(markup)
+    result = []
+    for position, group in enumerate(nodes(root, "se2")):
+        if ancestor(group, ("subEntry",)) is not None:
+            continue
+        equivalents = [text(n) for n in owned(group, "trans", ("se2",))
+                       if ancestor(n, ("eg",)) is None]
+        for equivalent in dict.fromkeys(equivalents):
+            value = equivalent.strip().casefold()
+            family = "noun" if re.match(r"^(?:a|an)\s+", value) else "verb" if value.startswith("to ") else None
+            word = re.sub(r"^(?:a|an|the|to)\s+", "", value).rstrip(" .")
+            if not re.fullmatch(r"[a-z][a-z'-]*", word) or word not in entries:
+                continue
+            entry = entries[word]
+            aliases = {word}
+            for bucket in ("mac_zh", "mac_en"):
+                for forms in entry.get(bucket, {}).get("inflections", {}).values():
+                    aliases.update(forms)
+            examples = []
+            for eg in owned(group, "eg", ("se2",)):
+                chinese, english = nodes(eg, "ex"), nodes(eg, "trans")
+                if len(chinese) != 1 or len(english) != 1:
+                    continue
+                item = example(text(english[0]), word, list(aliases), "verb" if family == "verb" else "noun")
+                if item:
+                    item.update(translation_cn=text(chinese[0]), source=SOURCE)
+                    examples.append(item)
+            if examples:
+                result.append({"word": word, "key": f"zh_tw_reverse:{root.get('id')}:{position}",
+                               "definition_cn": headword, "pos_family": family, "examples": examples,
+                               "provenance": {"dictionary": DICTIONARY, "direction": "zh-en",
+                                              "entry_id": root.get("id"), "group_position": position,
+                                              "chinese_headword_original": headword,
+                                              "english_equivalent": equivalent}})
+    return result
 
 
 def simplify_chinese(values: list[str]) -> list[str]:
