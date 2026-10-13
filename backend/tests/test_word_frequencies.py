@@ -176,7 +176,7 @@ class WordFrequencyTests(unittest.TestCase):
             business = conn.execute("SELECT id FROM words WHERE word='business'").fetchone()[0]
         self.client.post(f'/api/words/{business}/mute')
         self.client.patch('/api/settings', json={'skip_basic_600': True})
-        self.assertEqual(self.next()['word'], 'bank')  # address/business are basic heads.
+        self.assertIn(self.next()['word'], ('abashed', 'unlisted'))  # bank is also a basic head.
         with TestClient(fixtures.app) as other:
             other.post('/api/auth/register', json={'username': 'other', 'password': 'test-password-123'})
             self.assertEqual(other.get('/api/next').json()['card']['word'], 'business')
