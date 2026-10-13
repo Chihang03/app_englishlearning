@@ -1064,7 +1064,7 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       <section className="settings-group panel">
         <h2><Icon name="book" /> 智能复习</h2>
         <p className="settings-hint">根据你的作答表现自动安排复习。</p>
-        <label className="setting-row"><span><strong>跳过基础 600 词</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.skip_basic_600} onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} /></label>
+        <label className="setting-row"><span><strong>跳过基础 800 词</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.skip_basic_600} onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} /></label>
         <button type="button" className="word-list-option" onClick={onOpenMutedWords}>
           <strong>不再学习的单词</strong><Icon name="chevron" />
         </button>
