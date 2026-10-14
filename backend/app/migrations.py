@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 
 def run_migrations(db_path: Path) -> None:
@@ -180,6 +180,19 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("PRAGMA user_version = 20")
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 20 (learning reminders)")
+
+        if version < 21:
+            conn.execute("BEGIN")
+            conn.execute('''CREATE TABLE IF NOT EXISTS semantic_review_receipts (
+                id INTEGER PRIMARY KEY, word_id INTEGER NOT NULL REFERENCES words(id),
+                source_hash TEXT NOT NULL, result_hash TEXT NOT NULL,
+                source_json TEXT NOT NULL, result_json TEXT NOT NULL, output_hash TEXT NOT NULL,
+                identity_json TEXT NOT NULL, created_at TEXT NOT NULL,
+                UNIQUE(word_id,source_hash,result_hash))''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_semantic_output ON semantic_review_receipts(word_id,output_hash)')
+            conn.execute("PRAGMA user_version = 21")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 21 (semantic review receipts)")
 
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()

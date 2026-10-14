@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StudyContentCache } from "./studyContentCache";
 import type { CatalogWord } from "./studyContentCache";
 import type { User } from "./types";
+import { chineseMeaning, learningMeanings } from "./learningMeanings";
 
 export function OfflineLibrary({ user, onRetry }: { user: User; onRetry: () => void }) {
   const cache = useMemo(() => new StudyContentCache(user.id), [user.id]);
@@ -28,9 +29,10 @@ export function OfflineLibrary({ user, onRetry }: { user: User; onRetry: () => v
     </header>
     {selected ? <>
       <button type="button" className="secondary-button" onClick={() => setSelected(null)}>返回词表</button>
-      {selected.senses.map((sense) => <section key={sense.id} className="panel offline-sense">
-        <h2>{sense.part_of_speech} · {sense.definition_cn}</h2>
+      {learningMeanings(selected.senses).map((sense) => <section key={sense.id} className="panel offline-sense">
+        <h2>{sense.part_of_speech} · {chineseMeaning(sense.definition_cn)}</h2>
         {sense.definition_en ? <p>{sense.definition_en}</p> : null}
+        {sense.semantic_notes ? <p>{sense.semantic_notes}</p> : null}
         {sense.examples.map((example) => <div key={example.id}>
           <p>{example.sentence}</p>
           {example.translation_cn ? <p>{example.translation_cn}</p> : null}

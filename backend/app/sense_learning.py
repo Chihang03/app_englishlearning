@@ -109,7 +109,8 @@ def learning_metrics(conn, user_id: int, today: date) -> dict[str, Any]:
 
 def sense_card_content(conn, unit_id: int, sense_id: int, user_id: int):
     return conn.execute("""SELECT s.*,w.word,u.id AS learning_unit_id,
-        CASE WHEN u.verification='legacy' THEN s.definition_cn ELSE u.display_definition_cn END AS display_definition_cn,
+        CASE WHEN u.verification='legacy' OR json_extract(u.provenance_json,'$.review_pending')=1 THEN s.definition_cn ELSE u.display_definition_cn END AS display_definition_cn,
+        CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN u.display_definition_en ELSE s.definition_en END AS display_definition_en,
         COALESCE(p.status,'New') AS status FROM word_senses s JOIN words w ON w.id=s.word_id
         JOIN learning_unit_senses b ON b.sense_id=s.id JOIN learning_units u ON u.id=b.learning_unit_id
         LEFT JOIN sense_srs_state p ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
@@ -129,7 +130,7 @@ def make_card(conn, sense, user_id: int, remaining_today: int, attempt) -> dict[
                           (user_id,sense["learning_unit_id"])).fetchone()
     return {"id": sense["word_id"], "word": sense["word"], "sense_id": sense["id"],
             "learning_unit_id": sense["learning_unit_id"], "example_id": example["id"], "part_of_speech": sense["part_of_speech"],
-            "definition_cn": sense["display_definition_cn"] or sense["definition_cn"], "definition_en": sense["definition_en"],
+            "definition_cn": sense["display_definition_cn"] or sense["definition_cn"], "definition_en": sense["display_definition_en"],
             "cloze_sentence": cloze, "example_sentence": example["sentence"],
             "example_translation_cn": example["translation_cn"], "answer_form": example["target_form"],
             "answer_form_label": answer_form_label(sense["word"],example["target_form"],sense["part_of_speech"],example["sentence"]),

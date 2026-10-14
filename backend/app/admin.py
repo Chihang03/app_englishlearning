@@ -221,6 +221,9 @@ def correct_content_from(conn, report_id: int, payload: ContentUpdate, admin_id:
     for key, value in word_changes.items():
         conn.execute(f'UPDATE words SET {key}=? WHERE id=?', (value, pair['word_id']))
     now = utc_now_iso()
+    from .semantic_review import invalidate_word
+    if sense_changes or example_changes:
+        invalidate_word(conn, pair['word_id'])
     if sense_changes:
         conn.execute('UPDATE study_attempts SET completed_at=? WHERE sense_id=? AND completed_at IS NULL', (now, pair['sense_id']))
     elif example_changes:

@@ -180,7 +180,7 @@ class LearningReminderTests(unittest.TestCase):
         migrations.run_migrations(database.DB_PATH)
         with database.connect() as conn:
             self.assertEqual(tuple(conn.execute("SELECT * FROM users").fetchone()), before)
-            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 20)
+            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], migrations.SCHEMA_VERSION)
             self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
         backup = next(self.directory.glob("test.db.bak-v19-*"))
         with sqlite3.connect(backup) as conn:
