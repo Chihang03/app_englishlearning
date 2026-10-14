@@ -127,8 +127,13 @@ def write_state(conn, user_id: int, sense_id: int, state: dict[str, Any], exampl
 
 def senses_for_word(conn, word_id: int, user_id: int) -> list[dict[str, Any]]:
     # Several dictionary definitions expose the same teaching progress.
-    rows = conn.execute("""SELECT s.*,b.learning_unit_id,COALESCE(p.status,'New') AS status,p.next_review_date
+    rows = conn.execute("""SELECT s.*,b.learning_unit_id,
+        CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN u.display_definition_cn END AS core_definition_cn,
+        CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN u.display_definition_en END AS core_definition_en,
+        CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN json_extract(u.provenance_json,'$.notes') END AS semantic_notes,
+        COALESCE(p.status,'New') AS status,p.next_review_date
         FROM word_senses s JOIN learning_unit_senses b ON b.sense_id=s.id
+        JOIN learning_units u ON u.id=b.learning_unit_id
         LEFT JOIN sense_srs_state p ON p.learning_unit_id=b.learning_unit_id AND p.user_id=? AND p.retired_at IS NULL
         WHERE s.word_id=? AND s.active=1 ORDER BY s.position,s.id""", (user_id,word_id)).fetchall()
     return [{**dict(s), "examples": [dict(e) for e in conn.execute(

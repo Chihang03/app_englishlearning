@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import tempfile
+import signal
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -275,7 +276,8 @@ def write_batches(output: Path, records: list[dict], batch_size: int, prompt: st
 
 def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = DEFAULT_MODEL,
                 reasoning: str = DEFAULT_REASONING, limit_batches: int | None = None,
-                dry_run: bool = False, glosses: Path = DEFAULT_SUPPLEMENTS) -> dict:
+                dry_run: bool = False, glosses: Path = DEFAULT_SUPPLEMENTS,
+                timeout: int = 240) -> dict:
     directory = directory.resolve()
     manifests = sorted(directory.glob('batch-*.manifest.json'))
     if not manifests or (limit_batches is not None and limit_batches < 1):
@@ -286,7 +288,10 @@ def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = D
         manifest = read_json(manifest_path)
         stem = manifest_path.name.removesuffix('.manifest.json')
         result = directory / f'{stem}.result.json'
-        if manifest.get('task') == 'content_reports':
+        if manifest.get('task') == 'semantic_review':
+            from app.semantic_review import validate_response
+            validate = lambda path: validate_response(manifest, read_json(path))
+        elif manifest.get('task') == 'content_reports':
             from app.report_review import validate_response
             validate = lambda path: validate_response(manifest, read_json(path))
         elif manifest.get('task') == 'sentences':
@@ -306,16 +311,33 @@ def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = D
                    '--sandbox', 'read-only', '--ephemeral', '--json',
                    '--output-schema', str(directory / f'{stem}.schema.json'),
                    '--output-last-message', str(temporary)]
+        if manifest.get('task') == 'semantic_review':
+            # Authentication is reused, but unrelated plugins/MCPs and personal
+            # coding instructions need not inflate a pure dictionary request.
+            command += ['--ignore-user-config', '-c', 'developer_instructions=""',
+                        '-c', 'user_instructions=""']
         commands.append(command)
         if not dry_run:
+            temporary.unlink(missing_ok=True)
             prompt = (directory / 'prompt.txt').read_text(encoding='utf-8')
             prompt += (directory / f'{stem}.input.jsonl').read_text(encoding='utf-8')
             with (directory / f'{stem}.events.jsonl').open('w') as events:
-                subprocess.run(command, input=prompt, text=True, stdout=events, check=True)
+                # Kill the entire CLI process group on timeout, including workers.
+                # A pending/partial result never becomes a completed cache entry.
+                process = subprocess.Popen(command, stdin=subprocess.PIPE, text=True,
+                                           stdout=events, start_new_session=True)
+                try:
+                    process.communicate(prompt, timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.communicate()
+                    raise
+                if process.returncode:
+                    raise subprocess.CalledProcessError(process.returncode, command)
             validate(temporary)
-            os.replace(temporary, result)
             atomic_json(directory / f'{stem}.run.json', {'model': model, 'reasoning_effort': reasoning,
                                                         'batch': manifest['batch']})
+            os.replace(temporary, result)
         completed += 1
     report = {'completed_batches': 0 if dry_run else completed, 'skipped_batches': skipped, 'model': model,
               'reasoning_effort': reasoning, 'dry_run': dry_run}

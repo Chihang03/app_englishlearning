@@ -1,0 +1,558 @@
+{
+  "format_version": 1,
+  "entries": [
+    {
+      "source": {
+        "word": "professional",
+        "senses": [
+          {
+            "key": "en:m_en_gbus0818880.007",
+            "part_of_speech": "形容词",
+            "definition_cn": "",
+            "definition_en": "relating to or belonging to a profession",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "resources for professional development.",
+                "translation_cn": null,
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "the professional schools of Yale and Harvard.",
+                "translation_cn": null,
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0818880.009",
+            "part_of_speech": "形容词",
+            "definition_cn": "",
+            "definition_en": "worthy of or appropriate to a professional person; competent, skillful, or assured",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "she's a wonderful actress to work with and, of course, very professional.",
+                "translation_cn": null,
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "their music is both memorable and professional.",
+                "translation_cn": null,
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0818880.014",
+            "part_of_speech": "名词",
+            "definition_cn": "",
+            "definition_en": "a person engaged or qualified in a profession",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "professionals such as lawyers and surveyors.",
+                "translation_cn": null,
+                "target_form": "professionals",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0818880.018",
+            "part_of_speech": "名词",
+            "definition_cn": "",
+            "definition_en": "a person engaged in a specified activity, especially a sport or branch of the performing arts, as a main paid occupation rather than as a pastime",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "his first season as a professional.",
+                "translation_cn": null,
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0818880.019",
+            "part_of_speech": "名词",
+            "definition_cn": "",
+            "definition_en": "a person competent or skilled in a particular activity",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "she was a real professional on stage.",
+                "translation_cn": null,
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "zh:b-en-zh_hans0029113.003",
+            "part_of_speech": "形容词",
+            "definition_cn": "职业上的",
+            "definition_en": "relating to one's occupation",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "a professional qualification/duty.",
+                "translation_cn": "职业资格/职责",
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "zh:b-en-zh_hans0029113.004",
+            "part_of_speech": "形容词",
+            "definition_cn": "专业的",
+            "definition_en": "of high standard",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "he did a very professional job.",
+                "translation_cn": "他的工作干得非常专业",
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "zh:b-en-zh_hans0029113.005",
+            "part_of_speech": "形容词",
+            "definition_cn": "习惯性的",
+            "definition_en": "habitual",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "he's a professional trouble-maker/gossip.",
+                "translation_cn": "他老爱捣乱/嚼舌根",
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "zh:b-en-zh_hans0029113.009",
+            "part_of_speech": "名词",
+            "definition_cn": "内行",
+            "definition_en": "competent person",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "a highly professional administrator.",
+                "translation_cn": "一位非常内行的管理人员",
+                "target_form": "professional",
+                "source": "macOS Dictionary"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "word": "professional",
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "形容词",
+            "definition_cn": "专业的",
+            "definition_en": "relating to or belonging to a profession",
+            "notes": "可指职业相关的，也可指达到专业水准、熟练可靠；在“a highly professional administrator”中修正原名词词性为形容词，表示专业的。",
+            "evidence": "“resources for professional development”和“a professional qualification/duty”表示职业相关；“very professional”“a very professional job”表示专业水准；“a highly professional administrator”中professional修饰administrator，作形容词。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0818880.007",
+                "examples": [
+                  {
+                    "sentence": "resources for professional development.",
+                    "translation_cn": "专业发展资源。"
+                  },
+                  {
+                    "sentence": "the professional schools of Yale and Harvard.",
+                    "translation_cn": "耶鲁大学和哈佛大学的专业学院。"
+                  }
+                ]
+              },
+              {
+                "key": "en:m_en_gbus0818880.009",
+                "examples": [
+                  {
+                    "sentence": "she's a wonderful actress to work with and, of course, very professional.",
+                    "translation_cn": "她是个很棒的合作对象，当然也非常专业。"
+                  },
+                  {
+                    "sentence": "their music is both memorable and professional.",
+                    "translation_cn": "他们的音乐既令人难忘，也很专业。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0029113.003",
+                "examples": [
+                  {
+                    "sentence": "a professional qualification/duty.",
+                    "translation_cn": "职业资格/职责"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0029113.004",
+                "examples": [
+                  {
+                    "sentence": "he did a very professional job.",
+                    "translation_cn": "他的工作干得非常专业"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0029113.009",
+                "examples": [
+                  {
+                    "sentence": "a highly professional administrator.",
+                    "translation_cn": "一位非常内行的管理人员"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "形容词",
+            "definition_cn": "习惯性的",
+            "definition_en": "habitual",
+            "notes": "常用于带贬义的修辞表达。",
+            "evidence": "“a professional trouble-maker/gossip”中professional修饰名词，表示惯于捣乱或嚼舌根。",
+            "members": [
+              {
+                "key": "zh:b-en-zh_hans0029113.005",
+                "examples": [
+                  {
+                    "sentence": "he's a professional trouble-maker/gossip.",
+                    "translation_cn": "他老爱捣乱/嚼舌根"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "职业人士；专业人员",
+            "definition_en": "a person engaged or qualified in a profession",
+            "notes": "包括以某活动为主要有偿职业的人，以及在特定活动中熟练、胜任的人。",
+            "evidence": "“professionals such as lawyers and surveyors”指职业人士；“a professional”在“his first season as a professional”中指以该活动为职业的人，在“a real professional on stage”中指舞台上的熟练人士。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0818880.014",
+                "examples": [
+                  {
+                    "sentence": "professionals such as lawyers and surveyors.",
+                    "translation_cn": "律师、测量师等专业人士。"
+                  }
+                ]
+              },
+              {
+                "key": "en:m_en_gbus0818880.018",
+                "examples": [
+                  {
+                    "sentence": "his first season as a professional.",
+                    "translation_cn": "他作为职业选手的第一个赛季。"
+                  }
+                ]
+              },
+              {
+                "key": "en:m_en_gbus0818880.019",
+                "examples": [
+                  {
+                    "sentence": "she was a real professional on stage.",
+                    "translation_cn": "她在舞台上真是个行家。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "model": "gpt-6-luna",
+      "reasoning_effort": "low",
+      "review_version": 1
+    },
+    {
+      "source": {
+        "word": "beginning",
+        "senses": [
+          {
+            "key": "en:m_en_gbus0084200.005",
+            "part_of_speech": "名词",
+            "definition_cn": "",
+            "definition_en": "the point in time or space at which something starts",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "he left at the beginning of February.",
+                "translation_cn": null,
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "they had reached the beginning of the forest.",
+                "translation_cn": null,
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0084200.009",
+            "part_of_speech": "名词",
+            "definition_cn": "",
+            "definition_en": "the first part or earliest stage of something",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "she had the beginnings of a headache.",
+                "translation_cn": null,
+                "target_form": "beginnings",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "the ending of one relationship and the beginning of another.",
+                "translation_cn": null,
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0084200.010",
+            "part_of_speech": "名词",
+            "definition_cn": "",
+            "definition_en": "the background or origins of anything",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "he had risen from humble beginnings to great wealth.",
+                "translation_cn": null,
+                "target_form": "beginnings",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "the series explores the beginnings of flight.",
+                "translation_cn": null,
+                "target_form": "beginnings",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "en:m_en_gbus0084200.014",
+            "part_of_speech": "形容词",
+            "definition_cn": "",
+            "definition_en": "introductory or elementary",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "the beginning guitar class.",
+                "translation_cn": null,
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "zh:b-en-zh_hans0003037.002",
+            "part_of_speech": "名词",
+            "definition_cn": "起点",
+            "definition_en": "point where sth starts",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "from beginning to end.",
+                "translation_cn": "自始至终",
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "since the beginning of time.",
+                "translation_cn": "自古以来",
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "the beginning of the legend.",
+                "translation_cn": "传说的起源",
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              }
+            ]
+          },
+          {
+            "key": "zh:b-en-zh_hans0003037.003",
+            "part_of_speech": "名词",
+            "definition_cn": "开始",
+            "definition_en": "first part",
+            "source": "macOS Dictionary",
+            "learning_enabled": 1,
+            "examples": [
+              {
+                "sentence": "He was biased against the plan from the beginning.",
+                "translation_cn": "他从一开始就对这个计划有偏见。",
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "a good/bad beginning.",
+                "translation_cn": "良好/不好的开端",
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              },
+              {
+                "sentence": "at the beginning of May.",
+                "translation_cn": "在5月初",
+                "target_form": "beginning",
+                "source": "macOS Dictionary"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "word": "beginning",
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "开始；起点；开端",
+            "definition_en": "the point in time or space at which something starts",
+            "notes": "可指时间或空间上的起点、事物的开头或最初阶段；“自始至终”“自古以来”及“传说的起源”等具体用法依上下文理解。",
+            "evidence": "“at the beginning of February”指时间上的开始，“the beginning of the forest”指空间起点；“the first part or earliest stage”涵盖事物开头及初期；“from beginning to end”“since the beginning of time”和“the beginning of the legend”均体现开始、起点或开端。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0084200.005",
+                "examples": [
+                  {
+                    "sentence": "he left at the beginning of February.",
+                    "translation_cn": "他在二月初离开了。"
+                  },
+                  {
+                    "sentence": "they had reached the beginning of the forest.",
+                    "translation_cn": "他们已经到达森林的起点。"
+                  }
+                ]
+              },
+              {
+                "key": "en:m_en_gbus0084200.009",
+                "examples": [
+                  {
+                    "sentence": "she had the beginnings of a headache.",
+                    "translation_cn": "她开始有点头痛了。"
+                  },
+                  {
+                    "sentence": "the ending of one relationship and the beginning of another.",
+                    "translation_cn": "一段关系的结束，另一段关系的开始。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0003037.002",
+                "examples": [
+                  {
+                    "sentence": "from beginning to end.",
+                    "translation_cn": "自始至终"
+                  },
+                  {
+                    "sentence": "since the beginning of time.",
+                    "translation_cn": "自古以来"
+                  },
+                  {
+                    "sentence": "the beginning of the legend.",
+                    "translation_cn": "传说的起源"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0003037.003",
+                "examples": [
+                  {
+                    "sentence": "He was biased against the plan from the beginning.",
+                    "translation_cn": "他从一开始就对这个计划有偏见。"
+                  },
+                  {
+                    "sentence": "a good/bad beginning.",
+                    "translation_cn": "良好/不好的开端"
+                  },
+                  {
+                    "sentence": "at the beginning of May.",
+                    "translation_cn": "在5月初"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "出身；起源",
+            "definition_en": "the background or origins of anything",
+            "notes": "指个人的出身背景或事物的历史起源，与一般的开始或起点概念不同。",
+            "evidence": "“he had risen from humble beginnings to great wealth”指从卑微出身发迹；“the beginnings of flight”指飞行的起源。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0084200.010",
+                "examples": [
+                  {
+                    "sentence": "he had risen from humble beginnings to great wealth.",
+                    "translation_cn": "他出身卑微，后来积累了巨额财富。"
+                  },
+                  {
+                    "sentence": "the series explores the beginnings of flight.",
+                    "translation_cn": "这个系列节目探讨了飞行的起源。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "形容词",
+            "definition_cn": "入门的；初级的",
+            "definition_en": "introductory or elementary",
+            "notes": "用于表示适合初学者或基础阶段。",
+            "evidence": "“the beginning guitar class”中beginning修饰class，表示入门级课程。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0084200.014",
+                "examples": [
+                  {
+                    "sentence": "the beginning guitar class.",
+                    "translation_cn": "入门吉他课。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "model": "gpt-6-luna",
+      "reasoning_effort": "low",
+      "review_version": 1
+    }
+  ]
+}

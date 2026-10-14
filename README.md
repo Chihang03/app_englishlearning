@@ -433,6 +433,8 @@ iOS 16.4+ 需从主屏幕 Web App 使用，并通过受信任的 HTTPS 访问。
 
 部署说明见 [deploy/README.md](deploy/README.md)。
 
+词义 AI 核查、语义合并、双语标准化及增量缓存见 [词义语义核查流程](docs/semantic-review-workflow.md)。复用现有 Luna/low 调用和学习义项迁移，核查提案经结构与完整映射校验后才应用；原定义、例句和学习记录保留。
+
 公网部署时至少要做到：走 HTTPS 并设置 `COOKIE_SECURE=true`；设置 `REGISTRATION_CODE` 以免被任意注册；把 `DATA_DIR` 指向持久化目录。
 
 数据库 v13 在升级前通过 SQLite backup API 备份，新增 `user_sense_examples` 保存每个账号、每个义项的固定例句。升级时比较已发题记录和答题历史，固定最早仍有效的例句；原学习历史、复习计划与账号数据保留。

@@ -143,9 +143,14 @@ class ReportReviewTests(unittest.TestCase):
             self.assertIn('gpt-6-luna',command)
             self.assertIn('model_reasoning_effort="low"',command)
             self.assertIn('--ephemeral',command)
-            self.assertNotIn('username',kwargs['input'])
             Path(command[command.index('--output-last-message')+1]).write_text(json.dumps(result))
-        with patch('translation_exchange.subprocess.run',side_effect=fake_run):
+            from unittest.mock import Mock
+            process = Mock(pid=123, returncode=0)
+            def communicate(prompt=None, **options):
+                self.assertNotIn('username', prompt)
+            process.communicate.side_effect = communicate
+            return process
+        with patch('translation_exchange.subprocess.Popen',side_effect=fake_run):
             self.assertEqual(run_batches(folder,DEFAULT_CATALOG)['completed_batches'],1)
             self.assertEqual(run_batches(folder,DEFAULT_CATALOG)['skipped_batches'],1)
         with database.connect() as conn:

@@ -9,10 +9,14 @@ def catalog_snapshot(conn, user_id: int) -> tuple[bytes, str]:
     rows = conn.execute("""
         SELECT w.id AS word_id, w.word, s.id AS sense_id, b.learning_unit_id,
                s.part_of_speech, s.definition_cn, s.definition_en,
+               CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN u.display_definition_cn END AS core_definition_cn,
+               CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN u.display_definition_en END AS core_definition_en,
+               CASE WHEN u.unit_key LIKE 'semantic:%' AND COALESCE(json_extract(u.provenance_json,'$.review_pending'),0)=0 THEN json_extract(u.provenance_json,'$.notes') END AS semantic_notes,
                e.id AS example_id, e.sentence, e.translation_cn, e.target_form
         FROM words w
         JOIN word_senses s ON s.word_id=w.id AND s.active=1
         JOIN learning_unit_senses b ON b.sense_id=s.id
+        JOIN learning_units u ON u.id=b.learning_unit_id
         LEFT JOIN sense_examples e ON e.sense_id=s.id AND e.active=1
         WHERE w.owner_id IS NULL OR w.owner_id=?
         ORDER BY w.id, s.position, s.id, e.id
@@ -32,6 +36,8 @@ def catalog_snapshot(conn, user_id: int) -> tuple[bytes, str]:
                 "id": row["sense_id"], "learning_unit_id": row["learning_unit_id"],
                 "part_of_speech": row["part_of_speech"],
                 "definition_cn": row["definition_cn"], "definition_en": row["definition_en"],
+                "core_definition_cn": row["core_definition_cn"], "core_definition_en": row["core_definition_en"],
+                "semantic_notes": row["semantic_notes"],
                 "examples": [],
             })
             examples = senses[-1]["examples"]

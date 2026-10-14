@@ -79,6 +79,8 @@ def init_database() -> None:
     with connect() as conn:
         sync_learning_units(conn)
         sync_word_frequencies(conn, WORD_FREQUENCIES_PATH)
+        from .semantic_review import sync_bundle
+        sync_bundle(conn)
 
 
 def _enable_wal() -> None:

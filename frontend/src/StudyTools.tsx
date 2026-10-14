@@ -4,6 +4,7 @@ import { errorMessage, isUnauthorized, request } from "./api";
 import type { StudyContentCache } from "./studyContentCache";
 import type { MeaningExposureQueue } from "./meaningExposure";
 import type { Card, LexicalPeer, StudyDetails } from "./types";
+import { chineseMeaning, learningMeanings } from "./learningMeanings";
 
 export type StudyTool = "meanings" | "report";
 
@@ -141,10 +142,12 @@ export function StudyTools({ tool, card, showTranslation, contentCache, exposure
                 onClick={() => { void loadMeanings(null); }}>← {card.word}</button> : null}
               <p className="dictionary-word">{meanings.word}</p>
               {meanings.senses.length === 0 ? <p className="sense-hint">词库暂时没有可显示的词义。</p> : null}
-              {meanings.senses.map((sense) => (
+              {learningMeanings(meanings.senses).map((sense) => (
                 <section className="other-sense" key={sense.id}>
-                  <span className="part-of-speech">{sense.part_of_speech}{sense.id === card.sense_id ? " · 当前词义" : ""}</span>
-                  <p>{sense.definition_cn || sense.definition_en}</p>
+                  <span className="part-of-speech">{sense.part_of_speech}{sense.learning_unit_id === card.learning_unit_id ? " · 当前词义" : ""}</span>
+                  <p>{chineseMeaning(sense.definition_cn)}</p>
+                  {sense.definition_en ? <p>{sense.definition_en}</p> : null}
+                  {sense.semantic_notes ? <p>{sense.semantic_notes}</p> : null}
                   {sense.examples.map((example) => <p className="other-sense-example" key={example.id}>
                     {example.sentence}{showTranslation && example.translation_cn ? <span>{example.translation_cn}</span> : null}
                   </p>)}
@@ -172,7 +175,7 @@ export function StudyTools({ tool, card, showTranslation, contentCache, exposure
         ) : (
           <form className="report-form" onSubmit={submitReport}>
             <div className="report-context">
-              <p>{card.definition_cn || card.definition_en}</p>
+              <p>{chineseMeaning(card.definition_cn)}</p>
               <p>{card.cloze_sentence}</p>
             </div>
             <fieldset disabled={saving}>

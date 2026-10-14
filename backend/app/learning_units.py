@@ -196,9 +196,15 @@ def sync_learning_units(conn, config_path: Path | None = None) -> None:
     if config.get('format_version') != 1:
         raise ValueError('Unsupported learning unit configuration')
     resolved = []
+    # Durable AI cores supersede the earlier editorial grouping for this word.
+    # Preserve its course coverage through restarts; never replay an older merge
+    # on top of its shared learner state.
+    semantic_words = {r[0] for r in conn.execute("SELECT DISTINCT word_id FROM learning_units WHERE active=1 AND unit_key LIKE 'semantic:%'")}
     for entry in config['words']:
         word = conn.execute('SELECT * FROM words WHERE owner_id IS NULL AND word=?',(entry['word'],)).fetchone()
         if word is None:
+            continue
+        if word['id'] in semantic_words:
             continue
         source = {r['sense_key']:r for r in conn.execute('SELECT * FROM word_senses WHERE word_id=?',(word['id'],))}
         seen = set(); groups = {}
@@ -220,13 +226,15 @@ def sync_learning_units(conn, config_path: Path | None = None) -> None:
         resolved.append((word,entry,groups))
     # Rebuild only content coverage, never user selections or progress. Unknown
     # words retain explicitly labelled legacy coverage until editorial review.
-    conn.execute('DELETE FROM word_list_learning_units')
-    conn.execute('DELETE FROM word_list_learning_scopes')
-    conn.execute("INSERT INTO word_list_learning_scopes(list_id,word_id,verification) SELECT list_id,word_id,'legacy' FROM word_list_memberships")
-    conn.execute('''INSERT INTO word_list_learning_units(list_id,learning_unit_id,position,verification)
+    conn.execute("DELETE FROM word_list_learning_units WHERE learning_unit_id NOT IN (SELECT id FROM learning_units WHERE word_id IN (SELECT word_id FROM learning_units WHERE active=1 AND unit_key LIKE 'semantic:%'))")
+    conn.execute("DELETE FROM word_list_learning_scopes WHERE word_id NOT IN (SELECT word_id FROM learning_units WHERE active=1 AND unit_key LIKE 'semantic:%')")
+    conn.execute("INSERT OR IGNORE INTO word_list_learning_scopes(list_id,word_id,verification) SELECT list_id,word_id,'legacy' FROM word_list_memberships")
+    conn.execute('''INSERT OR IGNORE INTO word_list_learning_units(list_id,learning_unit_id,position,verification)
         SELECT m.list_id,b.learning_unit_id,MIN(m.position),'legacy' FROM word_list_memberships m
         JOIN word_senses s ON s.word_id=m.word_id JOIN learning_unit_senses b ON b.sense_id=s.id
-        JOIN learning_units u ON u.id=b.learning_unit_id WHERE u.active=1 GROUP BY m.list_id,b.learning_unit_id''')
+        JOIN learning_units u ON u.id=b.learning_unit_id WHERE u.active=1
+        AND NOT EXISTS (SELECT 1 FROM learning_units ai WHERE ai.word_id=m.word_id AND ai.active=1 AND ai.unit_key LIKE 'semantic:%')
+        GROUP BY m.list_id,b.learning_unit_id''')
     for word,entry,groups in resolved:
         for list_id,coverage in entry.get('coverage',{}).items():
             membership = conn.execute('SELECT position FROM word_list_memberships WHERE word_id=? AND list_id=?',(word['id'],list_id)).fetchone()
@@ -252,6 +260,17 @@ def example_for_unit(conn, unit_id: int, user_id: int, *, rotate: bool = False):
     if not examples:
         return None
     fixed = conn.execute('SELECT example_id FROM user_sense_examples WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL',(user_id,unit_id)).fetchone()
+    if unit['unit_key'].startswith('semantic:'):
+        # Duplicate dictionary examples need one teaching slot, while keeping a
+        # learner's already selected source/example ID whenever it is usable.
+        seen = set()
+        ordered = sorted(examples, key=lambda e: not (fixed and e['id']==fixed[0]))
+        examples = []
+        for example in ordered:
+            key = (example['sentence'].strip().casefold(), example['target_form'].casefold())
+            if key not in seen:
+                seen.add(key)
+                examples.append(example)
     chosen = next((e for e in examples if fixed and e['id']==fixed[0]),None)
     last = conn.execute('''SELECT example_id,is_independent FROM review_history WHERE user_id=? AND learning_unit_id=?
         ORDER BY id DESC LIMIT 1''',(user_id,unit_id)).fetchone()

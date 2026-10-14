@@ -1,4 +1,5 @@
 import type { FormEvent, ReactNode, Ref } from "react";
+import { chineseMeaning } from "./learningMeanings";
 import { InlineAnswer } from "./InlineAnswer";
 import type { Card, ReviewResult } from "./types";
 
@@ -64,7 +65,7 @@ export function StudyCard({ card, result, answer, showTranslation, soundIcon, me
       </p>
     </div>
     <div className="meaning-block" hidden={!card} tabIndex={0} aria-label="单词释义与句子翻译">
-      <p className="word-meaning">{card?.definition_cn || card?.definition_en}</p>
+      <p className="word-meaning">{chineseMeaning(card?.definition_cn)}</p>
       {showTranslation && card?.example_translation_cn ? <p className="sentence-translation">{card.example_translation_cn}</p> : null}
     </div>
     {message ? <p role="alert" className="error-notice">{message}</p> : null}

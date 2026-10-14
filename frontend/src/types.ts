@@ -37,6 +37,9 @@ export type Sense = {
   part_of_speech: string;
   definition_cn: string;
   definition_en?: string | null;
+  core_definition_cn?: string | null;
+  core_definition_en?: string | null;
+  semantic_notes?: string | null;
   status: Card["status"];
   next_review_date?: string | null;
   examples: { id: number; sentence: string; translation_cn?: string | null; target_form: string }[];
