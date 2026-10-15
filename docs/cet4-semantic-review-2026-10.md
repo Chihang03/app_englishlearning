@@ -23,3 +23,9 @@ PYTHONPATH=backend backend/.venv/bin/python backend/scripts/semantic_exchange.py
 ```
 
 对目标数据库先执行 dry-run；确认其源数据指纹与本次快照相符后，再按 `docs/semantic-review-workflow.md` 的流程备份并应用。新增或更改源词义会因指纹变化而要求重新核查，不会套用旧提案。
+
+## 生产部署验证
+
+提交 `84ab7ff` 已应用到 Lightsail。生产库 dry-run 汇总为 3,115 条可应用、813 条待核查、12 条因源快照差异或历史核心保护而跳过；SQLite 外键检查通过。应用前的服务器备份保存在 `/var/lib/englishlearning/vocabulary.db.bak-semantic-20261015T075052660986Z`。部署后本机和公网 `/api/health` 均返回 `{"status":"ok"}`。
+
+为检查学习记录保留情况，对备份与应用后的数据库只比较表行数，没有导出用户数据：`users` 2→2，`review_history` 1,771→1,771，`srs_state` 12→12，`study_attempts` 1,262→1,262，`learning_unit_senses` 65,050→65,050；核心学习单元与合并映射表按新义项建立了映射记录。
