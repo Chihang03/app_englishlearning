@@ -12,7 +12,8 @@ from unittest.mock import Mock, patch
 import test_senses as fixtures
 from app import database, learning_units
 from app.semantic_review import (apply_word, digest, original_source, source_word,
-                                 exact_duplicate_review, model_input, sync_bundle, validate_response, validate_word)
+                                 exact_duplicate_review, model_input, retryable_review, sync_bundle,
+                                 validate_response, validate_word, RETRYABLE_NOTE_PREFIX)
 from app.senses import save_senses
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
@@ -250,6 +251,21 @@ class SemanticReviewTests(unittest.TestCase):
         with database.connect() as conn:
             conn.execute("UPDATE word_senses SET definition_cn='变化' WHERE word_id=?",(self.word_id,))
         self.assertEqual(export_batches(database.DB_PATH,self.directory/'export2',bundle,words=['address'])['exported_words'],1)
+
+    def test_quarantined_model_output_is_retryable_separately_from_manual_review(self):
+        source=self.source();bundle=self.directory/'cache.json'
+        quarantined={'word':'address','status':'manual','groups':[],
+            'notes':RETRYABLE_NOTE_PREFIX+'Every original sense must be mapped'}
+        human_review={'word':'address','status':'manual','groups':[],
+            'notes':'例句与词义冲突，需要人工核查'}
+        self.assertTrue(retryable_review(quarantined))
+        self.assertFalse(retryable_review(human_review))
+        bundle.write_text(json.dumps({'format_version':1,'entries':[{'source':source,'result':quarantined}]}))
+        skipped=export_batches(database.DB_PATH,self.directory/'skip',bundle,words=['address'])
+        self.assertEqual((skipped['exported_words'],skipped['retry_mode']),(0,'new'))
+        retried=export_batches(database.DB_PATH,self.directory/'retry',bundle,words=['address'],
+                               batch_size=1,retry_quarantined=True)
+        self.assertEqual((retried['exported_words'],retried['retry_mode']),(1,'quarantined'))
 
     def test_explicit_empty_course_scope_survives_semantic_merge_and_restart_sync(self):
         source=self.source()

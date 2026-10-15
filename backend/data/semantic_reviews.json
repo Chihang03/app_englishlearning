@@ -995,9 +995,112 @@
       },
       "result": {
         "word": "aboard",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Unknown or duplicate sense key",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "介词",
+            "definition_cn": "在交通工具上或乘坐交通工具；登上交通工具",
+            "definition_en": "on or into (a ship, aircraft, train, or other vehicle)",
+            "notes": "",
+            "evidence": "语境分别为登上游艇、乘货船抵达。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0002190.005",
+                "examples": [
+                  {
+                    "sentence": "I climbed aboard the yacht.",
+                    "translation_cn": "我登上了游艇。"
+                  },
+                  {
+                    "sentence": "the suspects had recently arrived in Italy aboard a cargo ship.",
+                    "translation_cn": "嫌疑人最近乘一艘货船抵达意大利。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "介词",
+            "definition_cn": "在马背上；骑上马",
+            "definition_en": "on or onto (a horse)",
+            "notes": "",
+            "evidence": "语境为骑马参加赛马并获胜。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0002190.008",
+                "examples": [
+                  {
+                    "sentence": "he emulated his father's Aintree win with a victory of his own aboard Bobbyjo in 1999.",
+                    "translation_cn": "他于1999年骑着博比乔获胜，效仿父亲在安特里赛马场的胜利。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "副词",
+            "definition_cn": "在交通工具上；登上交通工具；加入组织或团队",
+            "definition_en": "on or into a ship, aircraft, train, or other vehicle",
+            "notes": "",
+            "evidence": "语境包括机上乘客，以及加入公司担任职务。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0002190.022",
+                "examples": [
+                  {
+                    "sentence": "she came aboard as executive vice president of membership and operations in December 2014.",
+                    "translation_cn": "她于2014年12月加入，担任会员与运营执行副总裁。"
+                  },
+                  {
+                    "sentence": "the plane crashed, killing all 158 people aboard.",
+                    "translation_cn": "飞机坠毁，机上158人全部遇难。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "副词",
+            "definition_cn": "在马背上；由某人策骑",
+            "definition_en": "on or on to a horse",
+            "notes": "",
+            "evidence": "语境为有人策骑并参加比赛。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0002190.024",
+                "examples": [
+                  {
+                    "sentence": "with Richard Migliore aboard, he won the cup at a gallop.",
+                    "translation_cn": "有理查德·米格利奥雷策骑，他策马疾驰夺得了杯赛冠军。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "副词",
+            "definition_cn": "作为跑垒员上垒",
+            "definition_en": "on base as a runner",
+            "notes": "",
+            "evidence": "语境为击出本垒打时跑垒员已在垒上。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0002190.025",
+                "examples": [
+                  {
+                    "sentence": "he was aboard for the homers by Grissom and Alfonzo.",
+                    "translation_cn": "格里森和阿方索击出本垒打时，他也在垒上。"
+                  },
+                  {
+                    "sentence": "they put their first batter aboard.",
+                    "translation_cn": "他们让首位击球手上垒。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -3229,9 +3332,162 @@
       },
       "result": {
         "word": "absorb",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Every original sense must be mapped",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "吸收液体、能量或其他物质",
+            "definition_en": "take in or soak up (energy or a liquid or other substance) by chemical or physical action",
+            "notes": "",
+            "evidence": "建筑吸收热量，药物进入血液。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0003270.005",
+                "examples": [
+                  {
+                    "sentence": "buildings can be designed to absorb and retain heat.",
+                    "translation_cn": "建筑物可以设计成吸收并储存热量。"
+                  },
+                  {
+                    "sentence": "steroids are absorbed into the bloodstream.",
+                    "translation_cn": "类固醇被吸收到血液中。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "充分理解并吸收信息、观念或经验",
+            "definition_en": "take in and understand fully (information, ideas, or experience)",
+            "notes": "",
+            "evidence": "语境是默默理解信息。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0003270.015",
+                "examples": [
+                  {
+                    "sentence": "she absorbed the information in silence.",
+                    "translation_cn": "她默默地充分理解了这些信息。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "吞并；将较小实体纳入较大实体",
+            "definition_en": "take control of (a smaller or less powerful entity) and make it a part of a larger one",
+            "notes": "",
+            "evidence": "家族企业被并入更大的集团。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0003270.016",
+                "examples": [
+                  {
+                    "sentence": "the family firm was absorbed into a larger group.",
+                    "translation_cn": "这家家族企业被一家更大的集团吞并了。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "耗费；占用时间或资源",
+            "definition_en": "use or take up (time or resources)",
+            "notes": "",
+            "evidence": "军费占用国民收入。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0003270.017",
+                "examples": [
+                  {
+                    "sentence": "arms spending absorbs roughly two percent of the national income.",
+                    "translation_cn": "军费开支约占国民收入的百分之二。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "吸收声音或冲击，减弱其影响",
+            "definition_en": "take up and reduce the effect or intensity of (sound or an impact)",
+            "notes": "",
+            "evidence": "厚地毯吸收外界声音。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0003270.018",
+                "examples": [
+                  {
+                    "sentence": "deep-pile carpets absorbed all sound of the outside world.",
+                    "translation_cn": "厚绒地毯吸收了外界所有的声音。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "吸引注意；使全神贯注",
+            "definition_en": "take up the attention of (someone); interest greatly",
+            "notes": "",
+            "evidence": "人专注于书本或工作。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0003270.020",
+                "examples": [
+                  {
+                    "sentence": "she sat in an armchair, absorbed in a book.",
+                    "translation_cn": "她坐在扶手椅上，专心看书。"
+                  },
+                  {
+                    "sentence": "the work absorbed him and continued to make him happy.",
+                    "translation_cn": "这份工作吸引了他的全部注意力，也一直让他感到快乐。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "吸收并理解",
+            "definition_en": null,
+            "notes": "",
+            "evidence": "语境强调一次接收太多想法而难以完全吸收。",
+            "members": [
+              {
+                "key": "zh:b-en-zh_hans0000119.002",
+                "examples": [
+                  {
+                    "sentence": "So many good ideas! It's too much for me to absorb all at once.",
+                    "translation_cn": "这么多好主意！太多了，很难一下完全吸收。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "承受；经受住冲击或打击",
+            "definition_en": "withstand",
+            "notes": "",
+            "evidence": "语境为能否承受另一次沉重打击。",
+            "members": [
+              {
+                "key": "zh:b-en-zh_hans0000119.005",
+                "examples": [
+                  {
+                    "sentence": "She won't be able to absorb another heavy blow.",
+                    "translation_cn": "她无力承受再一次沉重的打击。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -4852,9 +5108,166 @@
       },
       "result": {
         "word": "accent",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Unknown source sense number",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "口音；发音方式",
+            "definition_en": "a distinctive mode of pronunciation of a language, especially one associated with a particular nation, locality, or social class",
+            "notes": "",
+            "evidence": "德语口音、法语口音以及根据口音判断地域。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0004450.007",
+                "examples": [
+                  {
+                    "sentence": "a strong German accent.",
+                    "translation_cn": "浓重的德国口音。"
+                  },
+                  {
+                    "sentence": "she never mastered the French accent.",
+                    "translation_cn": "她始终没能掌握法语口音。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000179.002",
+                "examples": [
+                  {
+                    "sentence": "Judging by her accent, she must be a Southerner.",
+                    "translation_cn": "从她的口音判断，她准是南方人。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "语音中的重音",
+            "definition_en": "a distinct emphasis given to a syllable or word in speech by stress or pitch",
+            "notes": "",
+            "evidence": "重音落在特定音节上。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0004450.012",
+                "examples": [
+                  {
+                    "sentence": "the accent falls on the middle syllable.",
+                    "translation_cn": "重音落在中间的音节上。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "视觉上的强调性特征；点缀",
+            "definition_en": "a feature which gives a distinctive visual emphasis to something",
+            "notes": "",
+            "evidence": "红色作为室内装饰的视觉点缀。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0004450.018",
+                "examples": [
+                  {
+                    "sentence": "blue woodwork and accents of red.",
+                    "translation_cn": "蓝色的木饰和红色点缀。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "突出；强调某一特征",
+            "definition_en": "emphasize (a particular feature)",
+            "notes": "",
+            "evidence": "织物衬托房间背景色。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0004450.025",
+                "examples": [
+                  {
+                    "sentence": "fabrics that accent the background colors in the room.",
+                    "translation_cn": "能突出房间背景色的织物。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "使语音或音乐中的音节、音符或节拍突出",
+            "definition_en": "play (a note, a beat of the bar, etc.) with an accent",
+            "notes": "",
+            "evidence": "例句分别涉及弱拍音符和将单词首音节重读。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0004450.032",
+                "examples": [
+                  {
+                    "sentence": "the quick tempo means there is less scope for accenting offbeat notes.",
+                    "translation_cn": "快速的节奏意味着强调弱拍音符的余地较小。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000179.005",
+                "examples": [
+                  {
+                    "sentence": "Accent the word \"energy\" on the first syllable.",
+                    "translation_cn": "\"energy\"这个词重读第一音节。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "重音；强调的重点",
+            "definition_en": "stress; mark",
+            "notes": "",
+            "evidence": "既指音节重音，也指演讲或质量方面的着重点；中文词义和例句语境支持合并。",
+            "members": [
+              {
+                "key": "zh:b-en-zh_hans0000179.003",
+                "examples": [
+                  {
+                    "sentence": "The accent falls on the first syllable.",
+                    "translation_cn": "重音落在第一个音节上。"
+                  },
+                  {
+                    "sentence": "the accent is on participation.",
+                    "translation_cn": "重在参与"
+                  },
+                  {
+                    "sentence": "with the accent on quality.",
+                    "translation_cn": "对质量的强调"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "强调；着重指出",
+            "definition_en": "make prominent",
+            "notes": "",
+            "evidence": "部长着重指出能源形势的严重性。",
+            "members": [
+              {
+                "key": "zh:b-en-zh_hans0000179.006",
+                "examples": [
+                  {
+                    "sentence": "Throughout his speech the minister accented the gravity of the energy situation.",
+                    "translation_cn": "部长的演说自始至终强调能源形势的严重性。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -8079,9 +8492,179 @@
       },
       "result": {
         "word": "ace",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Every untranslated example must have a translation",
-        "groups": []
+        "status": "ready",
+        "notes": "第9义的形容词释义及两个名词修饰语例句一致；第12条例句实际是感叹用法，但源义项编号无法独立表示，保留其来源编号归组。",
+        "groups": [
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "（纸牌）A；爱司",
+            "definition_en": "a playing card with a single spot on it, ranked as the highest card in its suit in most card games",
+            "notes": "",
+            "evidence": "语境为方块A和红心A。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0005680.006",
+                "examples": [
+                  {
+                    "sentence": "life had started dealing him aces again.",
+                    "translation_cn": "生活又开始给他发好牌了。"
+                  },
+                  {
+                    "sentence": "the ace of diamonds.",
+                    "translation_cn": "方块A。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000268.002",
+                "examples": [
+                  {
+                    "sentence": "the ace of hearts.",
+                    "translation_cn": "红心A"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "（网球等）发球直接得分；ACE球",
+            "definition_en": "(in tennis and similar games) a service that an opponent is unable to touch and thus wins a point",
+            "notes": "",
+            "evidence": "网球选手一盘中打出多个ACE球。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0005680.013",
+                "examples": [
+                  {
+                    "sentence": "Nadal banged down eight aces in the set.",
+                    "translation_cn": "纳达尔在这一盘中打出了八个发球直接得分。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "一杆进洞",
+            "definition_en": "a hole in one",
+            "notes": "",
+            "evidence": "语境为高尔夫球第15洞的一杆进洞。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0005680.014",
+                "examples": [
+                  {
+                    "sentence": "his hole in one at the 15th was Senior's second ace as a professional.",
+                    "translation_cn": "他在第15洞一杆进洞，这是Senior作为职业球员打出的第二个一杆进洞。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "（考试）取得A等成绩",
+            "definition_en": "get an A or its equivalent in (a test or exam)",
+            "notes": "",
+            "evidence": "语境为语法考试得A。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0005680.038",
+                "examples": [
+                  {
+                    "sentence": "I aced my grammar test.",
+                    "translation_cn": "我的语法测验得了A。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "在竞争中胜过；挤掉",
+            "definition_en": "outdo someone in a competitive situation",
+            "notes": "",
+            "evidence": "语境为挤掉竞争对手或使他人失去工作。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0005680.039",
+                "examples": [
+                  {
+                    "sentence": "it wasn't our intention to ace Phil out of a job.",
+                    "translation_cn": "我们的本意不是要挤掉菲尔的工作。"
+                  },
+                  {
+                    "sentence": "the magazine won an award, acing out its rivals.",
+                    "translation_cn": "这本杂志赢得了一个奖项，胜过了竞争对手。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "无性恋者",
+            "definition_en": "an asexual person",
+            "notes": "",
+            "evidence": "语境明确指无性恋社群成员。",
+            "members": [
+              {
+                "key": "en:m_en_gbus1190638.004",
+                "examples": [
+                  {
+                    "sentence": "both asexual, they have managed to connect with other aces offline.",
+                    "translation_cn": "他们两人都是无性恋者，并成功地在线下结识了其他无性恋者。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "形容词",
+            "definition_cn": "无性恋的",
+            "definition_en": "(of a person) asexual",
+            "notes": "",
+            "evidence": "说话者描述自己的性取向。",
+            "members": [
+              {
+                "key": "en:m_en_gbus1190638.006",
+                "examples": [
+                  {
+                    "sentence": "I didn't realize that I was ace for a long time.",
+                    "translation_cn": "我过了很久才意识到自己是无性恋者。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "形容词",
+            "definition_cn": "一流的；极好的",
+            "definition_en": null,
+            "notes": "",
+            "evidence": "修饰机械师和科幻作家；感叹句中的 ace 则是感叹用法，源数据未给出对应独立词性编号。",
+            "members": [
+              {
+                "key": "zh:b-en-zh_hans0000268.007",
+                "examples": [
+                  {
+                    "sentence": "He is an ace mechanic. He can repair any cars.",
+                    "translation_cn": "他是一流的机械师，什么车都会修。"
+                  },
+                  {
+                    "sentence": "ace! we've done it!",
+                    "translation_cn": "好极了！我们成功了！"
+                  },
+                  {
+                    "sentence": "an ace science fiction writer.",
+                    "translation_cn": "第一流的科幻小说作家"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -11598,9 +12181,98 @@
       },
       "result": {
         "word": "adapt",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Unknown source sense number",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "改造或调整某物，使其适合新用途或需求；改编",
+            "definition_en": "make (something) suitable for a new use or purpose; modify",
+            "notes": "",
+            "evidence": "医院、政策和剧本调整为适合新用途；小说改编成影视作品。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0008900.005",
+                "examples": [
+                  {
+                    "sentence": ": mink are well adapted to hunting prey.",
+                    "translation_cn": "貂很适应捕猎。"
+                  },
+                  {
+                    "sentence": "hospitals have had to be adapted for modern medical practice.",
+                    "translation_cn": "医院不得不改造，以适应现代医疗实践。"
+                  },
+                  {
+                    "sentence": "the policies can be adapted to suit individual needs and requirements.",
+                    "translation_cn": "这些政策可以作出调整，以满足个人的需求和要求。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000379.002",
+                "examples": [
+                  {
+                    "sentence": "The author is going to adapt his play for television.",
+                    "translation_cn": "作者将把他的剧本改编成电视剧。"
+                  },
+                  {
+                    "sentence": "The novel was adapted for the screen.",
+                    "translation_cn": "这本小说被改编成电影。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "适应新环境或条件",
+            "definition_en": "become adjusted to new conditions",
+            "notes": "",
+            "evidence": "组织适应变化，个人适应气候或新条件。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0008900.011",
+                "examples": [
+                  {
+                    "sentence": "a large organization can be slow to adapt to change.",
+                    "translation_cn": "大型组织适应变化可能会很慢。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000379.004",
+                "examples": [
+                  {
+                    "sentence": "He has not yet adapted to the climate.",
+                    "translation_cn": "他还没适应这种气候。"
+                  },
+                  {
+                    "sentence": "He tried hard to adapt himself to the new conditions.",
+                    "translation_cn": "他努力使自己适应新的情况。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "将文本改编成影视、广播或舞台作品",
+            "definition_en": "alter (a text) to make it suitable for filming, broadcasting, or the stage",
+            "notes": "",
+            "evidence": "迷你剧改编自小说。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0008900.012",
+                "examples": [
+                  {
+                    "sentence": "the miniseries was adapted from Wouk's novel.",
+                    "translation_cn": "这部迷你剧改编自沃克的小说。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -15590,9 +16262,103 @@
       },
       "result": {
         "word": "advertise",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：No learning groups",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "为产品、服务或活动做广告；宣传",
+            "definition_en": "describe or draw attention to (a product, service, or event) in a public medium in order to promote sales or attendance",
+            "notes": "",
+            "evidence": "电视广告、广告牌宣传及宣称产品具有某特点。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0012230.005",
+                "examples": [
+                  {
+                    "sentence": ": we had a chance to advertise on television.",
+                    "translation_cn": "我们有机会在电视上做广告。"
+                  },
+                  {
+                    "sentence": "a billboard advertising beer.",
+                    "translation_cn": "一块宣传啤酒的广告牌。"
+                  },
+                  {
+                    "sentence": "many rugs are advertised as machine washable.",
+                    "translation_cn": "许多地毯都被宣传为可机洗。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "刊登招聘广告；公开招募",
+            "definition_en": "seek to fill (a vacancy) by putting a notice in a newspaper or other medium",
+            "notes": "",
+            "evidence": "在行业报刊招聘舞者，或发布职位招聘信息。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0012230.011",
+                "examples": [
+                  {
+                    "sentence": ": he advertised for dancers in the trade papers.",
+                    "translation_cn": "他在行业报刊上登广告招舞者。"
+                  },
+                  {
+                    "sentence": "for every job we advertise we get a hundred applicants.",
+                    "translation_cn": "我们每刊登一则招聘广告，就会收到一百份申请。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "使某种特质或事实广为人知",
+            "definition_en": "make (a quality or fact) known",
+            "notes": "",
+            "evidence": "咳嗽是为了让人知道自己在场。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0012230.012",
+                "examples": [
+                  {
+                    "sentence": "Meryl coughed briefly to advertise her presence.",
+                    "translation_cn": "梅丽尔短促地咳了一声，让人知道她在场。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "通知；告知某人某事",
+            "definition_en": "notify (someone) of something",
+            "notes": "",
+            "evidence": "例句均为把危险或退出选举的决定告知他人；词性同为动词，定义和语境相符。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0012230.013",
+                "examples": [
+                  {
+                    "sentence": "some prisoners advertised the French of this terrible danger.",
+                    "translation_cn": "一些囚犯把这个可怕的危险告知了法国人。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000531.002",
+                "examples": [
+                  {
+                    "sentence": "He advertised them of his decision to withdraw from the election.",
+                    "translation_cn": "他告知他们自己要退出选举的决定。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -16400,9 +17166,144 @@
       },
       "result": {
         "word": "affair",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：English definition must come from the same group",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "事件；某种特定性质或规模的事情，也可指某类东西",
+            "definition_en": "an event or sequence of events of a specified kind or that has previously been referred to",
+            "notes": "",
+            "evidence": "家庭葬礼、婚礼等可描述为某种 affair；裙子或蛋糕也可用 affair 指某种东西。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0013730.006",
+                "examples": [
+                  {
+                    "sentence": "I wanted the funeral to be a family affair.",
+                    "translation_cn": "我希望葬礼只办成一场家庭聚会。"
+                  },
+                  {
+                    "sentence": "the board admitted responsibility for the affair.",
+                    "translation_cn": "董事会承认对这一事件负有责任。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000590.002",
+                "examples": [
+                  {
+                    "sentence": "the dress/cake was an extraordinary affair.",
+                    "translation_cn": "这件连衣裙/这块蛋糕很特别"
+                  },
+                  {
+                    "sentence": "the wedding was a grand affair.",
+                    "translation_cn": "这场婚礼盛大隆重"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "事情；某人的事务或处境",
+            "definition_en": "a matter that is a particular person's concern or responsibility",
+            "notes": "",
+            "evidence": "个人自行负责的事，以及令人伤心的现状。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0013730.009",
+                "examples": [
+                  {
+                    "sentence": "what you do in your spare time is your affair.",
+                    "translation_cn": "你业余时间做什么是你自己的事。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0000590.003",
+                "examples": [
+                  {
+                    "sentence": "it's a sad state of affairs.",
+                    "translation_cn": "情况令人伤心"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "公共事务；公众关心的重要事务",
+            "definition_en": "matters of public interest and importance",
+            "notes": "",
+            "evidence": "语境为外交事务。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0013730.010",
+                "examples": [
+                  {
+                    "sentence": "commissions were created to advise on foreign affairs.",
+                    "translation_cn": "成立了若干委员会，就外交事务提供建议。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "商业和财务事务",
+            "definition_en": "business and financial dealings",
+            "notes": "",
+            "evidence": "语境为处理财务及商业事务。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0013730.012",
+                "examples": [
+                  {
+                    "sentence": "his time was spent in winding up his affairs.",
+                    "translation_cn": "他把时间都花在了了结自己的事务上。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "婚外情；一方或双方已有伴侣时发生的性关系",
+            "definition_en": "a sexual relationship between two people, one or both of whom are married to or in a long-term relationship with someone else",
+            "notes": "",
+            "evidence": "语境明确为妻子有婚外关系。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0013730.014",
+                "examples": [
+                  {
+                    "sentence": "his wife is having an affair.",
+                    "translation_cn": "他妻子有了婚外情。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "某种类型或样式的物件",
+            "definition_en": "an object of a particular type",
+            "notes": "",
+            "evidence": "语境以 affair 指一件特定款式的低胸黑裙。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0013730.016",
+                "examples": [
+                  {
+                    "sentence": "her dress was a black low-cut affair.",
+                    "translation_cn": "她穿着一件黑色低胸连衣裙。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -41603,9 +42504,175 @@
       },
       "result": {
         "word": "apply",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Unknown or duplicate example translation number",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "申请；正式提出申请或候选",
+            "definition_en": "make a formal application or request",
+            "notes": "",
+            "evidence": "向机构申请投票或补助、申请职位，以及申请任职。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0042140.006",
+                "examples": [
+                  {
+                    "sentence": ": a number of people have applied to vote by proxy.",
+                    "translation_cn": "有不少人申请了代理投票。"
+                  },
+                  {
+                    "sentence": "you need to apply to the local authorities for a grant.",
+                    "translation_cn": "你需要向当地政府申请补助金。"
+                  }
+                ]
+              },
+              {
+                "key": "en:m_en_gbus0042140.012",
+                "examples": [
+                  {
+                    "sentence": "she had applied for a number of positions.",
+                    "translation_cn": "她申请了多个职位。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001627.002",
+                "examples": [
+                  {
+                    "sentence": "He has applied for a post in England.",
+                    "translation_cn": "他已申请在英国任职。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "适用；有效或与某人、某事相关",
+            "definition_en": "be applicable or relevant",
+            "notes": "",
+            "evidence": "规定、描述或理论适用于特定对象或情形。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0042140.014",
+                "examples": [
+                  {
+                    "sentence": "the offer does not apply to unionized workers.",
+                    "translation_cn": "这项优惠不适用于加入工会的工人。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001627.003",
+                "examples": [
+                  {
+                    "sentence": "that description doesn't apply to him.",
+                    "translation_cn": "他不是描述的那个样子"
+                  },
+                  {
+                    "sentence": "that theory cannot apply in this case.",
+                    "translation_cn": "那个理论不适用于这种情况"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "应用；投入实际使用",
+            "definition_en": "bring or put into operation or practical use",
+            "notes": "",
+            "evidence": "将标准或理论用于实际场景；例句中的轻微压力是施加压力，仍是使用或施行。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0042140.015",
+                "examples": [
+                  {
+                    "sentence": "the oil industry has failed to apply appropriate standards of care.",
+                    "translation_cn": "石油行业未能采用适当的谨慎标准。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001627.005",
+                "examples": [
+                  {
+                    "sentence": "We should apply both theories in the language classroom.",
+                    "translation_cn": "我们应把两种理论都运用到语言教室中去。"
+                  },
+                  {
+                    "sentence": "he applied a slight pressure to the catch.",
+                    "translation_cn": "他轻轻按下门闩"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "涂抹；把物质 spread 到表面",
+            "definition_en": "put or spread (something) on a surface",
+            "notes": "",
+            "evidence": "将密封剂涂在木材上、将药膏敷于伤口。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0042140.017",
+                "examples": [
+                  {
+                    "sentence": "the sealer can be applied to new wood.",
+                    "translation_cn": "可以在新木材上涂抹封闭剂。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001627.006",
+                "examples": [
+                  {
+                    "sentence": "The nurse applied the ointment to the wound.",
+                    "translation_cn": "护士把药膏敷到伤口上。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "施加；施行（压力）",
+            "definition_en": "administer",
+            "notes": "",
+            "evidence": "语境明确为用布均匀施压，与涂抹表面不同。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0042140.018",
+                "examples": [
+                  {
+                    "sentence": "smooth over with a cloth, applying even pressure.",
+                    "translation_cn": "用布抹平，同时均匀施压。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "专心致志；努力做某事",
+            "definition_en": "give one's full attention to a task; work hard",
+            "notes": "",
+            "evidence": "语境为全身心投入学习。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0042140.020",
+                "examples": [
+                  {
+                    "sentence": "for two years, she applied herself to her studies with dedication.",
+                    "translation_cn": "两年来，她全心投入学业，勤奋刻苦。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",
@@ -50558,9 +51625,184 @@
       },
       "result": {
         "word": "aspect",
-        "status": "manual",
-        "notes": "模型输出未通过完整义项/例句校验，原数据保留待核查：Every original sense must be mapped",
-        "groups": []
+        "status": "ready",
+        "notes": "",
+        "groups": [
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "方面；看待事物的某一角度或特征",
+            "definition_en": "a particular part or feature of something",
+            "notes": "",
+            "evidence": "财务方面、考察事物的角度，以及问题的某一方面。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.006",
+                "examples": [
+                  {
+                    "sentence": "the financial aspect can be overstressed.",
+                    "translation_cn": "财务方面可能会被过分强调。"
+                  }
+                ]
+              },
+              {
+                "key": "en:m_en_gbus0051760.009",
+                "examples": [
+                  {
+                    "sentence": "from every aspect theirs was a changing world.",
+                    "translation_cn": "从各个方面看，他们的世界都在变化。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001980.003",
+                "examples": [
+                  {
+                    "sentence": "He was unacquainted with that aspect of the question.",
+                    "translation_cn": "他不了解问题的那个方面。"
+                  },
+                  {
+                    "sentence": "We love the valley in all its aspects.",
+                    "translation_cn": "我们爱这山谷的一切。"
+                  },
+                  {
+                    "sentence": "seen from this aspect.",
+                    "translation_cn": "从这一角度看"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "外观；外表或呈现出的性质",
+            "definition_en": "a particular appearance or quality",
+            "notes": "",
+            "evidence": "人物的外貌与地点显出的阴森面貌。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.010",
+                "examples": [
+                  {
+                    "sentence": "a man of decidedly foreign aspect.",
+                    "translation_cn": "一个外表明显带有异国风情的男人。"
+                  },
+                  {
+                    "sentence": "the air of desertion lent the place a sinister aspect.",
+                    "translation_cn": "荒凉的气氛给这个地方增添了一种阴森的面貌。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001980.006",
+                "examples": [
+                  {
+                    "sentence": "a man of repulsive aspect.",
+                    "translation_cn": "面目狰狞的男子"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "朝向；建筑物或物体面向的方向",
+            "definition_en": "the positioning of a building or thing in a specified direction",
+            "notes": "",
+            "evidence": "温室朝南，房屋朝西。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.012",
+                "examples": [
+                  {
+                    "sentence": "a greenhouse with a southern aspect.",
+                    "translation_cn": "一座朝南的温室。"
+                  }
+                ]
+              },
+              {
+                "key": "zh:b-en-zh_hans0001980.004",
+                "examples": [
+                  {
+                    "sentence": "a house with a westerly aspect.",
+                    "translation_cn": "面朝西的房子"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "建筑物朝某方向的一面",
+            "definition_en": "the side of a building facing a particular direction",
+            "notes": "",
+            "evidence": "语境明确指酒店正面。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.013",
+                "examples": [
+                  {
+                    "sentence": "the front aspect of the hotel was unremarkable.",
+                    "translation_cn": "酒店正面平平无奇。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "天体之间的角距关系",
+            "definition_en": "a particular position of a planet or other celestial body relative to another, as measured by angular distance",
+            "notes": "",
+            "evidence": "太阳与天王星形成不利相位。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.014",
+                "examples": [
+                  {
+                    "sentence": "the sun in Aries formed an adverse aspect with Uranus in Capricorn.",
+                    "translation_cn": "白羊座的太阳与摩羯座的天王星形成不利相位。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "名词",
+            "definition_cn": "（语法）体；动词表达时间进程的语法范畴",
+            "definition_en": "a grammatical category or form that expresses the way in which time is denoted by the verb",
+            "notes": "",
+            "evidence": "语境为时态和体的语义。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.016",
+                "examples": [
+                  {
+                    "sentence": "the semantics of tense and aspect.",
+                    "translation_cn": "时态和体的语义。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "part_of_speech": "动词",
+            "definition_cn": "（天体）与另一星体形成相位",
+            "definition_en": "(of a planet) form an aspect with (another celestial body)",
+            "notes": "",
+            "evidence": "星体与火星形成有利相位。",
+            "members": [
+              {
+                "key": "en:m_en_gbus0051760.020",
+                "examples": [
+                  {
+                    "sentence": "the sun is superbly aspected by your ruler Mars on the 19th.",
+                    "translation_cn": "19日，火星作为你的主宰星与太阳形成极佳相位。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "model": "gpt-6-luna",
       "reasoning_effort": "low",

@@ -22,7 +22,20 @@ from .word_forms import pos_family
 BUNDLE_PATH = Path(__file__).resolve().parents[1] / 'data' / 'semantic_reviews.json'
 VERSION = 1
 logger = logging.getLogger(__name__)
+RETRYABLE_NOTE_PREFIX = '模型输出未通过完整义项/例句校验，原数据保留待核查：'
 POS = Literal['名词', '动词', '形容词', '副词', '代词', '介词', '连词', '感叹词', '冠词', '数词', '助动词', '短语', '词汇']
+
+
+def retryable_review(value: dict) -> bool:
+    """A quarantined model response is safe to retry, not a human decision.
+
+    Keep these proposals in the durable bundle as no-op manual entries until a
+    replacement passes validation, while allowing export to target them
+    separately from genuine semantic ambiguity.
+    """
+    return (isinstance(value, dict) and value.get('status') == 'manual'
+            and isinstance(value.get('notes'), str)
+            and value['notes'].startswith(RETRYABLE_NOTE_PREFIX))
 
 
 class StrictModel(BaseModel):

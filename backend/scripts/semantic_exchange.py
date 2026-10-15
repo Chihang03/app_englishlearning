@@ -11,14 +11,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.semantic_review import (BUNDLE_PATH, MODEL_PROMPT, ModelResult, VERSION, digest,
-                                 exact_duplicate_review, issues, model_input, original_source, sync_bundle, validate_response)
+                                 exact_duplicate_review, issues, model_input, original_source, retryable_review,
+                                 sync_bundle, validate_response)
 from report_exchange import open_database
 from translation_exchange import DEFAULT_MODEL, DEFAULT_REASONING, atomic_json, encoded, read_json, run_batches
 
 
 def export_batches(db: Path, output: Path, bundle_path: Path = BUNDLE_PATH,
                    words: list[str] | None = None, batch_size: int = 5, limit: int | None = None,
-                   retry_manual: bool = False) -> dict:
+                   retry_manual: bool = False, retry_quarantined: bool = False) -> dict:
     if output.exists() or not 1 <= batch_size <= 50 or (limit is not None and limit < 1):
         raise ValueError('Use a new output directory and valid batch size/limit')
     cache = read_json(bundle_path) if bundle_path.exists() else {'entries': []}
@@ -36,7 +37,8 @@ def export_batches(db: Path, output: Path, bundle_path: Path = BUNDLE_PATH,
             if previous:
                 from app.semantic_review import validate_word
                 validate_word(source,previous['result'])
-                if previous['result']['status'] == 'ready' or not retry_manual:
+                retry_target = retry_manual or (retry_quarantined and retryable_review(previous['result']))
+                if previous['result']['status'] == 'ready' or not retry_target:
                     skipped += 1
                     continue
             records.append(source)
@@ -67,6 +69,7 @@ def export_batches(db: Path, output: Path, bundle_path: Path = BUNDLE_PATH,
             atomic_json(output/f'{stem}.run.json',{'model':'deterministic','reasoning_effort':None,'batch':manifest['batch']})
     report = {'exported_words':len(records),'cached_words':skipped,
               'batches':len(planned),'ai_words':len(ai_records),'rule_words':len(rule_records),
+              'retry_mode':'manual' if retry_manual else ('quarantined' if retry_quarantined else 'new'),
               'issues':{w['word']:issues(w) for w in records}}
     atomic_json(output/'export-report.json',report)
     return report
@@ -138,6 +141,8 @@ def main() -> None:
     export.add_argument('--batch-size',type=int,default=5)
     export.add_argument('--limit',type=int)
     export.add_argument('--retry-manual',action='store_true')
+    export.add_argument('--retry-quarantined',action='store_true',
+                        help='retry model-output completeness failures without retrying genuinely manual words')
     run=commands.add_parser('run')
     run.add_argument('--directory',type=Path,required=True)
     run.add_argument('--limit-batches',type=int)
@@ -153,7 +158,8 @@ def main() -> None:
     args=parser.parse_args()
     try:
         if args.command=='export':
-            report=export_batches(args.db,args.output,args.bundle,args.words,args.batch_size,args.limit,args.retry_manual)
+            report=export_batches(args.db,args.output,args.bundle,args.words,args.batch_size,args.limit,
+                                  args.retry_manual,args.retry_quarantined)
         elif args.command=='run':
             if args.timeout < 1:
                 raise ValueError('Timeout must be positive')
