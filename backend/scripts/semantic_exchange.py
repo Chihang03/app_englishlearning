@@ -92,8 +92,16 @@ def collect(directory: Path, bundle_path: Path = BUNDLE_PATH) -> dict:
             result = by_word[source['word']]
             old = entries.get(source['word'])
             # A manual retry cannot replace a reliable completed revision.
-            if old and old['result']['status']=='ready' and result['status']=='manual':
+            if old and old['result']['status'] in {'ready','partial'} and result['status']=='manual':
                 continue
+            if old and digest(old['source']) == digest(source):
+                if old['result']['status'] == 'ready':
+                    continue
+                if old['result']['status'] == 'partial':
+                    accepted = {m['key'] for g in old['result']['groups'] for m in g['members']}
+                    proposed = {m['key'] for g in result['groups'] for m in g['members']}
+                    if not accepted <= proposed:
+                        continue
             entries[source['word']] = {'source':source,'result':result,'model':run['model'],
                 'reasoning_effort':run['reasoning_effort'],'review_version':VERSION}
             ready += result['status']=='ready'

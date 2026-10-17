@@ -152,6 +152,56 @@ class SemanticReviewTests(unittest.TestCase):
             self.assertEqual(source_word(conn,self.word_id),source)
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM learning_unit_merges').fetchone()[0],0)
 
+    def test_partial_application_retains_pending_content_and_finishes_without_losing_history(self):
+        source=self.install([fixtures.sense('a','地址','Please give me your address.'),
+                             fixtures.sense('b','住址','Write your address here.'),
+                             fixtures.sense('c','处理','We address the problem.',pos='动词')])
+        card=self.next();self.review(card,card['answer_form'])
+        history_fields='id,user_id,word_id,sense_id,example_id,review_time,user_answer,is_correct'
+        with database.connect() as conn:
+            before=[tuple(r) for r in conn.execute('SELECT '+history_fields+' FROM review_history')]
+            schedule=dict(conn.execute('SELECT * FROM sense_srs_state WHERE retired_at IS NULL').fetchone())
+        result=self.proposal(source,[['a','b'],['c']])
+        result['groups'][0]['definition_cn']='地址；住址'
+        partial=copy.deepcopy(result);partial['status']='partial'
+        partial['groups']=partial['groups'][:1];partial['pending_keys']=['c']
+        self.assertEqual(self.apply(source,partial)['applied'],1)
+        self.assertEqual(self.apply(source,partial)['cached'],1)
+        with database.connect() as conn:
+            after=source_word(conn,self.word_id)
+            self.assertEqual(next(s for s in after['senses'] if s['key']=='c'),source['senses'][2])
+            self.assertEqual(original_source(conn,self.word_id),source)
+        self.assertEqual(self.apply(source,result)['applied'],1)
+        self.assertEqual(self.apply(source,result)['cached'],1)
+        with database.connect() as conn:
+            self.assertEqual(before,[tuple(r) for r in conn.execute('SELECT '+history_fields+' FROM review_history')])
+            after=conn.execute('SELECT * FROM sense_srs_state WHERE retired_at IS NULL').fetchone()
+            for field in ('correct_count','interval_days','next_review_date','last_example_id'):
+                self.assertEqual(schedule[field],after[field])
+            self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(),[])
+            self.assertEqual(len(original_source(conn,self.word_id)['senses']),3)
+
+    def test_missing_sense_can_join_a_partially_applied_core(self):
+        source=self.install([fixtures.sense('a','地址','Please give me your address.'),
+                             fixtures.sense('b','住址','Write your address here.')])
+        partial=self.proposal(source,[['a']]);partial.update(status='partial',pending_keys=['b'])
+        self.assertEqual(self.apply(source,partial)['applied'],1)
+        self.assertEqual(self.apply(source,self.proposal(source,[['a','b']]))['applied'],1)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(DISTINCT b.learning_unit_id) FROM learning_unit_senses b JOIN word_senses s ON s.id=b.sense_id WHERE s.word_id=? AND s.active=1',(self.word_id,)).fetchone()[0],1)
+            self.assertEqual(original_source(conn,self.word_id),source)
+
+    def test_partial_cannot_hide_source_edits_or_split_an_accepted_core(self):
+        source=self.install([fixtures.sense('a','地址','Please give me your address.'),
+                             fixtures.sense('b','住址','Write your address here.'),
+                             fixtures.sense('c','处理','We address the problem.',pos='动词')])
+        partial=self.proposal(source,[['a','b']]);partial.update(status='partial',pending_keys=['c'])
+        self.assertEqual(self.apply(source,partial)['applied'],1)
+        self.assertEqual(self.apply(source,self.proposal(source))['stale'],1)
+        with database.connect() as conn:
+            conn.execute("UPDATE word_senses SET definition_cn='手动修改' WHERE word_id=? AND sense_key='c'",(self.word_id,))
+        self.assertEqual(self.apply(source,self.proposal(source,[['a','b'],['c']]))['stale'],1)
+
     def test_invalid_structures_and_content_never_overwrite(self):
         source=self.source();valid=self.proposal(source)
         variants=[]
@@ -300,6 +350,34 @@ class SemanticReviewTests(unittest.TestCase):
         bundle.write_text(json.dumps({'format_version':1,'entries':[{'source':source,'result':self.proposal(source)}]}))
         self.assertEqual(apply_database(database.DB_PATH,bundle,True)['applied'],1)
         with database.connect() as conn:self.assertEqual(source_word(conn,self.word_id),source)
+
+    def test_display_notes_preserve_semantic_difference_without_model_ids(self):
+        source=self.source();result=self.proposal(source)
+        result['groups'][0]['notes']='可指居住地点或通讯地址；S1 和 S2 是相同来源概念。'
+        self.assertEqual(self.apply(source,result)['applied'],1)
+        with database.connect() as conn:
+            notes=[json.loads(row[0]).get('notes') for row in conn.execute(
+                "SELECT provenance_json FROM learning_units WHERE word_id=? AND active=1",(self.word_id,))]
+            self.assertIn('可指居住地点或通讯地址',notes)
+            self.assertFalse(any('S1' in (note or '') for note in notes))
+
+    def test_legacy_collector_cannot_regress_ready_or_partial_coverage(self):
+        source=self.source();ready=self.proposal(source)
+        first=copy.deepcopy(ready);first['status']='partial';first['groups']=first['groups'][:1]
+        first['pending_keys']=[s['key'] for s in source['senses'][1:]]
+        second=copy.deepcopy(ready);second['status']='partial';second['groups']=second['groups'][1:]
+        second['pending_keys']=[source['senses'][0]['key']]
+        folder=self.directory/'legacy-collect';folder.mkdir()
+        manifest={'format_version':1,'task':'semantic_review','batch':digest([source]),'records':[source]}
+        (folder/'batch-0001.manifest.json').write_text(json.dumps(manifest))
+        (folder/'batch-0001.run.json').write_text(json.dumps({'model':'gpt-6-luna','reasoning_effort':'low'}))
+        cache=self.directory/'legacy-cache.json'
+        for old,new in [(ready,first),(first,second)]:
+            document={'format_version':1,'entries':[{'source':source,'result':old}]}
+            cache.write_text(json.dumps(document))
+            (folder/'batch-0001.result.json').write_text(json.dumps({'batch':manifest['batch'],'items':[new]}))
+            collect(folder,cache)
+            self.assertEqual(json.loads(cache.read_text()),document)
 
 
 if __name__=='__main__':unittest.main()

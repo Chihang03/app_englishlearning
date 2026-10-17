@@ -19,6 +19,7 @@ from .chinese_glosses import sync_database as sync_gloss_translations
 from .vocabulary_json import json_fingerprint, legacy_catalog_fingerprints
 from .learning_units import sync_learning_units, usable_unit_sql
 from .word_frequencies import WORD_FREQUENCIES_PATH, sync_word_frequencies
+from .source_completions import SOURCE_COMPLETIONS_PATH, seed_missing_sources
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -74,7 +75,10 @@ def init_database() -> None:
     sync_gloss_translations(DB_PATH, strict=False)
     with connect() as conn:
         catalog_bytes = VOCABULARY_CATALOG_PATH.read_bytes() if VOCABULARY_CATALOG_PATH.exists() else b'{"lists":[],"words":[]}'
+        seed_missing_sources(conn, SOURCE_COMPLETIONS_PATH, catalog_bytes)
+    with connect() as conn:
         seed_morphology(conn, WORD_FORMS_PATH.read_bytes() if WORD_FORMS_PATH.exists() else b'', catalog_bytes)
+    del catalog_bytes
     sync_sentence_translations(DB_PATH, strict=False)
     with connect() as conn:
         sync_learning_units(conn)

@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from contextlib import closing
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -179,16 +179,21 @@ class SentenceTranslationTests(unittest.TestCase):
             self.assertEqual(command[command.index('--model') + 1], 'gpt-6-luna')
             self.assertIn('model_reasoning_effort="low"', command)
             self.assertIn('read-only', command)
-            self.assertNotIn('manifest', kwargs['input'])
             self.write(Path(command[command.index('--output-last-message') + 1]), self.response)
-        with patch('translation_exchange.subprocess.run', side_effect=fake_run) as run:
+            process = Mock(returncode=0)
+            def communicate(prompt, **options):
+                self.assertNotIn('manifest', prompt)
+                return '', None
+            process.communicate.side_effect = communicate
+            return process
+        with patch('translation_exchange.subprocess.Popen', side_effect=fake_run) as run:
             report = run_batches(self.output, self.catalog, glosses=self.glosses)
             self.assertEqual(report['completed_batches'], 1)
             self.assertEqual(run_batches(self.output, self.catalog, glosses=self.glosses)['skipped_batches'], 1)
             self.assertEqual(run.call_count, 1)
         self.result.unlink()
         self.response['batch'] = 'wrong'
-        with patch('translation_exchange.subprocess.run', side_effect=fake_run):
+        with patch('translation_exchange.subprocess.Popen', side_effect=fake_run):
             with self.assertRaises(ValueError):
                 run_batches(self.output, self.catalog, glosses=self.glosses)
         self.assertFalse(self.result.exists())
