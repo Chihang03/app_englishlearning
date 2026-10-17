@@ -58,24 +58,31 @@ class Group(StrictModel):
     definition_en: str | None = Field(max_length=5000)
     notes: str = Field(max_length=1500)
     evidence: str = Field(min_length=1, max_length=1500)
-    members: list[Member] = Field(min_length=1, max_length=100)
+    members: list[Member] = Field(min_length=1, max_length=1000)
 
 
 class WordReview(StrictModel):
     word: str = Field(min_length=1, max_length=200)
-    status: Literal['ready', 'manual']
+    status: Literal['ready', 'partial', 'manual']
     notes: str = Field(max_length=1500)
-    groups: list[Group] = Field(max_length=100)
+    groups: list[Group] = Field(max_length=1000)
+    pending_keys: list[str] = Field(default_factory=list, max_length=1000)
 
 
 class ReviewResult(StrictModel):
     batch: str
-    items: list['ReadyWordReview | ManualWordReview'] = Field(min_length=1, max_length=100)
+    items: list['ReadyWordReview | PartialWordReview | ManualWordReview'] = Field(min_length=1, max_length=100)
 
 
 class ReadyWordReview(WordReview):
     status: Literal['ready']
-    groups: list[Group] = Field(min_length=1, max_length=100)
+    groups: list[Group] = Field(min_length=1, max_length=1000)
+
+
+class PartialWordReview(WordReview):
+    status: Literal['partial']
+    groups: list[Group] = Field(min_length=1, max_length=1000)
+    pending_keys: list[str] = Field(min_length=1, max_length=1000)
 
 
 class ManualWordReview(WordReview):
@@ -271,7 +278,7 @@ def validate_word(source: dict, value: dict) -> WordReview:
     if review.word != source['word']:
         raise ValueError('Wrong word')
     if review.status == 'manual':
-        if review.groups or not review.notes.strip():
+        if review.groups or review.pending_keys or not review.notes.strip():
             raise ValueError('Manual review must preserve the entire source')
         return review
     expected = {s['key']: s for s in source['senses']}
@@ -306,7 +313,12 @@ def validate_word(source: dict, value: dict) -> WordReview:
                 target = sentences[example.sentence]['target_form']
                 if group.part_of_speech == '名词' and re.search(r'\bhighly\s+' + re.escape(target) + r'\b',example.sentence,re.I):
                     raise ValueError('Noun label conflicts with highly-modified usage; review POS')
-    if seen != expected.keys():
+    pending = set(review.pending_keys)
+    if review.status == 'partial':
+        if (not pending or len(pending) != len(review.pending_keys)
+                or pending & seen or pending != expected.keys() - seen):
+            raise ValueError('Partial review must identify exactly the untouched original senses')
+    elif pending or seen != expected.keys():
         raise ValueError('Every original sense must be mapped')
     return review
 
@@ -323,7 +335,9 @@ def validate_response(manifest: dict, result: dict) -> list[dict]:
             or len(names) != len(set(names)) or set(names) != records.keys()):
         raise ValueError('Response must match every word and source fingerprint')
     return [validate_word(records[r.word], expand_model_word(records[r.word],r) if is_compact
-                         else r.model_dump()).model_dump() for r in response.items]
+                         else r.model_dump()).model_dump(
+                             exclude={'pending_keys'} if r.status != 'partial' else set())
+            for r in response.items]
 
 
 def apply_word(conn, word_id: int, source: dict, value: dict) -> str:
@@ -334,8 +348,19 @@ def apply_word(conn, word_id: int, source: dict, value: dict) -> str:
     pending = conn.execute("SELECT 1 FROM learning_units WHERE word_id=? AND active=1 AND json_extract(provenance_json,'$.review_pending')=1",(word_id,)).fetchone()
     if previous and digest(current) == previous['output_hash'] and not pending:
         return 'cached'
+    prior = conn.execute('''SELECT source_json,result_json FROM semantic_review_receipts
+        WHERE word_id=? AND output_hash=? ORDER BY id DESC LIMIT 1''', (word_id,digest(current))).fetchone()
     if current != source:
-        raise ValueError('Source changed; keep current data and review again')
+        if (not prior or json.loads(prior['source_json']) != source
+                or json.loads(prior['result_json']).get('status') != 'partial'):
+            raise ValueError('Source changed; keep current data and review again')
+    if prior and json.loads(prior['source_json']) == source and review.status != 'manual':
+        old_result = json.loads(prior['result_json'])
+        if old_result.get('status') == 'partial':
+            accepted = {m['key'] for g in old_result['groups'] for m in g['members']}
+            proposed = {m.key for g in review.groups for m in g.members}
+            if not accepted <= proposed:
+                raise ValueError('Cannot regress accepted semantic senses')
     if review.status == 'manual':
         return 'manual'
     ensure_word_units(conn, word_id)
@@ -373,7 +398,7 @@ def apply_word(conn, word_id: int, source: dict, value: dict) -> str:
         group_key = 'semantic:' + digest(sorted(m.key for m in group.members))[:24]
         method = 'exact_duplicate' if exact_duplicate_review(source) == value else 'luna_semantic_review'
         notes = '；'.join(s.strip() for s in re.split('[；。]',group.notes) if s.strip()
-            and not re.search('修正|原词性|原名词词性|原义项|原标注|核查|schema|group',s,re.I))
+            and not re.search(r'修正|原词性|原名词词性|原义项|原标注|核查|schema|group|\b[SE]\d+\b',s,re.I))
         provenance = {'method': method, 'source_hash': digest(source),
                       'notes': notes, 'evidence': group.evidence}
         old_units = {unit_for_sense(conn, m['id']) for m in members}

@@ -274,6 +274,20 @@ def write_batches(output: Path, records: list[dict], batch_size: int, prompt: st
     return count
 
 
+def validate_schema_bounds(schema, location: str = '$') -> None:
+    """Reject impossible generated bounds before spending a model request."""
+    if isinstance(schema, dict):
+        for lower, upper in (('minItems', 'maxItems'), ('minLength', 'maxLength'),
+                             ('minProperties', 'maxProperties'), ('minimum', 'maximum')):
+            if lower in schema and upper in schema and schema[lower] > schema[upper]:
+                raise ValueError(f'Impossible output schema at {location}: {lower} > {upper}')
+        for name, child in schema.items():
+            validate_schema_bounds(child, location + '.' + name)
+    elif isinstance(schema, list):
+        for number, child in enumerate(schema):
+            validate_schema_bounds(child, f'{location}[{number}]')
+
+
 def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = DEFAULT_MODEL,
                 reasoning: str = DEFAULT_REASONING, limit_batches: int | None = None,
                 dry_run: bool = False, glosses: Path = DEFAULT_SUPPLEMENTS,
@@ -291,6 +305,9 @@ def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = D
         if manifest.get('task') == 'semantic_review':
             from app.semantic_review import validate_response
             validate = lambda path: validate_response(manifest, read_json(path))
+        elif manifest.get('task') in {'semantic_grouping', 'semantic_translations', 'semantic_translation_audit'}:
+            from app.semantic_staging import validate_stage_response
+            validate = lambda path: validate_stage_response(manifest, read_json(path))
         elif manifest.get('task') == 'content_reports':
             from app.report_review import validate_response
             validate = lambda path: validate_response(manifest, read_json(path))
@@ -305,19 +322,26 @@ def run_batches(directory: Path, catalog: Path = DEFAULT_CATALOG, model: str = D
             continue
         if limit_batches is not None and completed >= limit_batches:
             break
+        validate_schema_bounds(read_json(directory / f'{stem}.schema.json'))
         temporary = directory / f'{stem}.result.pending.json'
         command = ['codex', 'exec', '-', '-C', str(directory), '--model', model,
                    '-c', f'model_reasoning_effort="{reasoning}"', '--skip-git-repo-check',
                    '--sandbox', 'read-only', '--ephemeral', '--json',
                    '--output-schema', str(directory / f'{stem}.schema.json'),
                    '--output-last-message', str(temporary)]
-        if manifest.get('task') == 'semantic_review':
+        if manifest.get('task') in {'semantic_review', 'semantic_grouping', 'semantic_translations', 'semantic_translation_audit'}:
             # Authentication is reused, but unrelated plugins/MCPs and personal
             # coding instructions need not inflate a pure dictionary request.
-            command += ['--ignore-user-config', '-c', 'developer_instructions=""',
-                        '-c', 'user_instructions=""']
+            command += ['--ignore-user-config', '-c', 'developer_instructions=""']
         commands.append(command)
         if not dry_run:
+            if manifest.get('task') in {'semantic_grouping', 'semantic_translations', 'semantic_translation_audit'}:
+                # Keep rejected/partial model responses and transport logs when
+                # resuming; a retry must not erase the evidence for its failure.
+                stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+                for artifact in (temporary, directory / f'{stem}.events.jsonl'):
+                    if artifact.exists():
+                        artifact.replace(artifact.with_name(f'failed-{stamp}-{artifact.name}'))
             temporary.unlink(missing_ok=True)
             prompt = (directory / 'prompt.txt').read_text(encoding='utf-8')
             prompt += (directory / f'{stem}.input.jsonl').read_text(encoding='utf-8')
