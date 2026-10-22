@@ -1,0 +1,19 @@
+[package]
+name = "english-content"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+english-storage = { path = "../storage" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+regex = "1"
+
+[lints]
+workspace = true

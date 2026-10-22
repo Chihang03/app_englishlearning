@@ -1,0 +1,112 @@
+{
+  "ContentChanges": [
+    "definition_cn",
+    "definition_en",
+    "sentence",
+    "translation_cn",
+    "target_form",
+    "pronunciation"
+  ],
+  "ContentReportInput": [
+    "attempt_id",
+    "category",
+    "details"
+  ],
+  "ContentUpdate": [
+    "expected_content",
+    "changes",
+    "resolution_notes"
+  ],
+  "CredentialInput": [
+    "credential"
+  ],
+  "ExchangeInput": [
+    "manifest",
+    "result"
+  ],
+  "ExposureInput": [
+    "attempt_id"
+  ],
+  "HTTPValidationError": [
+    "detail"
+  ],
+  "HintInput": [
+    "attempt_id",
+    "kind"
+  ],
+  "LoginInput": [
+    "username",
+    "password"
+  ],
+  "ManageInput": [
+    "current_password"
+  ],
+  "PasswordInput": [
+    "current_password",
+    "new_password"
+  ],
+  "ProfileInput": [
+    "timezone"
+  ],
+  "PushKeys": [
+    "p256dh",
+    "auth"
+  ],
+  "PushSubscriptionInput": [
+    "endpoint",
+    "keys"
+  ],
+  "RegisterInput": [
+    "username",
+    "password",
+    "timezone",
+    "registration_code"
+  ],
+  "RegistrationInput": [
+    "current_password",
+    "name"
+  ],
+  "ReportUpdate": [
+    "status",
+    "resolution_notes"
+  ],
+  "ReviewChange": [
+    "field",
+    "value"
+  ],
+  "ReviewInput": [
+    "word_id",
+    "sense_id",
+    "learning_unit_id",
+    "example_id",
+    "user_answer",
+    "attempt_id",
+    "active_response_ms"
+  ],
+  "ReviewItem": [
+    "id",
+    "action",
+    "changes",
+    "notes"
+  ],
+  "ReviewResult": [
+    "batch",
+    "items"
+  ],
+  "SettingsInput": [
+    "show_sentence_translation",
+    "skip_basic_600",
+    "selected_word_list_ids",
+    "speech_rate"
+  ],
+  "StudyDetailsInput": [
+    "attempt_id",
+    "target_lexical_unit_id",
+    "content_cached"
+  ],
+  "ValidationError": [
+    "loc",
+    "msg",
+    "type"
+  ]
+}

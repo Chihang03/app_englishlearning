@@ -24,6 +24,9 @@ backend/data/*.sqlite3
 .idea/
 .vscode/
 
+# Rust build output (Cargo.lock is committed)
+rust/target/
+
 # Local environment and secrets
 .env
 .env.*

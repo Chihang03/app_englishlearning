@@ -1,0 +1,21 @@
+[package]
+name = "english-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "englishctl"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+english-content = { path = "../content" }
+english-core = { path = "../core" }
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

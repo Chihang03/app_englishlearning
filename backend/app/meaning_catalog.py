@@ -4,12 +4,62 @@ from __future__ import annotations
 import hashlib
 import json
 import fcntl
+import logging
 import os
+import re
+import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
+
+
+logger = logging.getLogger(__name__)
+
+
+def _native_catalog(conn, user_id: int, identity, target: Path) -> str | None:
+    """Optional bounded Rust exporter. The caller holds the cache lock/snapshot.
+
+    A revision mismatch or native failure uses the existing Python snapshot,
+    so a content edit racing the child cannot publish mismatched ETag metadata.
+    """
+    executable = os.environ.get("ENGLISH_NATIVE_CATALOG", "")
+    if not executable:
+        return None
+    try:
+        if not Path(executable).is_absolute():
+            raise ValueError("native exporter must use an absolute path")
+        database_path = conn.execute("PRAGMA database_list").fetchone()[2]
+        if not database_path:
+            return None
+        with tempfile.TemporaryDirectory(prefix=".native-", dir=target.parent) as directory:
+            output = Path(directory) / "catalog.json"
+            completed = subprocess.run(
+                [executable, "catalog", "--database", database_path,
+                 "--user-id", str(int(user_id)), "--database-id", str(identity[0]),
+                 "--revision", str(identity[1]), "--output", str(output), "--timeout-seconds", "30"],
+                check=True, capture_output=True, text=True, timeout=35,
+            )
+            if len(completed.stdout) > 4096:
+                raise ValueError("oversized native metadata")
+            result = json.loads(completed.stdout)
+            if (not isinstance(result, dict) or result.get("database_id") != identity[0] or result.get("revision") != identity[1]
+                    or not re.fullmatch(r"[0-9a-f]{64}", str(result.get("sha256", "")))
+                    or output.stat().st_size != result.get("bytes")):
+                raise ValueError("invalid native metadata")
+            digest = hashlib.sha256()
+            with output.open("rb") as source:
+                while chunk := source.read(65536):
+                    digest.update(chunk)
+            if digest.hexdigest() != result["sha256"]:
+                raise ValueError("native output digest mismatch")
+            os.replace(output, target)
+            return '"' + result["sha256"] + '"'
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        # No native stdout/stderr or user content is included in logs.
+        logger.warning("Native catalogue unavailable; using Python snapshot exporter")
+        return None
 
 
 def catalog_words(conn, user_id: int) -> Iterator[dict]:
@@ -81,22 +131,24 @@ def catalog_snapshot(conn, user_id: int, cache_dir: Path) -> CatalogFile:
             metadata = cache_dir / (stem + ".etag")
             if target.is_file() and metadata.is_file():
                 return CatalogFile(target, metadata.read_text(encoding="ascii"))
+            etag = _native_catalog(conn, user_id, row, target)
             digest = hashlib.sha256()
             temporary = None
             try:
-                with tempfile.NamedTemporaryFile(dir=cache_dir, delete=False) as output:
-                    temporary = Path(output.name)
-                    def write(chunk: bytes) -> None:
-                        output.write(chunk)
-                        digest.update(chunk)
-                    write(b'{"words":[')
-                    for index, word in enumerate(catalog_words(conn, user_id)):
-                        if index:
-                            write(b",")
-                        write(json.dumps(word, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-                    write(b"]}")
-                etag = '"' + digest.hexdigest() + '"'
-                os.replace(temporary, target)
+                if etag is None:
+                    with tempfile.NamedTemporaryFile(dir=cache_dir, delete=False) as output:
+                        temporary = Path(output.name)
+                        def write(chunk: bytes) -> None:
+                            output.write(chunk)
+                            digest.update(chunk)
+                        write(b'{"words":[')
+                        for index, word in enumerate(catalog_words(conn, user_id)):
+                            if index:
+                                write(b",")
+                            write(json.dumps(word, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+                        write(b"]}")
+                    etag = '"' + digest.hexdigest() + '"'
+                    os.replace(temporary, target)
                 metadata.write_text(etag, encoding="ascii")
             finally:
                 if temporary is not None:
