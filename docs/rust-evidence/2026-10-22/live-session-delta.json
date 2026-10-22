@@ -1,0 +1,20 @@
+{
+  "new_sessions": [
+    {
+      "belongs_to_preexisting_account": true,
+      "created_at": "2026-10-22T04:39:16+00:00"
+    }
+  ],
+  "old_sessions_removed": 0,
+  "subscription_count_unchanged": true,
+  "subscription_updates": [
+    {
+      "owner_unchanged": true,
+      "key_material_unchanged": true,
+      "changed_fields": [
+        "updated_at"
+      ],
+      "updated_at": "2026-10-22T04:38:53+00:00"
+    }
+  ]
+}

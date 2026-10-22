@@ -1,0 +1,23 @@
+{
+  "browser": "Codex in-app browser",
+  "version": "26.10.22.94",
+  "checks": [
+    "password login",
+    "calendar",
+    "next card",
+    "wrong answer",
+    "correction",
+    "automatic next card",
+    "previous card read-only",
+    "meaning panel",
+    "statistics refreshed",
+    "translation preference persisted",
+    "course selection persisted",
+    "passkey list loaded",
+    "logout"
+  ],
+  "temporary_account_removed": true,
+  "temporary_review_rows": 2,
+  "translation_persisted": true,
+  "cet4_selection_persisted": true
+}
