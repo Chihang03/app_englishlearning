@@ -56,6 +56,8 @@ def content_hashes(conn) -> dict:
     for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"):
         quoted = '"' + name.replace('"', '""') + '"'
         columns = [row[1] for row in conn.execute(f'PRAGMA table_info({quoted})')]
+        if name == 'meaning_catalog_revision':
+            columns.remove('revision')
         if name in ('words', 'word_senses'):
             columns.remove('definition_cn')
         projection = ','.join('"' + column.replace('"', '""') + '"' for column in columns)

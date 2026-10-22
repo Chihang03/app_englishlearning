@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import fcntl
+import hashlib
+import logging
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -44,6 +47,7 @@ STARTER_LIST = {
 # With several people reviewing at once, a writer can find the database briefly
 # locked. Waiting beats failing the request.
 BUSY_TIMEOUT_MS = 5000
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -66,10 +70,69 @@ def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return {key: row[key] for key in row.keys()}
 
 
-def init_database() -> None:
+@contextmanager
+def startup_lock(*, shared: bool = False, blocking: bool = True) -> Iterator[bool]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _enable_wal()
-    run_migrations(DB_PATH)
+    with (DATA_DIR / ".startup.lock").open("a") as lock:
+        operation = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+        try:
+            fcntl.flock(lock, operation | (0 if blocking else fcntl.LOCK_NB))
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def _startup_fingerprint() -> str:
+    from .chinese_glosses import DEFAULT_SUPPLEMENTS
+    from .chinese_sentences import DEFAULT_SENTENCES
+    from .learning_units import CONFIG_PATH
+    from .semantic_review import BUNDLE_PATH
+    paths = [*sorted((BASE_DIR / "app").glob("*.py")), SEED_PATH, VOCABULARY_CATALOG_PATH,
+             WORD_FORMS_PATH, WORD_FREQUENCIES_PATH, SOURCE_COMPLETIONS_PATH,
+             DEFAULT_SUPPLEMENTS, DEFAULT_SENTENCES, CONFIG_PATH, BUNDLE_PATH]
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(str(path).encode())
+        digest.update(b"\0")
+        if path.exists():
+            with path.open("rb") as source:
+                while chunk := source.read(1024 * 1024):
+                    digest.update(chunk)
+        else:
+            digest.update(b"missing")
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _startup_state(conn, fingerprint: str) -> str:
+    revision = tuple(conn.execute("SELECT database_id,revision FROM meaning_catalog_revision WHERE id=1").fetchone())
+    states = [tuple(row) for row in conn.execute(
+        "SELECT key,value FROM vocabulary_catalog_state WHERE key!='startup_sync' ORDER BY key")]
+    return json.dumps([fingerprint, revision, states], separators=(",", ":"))
+
+
+def init_database(*, force_sync: bool = False) -> None:
+    with startup_lock():
+        _enable_wal()
+        run_migrations(DB_PATH)
+        fingerprint = _startup_fingerprint()
+        with connect() as conn:
+            previous = conn.execute("SELECT value FROM vocabulary_catalog_state WHERE key='startup_sync'").fetchone()
+            if not force_sync and previous and previous[0] == _startup_state(conn, fingerprint):
+                logger.info("Startup content unchanged; reusing completed synchronization")
+                return
+        _sync_database_content()
+        with connect() as conn:
+            conn.execute("INSERT OR REPLACE INTO vocabulary_catalog_state(key,value) VALUES('startup_sync',?)",
+                         (_startup_state(conn, fingerprint),))
+
+
+def _sync_database_content() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     seed_words()
     seed_vocabulary_catalog()
     sync_gloss_translations(DB_PATH, strict=False)

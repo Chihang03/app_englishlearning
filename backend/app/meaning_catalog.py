@@ -3,9 +3,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import fcntl
+import os
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator
 
 
-def catalog_snapshot(conn, user_id: int) -> tuple[bytes, str]:
+def catalog_words(conn, user_id: int) -> Iterator[dict]:
     rows = conn.execute("""
         SELECT w.id AS word_id, w.word, s.id AS sense_id, b.learning_unit_id,
                s.part_of_speech, s.definition_cn, s.definition_en,
@@ -21,14 +28,16 @@ def catalog_snapshot(conn, user_id: int) -> tuple[bytes, str]:
         WHERE w.owner_id IS NULL OR w.owner_id=?
         ORDER BY w.id, s.position, s.id, e.id
     """, (user_id,))
-    words: list[dict] = []
+    word: dict | None = None
     previous_word = previous_sense = None
     senses: list[dict] = []
     examples: list[dict] = []
     for row in rows:
         if row["word_id"] != previous_word:
-            words.append({"id": row["word_id"], "word": row["word"], "senses": []})
-            senses = words[-1]["senses"]
+            if word is not None:
+                yield word
+            word = {"id": row["word_id"], "word": row["word"], "senses": []}
+            senses = word["senses"]
             previous_word = row["word_id"]
             previous_sense = None
         if row["sense_id"] != previous_sense:
@@ -47,5 +56,56 @@ def catalog_snapshot(conn, user_id: int) -> tuple[bytes, str]:
                 "id": row["example_id"], "sentence": row["sentence"],
                 "translation_cn": row["translation_cn"], "target_form": row["target_form"],
             })
-    body = json.dumps({"words": words}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    return body, '"' + hashlib.sha256(body).hexdigest() + '"'
+    if word is not None:
+        yield word
+
+
+@dataclass(frozen=True)
+class CatalogFile:
+    path: Path
+    etag: str
+
+
+def catalog_snapshot(conn, user_id: int, cache_dir: Path) -> CatalogFile:
+    """Build once per content revision; serialize one word at a time to disk."""
+    cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # flock also serializes builders in different workers. Readers use immutable
+    # revision-specific files, so an update cannot mismatch a response's ETag.
+    with (cache_dir / "build.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        conn.execute("BEGIN")
+        try:
+            row = conn.execute("SELECT database_id,revision FROM meaning_catalog_revision WHERE id=1").fetchone()
+            stem = f"v1-{row[0]}-{int(user_id)}-{row[1]}"
+            target = cache_dir / (stem + ".json")
+            metadata = cache_dir / (stem + ".etag")
+            if target.is_file() and metadata.is_file():
+                return CatalogFile(target, metadata.read_text(encoding="ascii"))
+            digest = hashlib.sha256()
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(dir=cache_dir, delete=False) as output:
+                    temporary = Path(output.name)
+                    def write(chunk: bytes) -> None:
+                        output.write(chunk)
+                        digest.update(chunk)
+                    write(b'{"words":[')
+                    for index, word in enumerate(catalog_words(conn, user_id)):
+                        if index:
+                            write(b",")
+                        write(json.dumps(word, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+                    write(b"]}")
+                etag = '"' + digest.hexdigest() + '"'
+                os.replace(temporary, target)
+                metadata.write_text(etag, encoding="ascii")
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+            # Keep recent revisions for responses already in flight.
+            cutoff = time.time() - 86400
+            for old in cache_dir.glob("v1-*"):
+                if old not in (target, metadata) and old.stat().st_mtime < cutoff:
+                    old.unlink(missing_ok=True)
+            return CatalogFile(target, etag)
+        finally:
+            conn.rollback()

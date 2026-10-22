@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .auth import get_learner_user
@@ -231,10 +232,11 @@ def study_meanings(payload: StudyDetailsInput, user: dict[str, Any] = Depends(ge
 @app.get("/api/study/meaning-catalog")
 def study_meaning_catalog(request: Request, user: dict[str, Any] = Depends(get_learner_user)) -> Response:
     with connect() as conn:
-        body, etag = catalog_snapshot(conn, int(user["id"]))
-    if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers={"ETag": etag})
-    return Response(content=body, media_type="application/json", headers={"ETag": etag})
+        from . import database
+        snapshot = catalog_snapshot(conn, int(user["id"]), database.DB_PATH.with_suffix(".catalog-cache"))
+    if request.headers.get("if-none-match") == snapshot.etag:
+        return Response(status_code=304, headers={"ETag": snapshot.etag})
+    return FileResponse(snapshot.path, media_type="application/json", headers={"ETag": snapshot.etag})
 
 
 @app.post("/api/content-reports")

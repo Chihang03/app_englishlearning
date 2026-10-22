@@ -440,13 +440,15 @@ def sync_bundle(conn, path: Path | None = None) -> dict:
     if not path.exists():
         return counts
     try:
-        bundle = json.loads(path.read_text())
-        if not isinstance(bundle,dict) or bundle.get('format_version') != VERSION or not isinstance(bundle.get('entries'),list):
+        from .json_stream import array_items, object_metadata
+        metadata = object_metadata(path, "entries")
+        if metadata.get('format_version') != VERSION:
             raise ValueError('Unsupported semantic bundle')
+        # object_metadata validates the entire stream before any writes.
     except (ValueError,OSError) as error:
         logger.warning('Semantic bundle ignored; source data preserved: %s',error)
         return {**counts,'stale':1}
-    for entry in bundle['entries']:
+    for entry in array_items(path, "entries"):
         if (not isinstance(entry,dict) or not isinstance(entry.get('source'),dict)
                 or not isinstance(entry['source'].get('word'),str) or not isinstance(entry.get('result'),dict)):
             counts['stale'] += 1

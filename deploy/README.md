@@ -73,3 +73,7 @@ sudo journalctl -u learning-reminders.service -n 10 --no-pager
 定时器每分钟运行一次，发送器按每位用户的时区筛选 20:00，检查当天所有答题记录（包括答错），并持久化每日发送结果。可在相同环境下运行 `python -m app.learning_reminders --dry-run`，只检查符合条件的订阅，不发送、不写发送记录。HTTP 404/410 自动移除失效订阅。
 
 升级前通过 SQLite backup API 备份生产数据库；迁移程序还会自动保存 `.bak-v19-*` 快照。回滚应用时先停用 `learning-reminders.timer`，再切回之前的应用与依赖路径；v20 只新增推送表，旧应用可继续读取原学习记录，无需丢弃升级后的学习数据。真实 iPhone 的授权、锁屏通知和通知点击跳转需在设备上确认。
+
+## 小内存服务器
+
+目录缓存、启动同步、Swap 和回退步骤见 [小内存服务器运行与恢复](MEMORY.md)。
