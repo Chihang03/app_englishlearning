@@ -35,7 +35,7 @@ gzip -dc /release/content/public-seed.db.gz > /tmp/public-seed.db
 /release/deploy/switch-rust-release.sh /opt/englishlearning/releases/<release>
 ```
 
-脚本备份旧 release 指向、systemd、Nginx 和一致性数据库到新的 `/var/backups/englishlearning-rust-<UTC>/`。暂停提醒，停止旧 API，备份数据库，原子切换 release，安装原生 API/提醒单元并移除旧 Python ExecStart 覆盖。Nginx 保留域名、证书、IPv4/IPv6 监听，使用发布目录的静态前端，将 `/api/` 转发给 Rust，并拒绝公开 `/internal/`。通过 readiness 和 HTTPS 健康/版本检查后才恢复定时器；失败自动恢复原服务配置。
+脚本备份旧 release 指向、systemd、Nginx 和一致性数据库到新的 `/var/backups/englishlearning-rust-<UTC>/`。暂停提醒，停止旧 API，备份数据库，原子切换 release，安装原生 API/提醒单元并移除旧 Python ExecStart 覆盖。Nginx 所需的应用父目录遍历权限在切换时设置，原权限随备份保存，回退时恢复。Nginx 保留域名、证书、IPv4/IPv6 监听，使用发布目录的静态前端，将 `/api/` 转发给 Rust，并拒绝公开 `/internal/`。通过 readiness，并等待 HTTPS 入口返回准确的发布版本后才恢复定时器；失败自动恢复原服务配置。
 
 `englishlearning.service` 限制 256 MiB，提醒任务限制 96 MiB。API 采用固定 1 写/2 读连接与 16 个请求槽；普通请求 64 KiB，Passkey 128 KiB，审核交换 2 MiB。读查询 5 秒、写请求 10 秒。目录冷构建串行、30 秒；传输最多四路，每路 64 KiB 缓冲，单文件最大 256 MiB，磁盘缓存保留上限 512 MiB。资源耗尽返回 503 和 Retry-After，取消任务会停止排队查询。
 
