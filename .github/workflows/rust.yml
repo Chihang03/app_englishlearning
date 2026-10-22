@@ -39,4 +39,4 @@ jobs:
           PYTHONPATH: app:tests:.
           ENGLISH_TEST_NATIVE_CATALOG: ${{ github.workspace }}/rust/target/release/englishctl
           ENGLISH_TEST_RUST_SERVER: ${{ github.workspace }}/rust/target/release/english-server
-        run: python -m unittest test_rust_api test_rust_content test_rust_catalog test_memory_optimization test_http_cache
+        run: python -m unittest test_rust_api test_rust_management test_rust_operations test_rust_content test_rust_catalog test_memory_optimization test_http_cache

@@ -1,0 +1,22 @@
+[Unit]
+Description=Evening learning reminders (Rust)
+After=englishlearning.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=englishlearning
+Group=englishlearning
+WorkingDirectory=/opt/englishlearning/app
+EnvironmentFile=/etc/englishlearning.env
+EnvironmentFile=-/etc/englishlearning-push.env
+ExecStart=/opt/englishlearning/app/bin/englishctl reminders --database /var/lib/englishlearning/vocabulary.db
+TimeoutStartSec=60
+MemoryMax=96M
+TasksMax=16
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/englishlearning

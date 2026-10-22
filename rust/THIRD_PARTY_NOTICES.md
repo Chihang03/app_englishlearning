@@ -26,3 +26,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+The native binaries bundle SQLite (public domain) and OpenSSL 3.6.3.
+OpenSSL is licensed under Apache License 2.0; see `licenses/OpenSSL-Apache-2.0.txt`.
+Other Rust dependencies and exact versions are recorded in Cargo.lock.

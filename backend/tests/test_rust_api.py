@@ -143,6 +143,14 @@ class RustApiParityTests(unittest.TestCase):
         options=request('login/options',{}).json()['options'];self.assertEqual(request('login/verify',{'credential':software.authentication(options,count=2)}).status_code,200)
         options=request('login/options',{}).json()['options'];self.assertEqual(request('login/verify',{'credential':software.authentication(options,count=1)}).status_code,400)
 
+    def test_challenge_is_bound_to_one_allowed_origin(self):
+        software=SoftwareAuthenticator()
+        options=self.native.post('/api/auth/passkeys/register/options',json={'current_password':'test-password-123'}).json()['options']
+        credential=software.registration(options)
+        response=self.native.post('/api/auth/passkeys/register/verify',json={'credential':credential},headers={'Origin':'http://localhost:8000'})
+        self.assertNotEqual(response.status_code,200)
+        with sqlite3.connect(self.native_db) as connection:self.assertEqual(connection.execute('SELECT COUNT(*) FROM passkeys').fetchone()[0],0)
+
     def test_learning_wrong_correction_independent_statistics_and_calendar(self):
         self.pair('GET','/api/stats')
         a,b=self.cards();self.review(a,b,'wrong');self.state()
@@ -221,3 +229,22 @@ class RustApiParityTests(unittest.TestCase):
         self.assertEqual(options.status_code,200,options.text)
         result=self.native.post('/api/auth/passkeys/login/verify',json={'credential':software.authentication(options.json()['options'])})
         self.assertEqual(result.status_code,200,result.text)
+
+    def test_personal_calibration_uses_same_chronological_holdout(self):
+        from datetime import timedelta
+        start=datetime(2026,1,1,tzinfo=timezone.utc)
+        for path in [database.DB_PATH,self.native_db]:
+            with sqlite3.connect(path) as conn:
+                wid=conn.execute("SELECT id FROM words WHERE word='address'").fetchone()[0]
+                senses=[]
+                for i in range(20):
+                    cursor=conn.execute("INSERT INTO word_senses(word_id,sense_key,part_of_speech,definition_cn,source,position) VALUES(?,?,'名词','校准测试','test',?)",(wid,f'calibration-{i}',i));senses.append(cursor.lastrowid)
+                for i in range(150):
+                    conn.execute("INSERT INTO review_history(user_id,word_id,sense_id,review_time,user_answer,is_correct,is_independent,is_first_attempt,base_recall_probability) VALUES(?,?,?,?,?,?,?,?,?)",(self.uid,wid,senses[i%20],(start+timedelta(days=i/3)).isoformat(),'test',int(i%10<8),int(i%10<8),1,.9))
+        a,b=self.cards();self.review(a,b,a['answer_form'])
+        results=[]
+        for path in [database.DB_PATH,self.native_db]:
+            with sqlite3.connect(path) as conn:
+                conn.row_factory=sqlite3.Row;results.append(dict(conn.execute('SELECT * FROM memory_profiles').fetchone()))
+        self.equivalent(*results)
+        self.assertEqual((results[1]['training_count'],results[1]['validation_count']),(120,30))

@@ -886,3 +886,67 @@ pub fn apply(package: &Path, database: &Path, dry_run: bool) -> Result<ApplyResu
         sha256: manifest.sha256,
     })
 }
+
+/// Export only public content into a fresh schema. Account, session, learning and device rows never enter the artifact.
+pub fn export_seed(database: &Path, output: &Path) -> Result<Value> {
+    ensure!(!output.exists(), "Seed output already exists");
+    let directory = tempfile::tempdir_in(output.parent().context("Seed output parent")?)?;
+    let seed = directory.path().join("seed.db");
+    english_storage::operations::initialize(&seed)?;
+    let source = english_storage::open_readonly(database)?;
+    source.execute_batch("BEGIN")?;
+    let mut target = english_storage::reminders::open_writer(&seed)?;
+    let tx = target.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    tx.execute_batch("PRAGMA defer_foreign_keys=ON")?;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let mut counts = Map::new();
+    for &table in TABLES {
+        let query = format!("SELECT r.* FROM {table} r WHERE {}", shared(table));
+        let mut statement = source.prepare(&query)?;
+        let names = statement
+            .column_names()
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>();
+        let insert = format!(
+            "INSERT INTO {table}({}) VALUES({})",
+            names.join(","),
+            vec!["?"; names.len()].join(",")
+        );
+        let mut writer = tx.prepare(&insert)?;
+        let mut rows = statement.query([])?;
+        let mut count = 0u64;
+        while let Some(row) = rows.next()? {
+            ensure!(Instant::now() < deadline, "Seed export deadline exceeded");
+            let values = (0..names.len())
+                .map(|i| row.get::<_, SqlValue>(i))
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            writer.execute(params_from_iter(values))?;
+            count += 1;
+        }
+        counts.insert(table.into(), serde_json::json!(count));
+    }
+    ensure!(
+        tx.prepare("PRAGMA foreign_key_check")?
+            .query([])?
+            .next()?
+            .is_none(),
+        "Public seed has foreign key violations"
+    );
+    tx.commit()?;
+    source.execute_batch("ROLLBACK")?;
+    target.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);PRAGMA journal_mode=DELETE;")?;
+    drop(target);
+    ensure!(
+        english_storage::operations::inspect(&seed)?["users"] == 0,
+        "Seed contains accounts"
+    );
+    File::open(&seed)?.sync_all()?;
+    let publish = tempfile::NamedTempFile::new_in(output.parent().unwrap())?;
+    std::fs::copy(&seed, publish.path())?;
+    publish.as_file().sync_all()?;
+    publish.persist_noclobber(output)?;
+    Ok(
+        serde_json::json!({"tables":counts,"users":0,"schema_version":22,"bytes":std::fs::metadata(output)?.len()}),
+    )
+}

@@ -7,25 +7,12 @@ import os
 from pathlib import Path
 import subprocess
 import unittest
-from unittest.mock import patch
 
 from app import database, meaning_catalog
 import test_senses as fixtures
 
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = Path(os.environ.get("ENGLISH_TEST_NATIVE_CATALOG", ROOT / "rust/target/debug/englishctl"))
-
-
-class NativeFallbackTests(unittest.TestCase):
-    setUp = fixtures.SenseLearningTests.setUp
-
-    def test_unavailable_native_binary_preserves_python_behavior(self):
-        with patch.dict(os.environ, {"ENGLISH_NATIVE_CATALOG": "/missing/englishctl"}):
-            with self.assertLogs("app.meaning_catalog", level="WARNING"):
-                response = self.client.get("/api/study/meaning-catalog")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()["words"]), 2)
-        self.assertEqual(response.headers["etag"], '"'+hashlib.sha256(response.content).hexdigest()+'"')
 
 
 @unittest.skipUnless(BINARY.is_file(), "build Rust workspace before running native integration")
@@ -83,14 +70,22 @@ class NativeCatalogTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertFalse(path.exists())
 
-    def test_real_native_cold_export_then_cached_304_without_subprocess(self):
-        expected=self.expected()
-        with patch.dict(os.environ,{"ENGLISH_NATIVE_CATALOG":str(BINARY)}), patch.object(
-                meaning_catalog,'catalog_words',side_effect=AssertionError('Python cold export used')):
-            first=self.client.get('/api/study/meaning-catalog')
-            self.assertEqual(first.status_code,200,first.text)
-            self.assertEqual(first.content,expected)
-            with patch('app.meaning_catalog.subprocess.run',side_effect=AssertionError('cached rebuild')):
-                cached=self.client.get('/api/study/meaning-catalog',headers={'If-None-Match':first.headers['etag']})
-                self.assertEqual(cached.status_code,304)
-        self.assertFalse(list(self.directory.rglob('.native-*')))
+    def test_cli_refuses_overwriting_existing_output(self):
+        first,path=self.export();self.assertEqual(first.returncode,0,first.stderr)
+        before=path.read_bytes();second,_=self.export();self.assertNotEqual(second.returncode,0)
+        self.assertEqual(path.read_bytes(),before)
+
+    def test_public_seed_contains_content_and_no_accounts_or_private_words(self):
+        fixtures.legacy_private_word(self.uid,{"word":"secret","part_of_speech":"名词","definition_cn":"秘密","example_sentence":"This is a secret."})
+        from app.learning_units import sync_learning_units
+        with database.connect() as conn:sync_learning_units(conn)
+        output=self.directory/'public-seed.db'
+        result=subprocess.run([str(BINARY),'content','export-seed','--database',str(database.DB_PATH),'--output',str(output)],capture_output=True,text=True,timeout=20)
+        self.assertEqual(result.returncode,0,result.stderr)
+        import sqlite3
+        with sqlite3.connect(output) as conn:
+            for table in ['users','sessions','passkeys','push_subscriptions','push_deliveries','review_history','sense_srs_state','study_attempts','content_reports','admin_content_edits']:
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM '+table).fetchone()[0],0,table)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM words WHERE owner_id IS NOT NULL OR word='secret'").fetchone()[0],0)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM words').fetchone()[0],2)
+            self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(),[])

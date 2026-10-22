@@ -1,0 +1,99 @@
+{
+  "parity": true,
+  "database_unchanged": true,
+  "schema_version": 22,
+  "samples": [
+    {
+      "kind": "python",
+      "elapsed_seconds": 1.88,
+      "peak_rss_kib": 24576,
+      "cpu_user_seconds": 1.46,
+      "cpu_system_seconds": 0.12,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "rust",
+      "elapsed_seconds": 1.03,
+      "peak_rss_kib": 13568,
+      "cpu_user_seconds": 0.72,
+      "cpu_system_seconds": 0.09,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "python",
+      "elapsed_seconds": 1.54,
+      "peak_rss_kib": 24448,
+      "cpu_user_seconds": 1.42,
+      "cpu_system_seconds": 0.09,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "rust",
+      "elapsed_seconds": 0.81,
+      "peak_rss_kib": 13440,
+      "cpu_user_seconds": 0.7,
+      "cpu_system_seconds": 0.08,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "python",
+      "elapsed_seconds": 1.5,
+      "peak_rss_kib": 24704,
+      "cpu_user_seconds": 1.4,
+      "cpu_system_seconds": 0.09,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "rust",
+      "elapsed_seconds": 0.8,
+      "peak_rss_kib": 13440,
+      "cpu_user_seconds": 0.72,
+      "cpu_system_seconds": 0.06,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "python",
+      "elapsed_seconds": 1.5,
+      "peak_rss_kib": 24576,
+      "cpu_user_seconds": 1.4,
+      "cpu_system_seconds": 0.1,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "rust",
+      "elapsed_seconds": 0.85,
+      "peak_rss_kib": 13568,
+      "cpu_user_seconds": 0.7,
+      "cpu_system_seconds": 0.09,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "python",
+      "elapsed_seconds": 1.52,
+      "peak_rss_kib": 24704,
+      "cpu_user_seconds": 1.42,
+      "cpu_system_seconds": 0.09,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    },
+    {
+      "kind": "rust",
+      "elapsed_seconds": 0.84,
+      "peak_rss_kib": 13696,
+      "cpu_user_seconds": 0.69,
+      "cpu_system_seconds": 0.08,
+      "bytes": 35190486,
+      "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+    }
+  ],
+  "native_sha256": "12b1dc308c95608cd8da090a4ba2ca50752b2fd554fc9280e97fa2d68aba6c6d",
+  "reference_python": "3.10.12"
+}

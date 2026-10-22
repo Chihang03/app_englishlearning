@@ -12,13 +12,13 @@ fn instant(value: &str) -> Result<DateTime<Utc>> {
 fn stamp(moment: DateTime<Utc>) -> String {
     moment.to_rfc3339_opts(SecondsFormat::Secs, false)
 }
-fn tz(user: &Value, config: &Config) -> chrono_tz::Tz {
+pub(super) fn tz(user: &Value, config: &Config) -> chrono_tz::Tz {
     s(user, "timezone")
         .parse()
         .or_else(|_| config.default_timezone.parse())
         .unwrap_or(chrono_tz::UTC)
 }
-fn bounds(day: NaiveDate, zone: chrono_tz::Tz) -> Result<(String, String)> {
+pub(crate) fn bounds(day: NaiveDate, zone: chrono_tz::Tz) -> Result<(String, String)> {
     let at = |day: NaiveDate| {
         zone.from_local_datetime(&day.and_hms_opt(0, 0, 0).unwrap())
             .earliest()

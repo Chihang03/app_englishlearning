@@ -1,0 +1,30 @@
+[Unit]
+Description=Context Vocabulary Trainer (Rust)
+After=network.target
+
+[Service]
+Type=simple
+User=englishlearning
+Group=englishlearning
+WorkingDirectory=/opt/englishlearning/app
+EnvironmentFile=/etc/englishlearning.env
+EnvironmentFile=-/etc/englishlearning-passkeys.env
+EnvironmentFile=-/etc/englishlearning-push.env
+Environment=RUST_LOG=info
+ExecStart=/opt/englishlearning/app/bin/english-server --database /var/lib/englishlearning/vocabulary.db --listen 127.0.0.1:8000 --enable-api --static-dir /opt/englishlearning/app/static
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=35
+MemoryHigh=192M
+MemoryMax=256M
+TasksMax=64
+LimitNOFILE=1024
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/englishlearning
+
+[Install]
+WantedBy=multi-user.target

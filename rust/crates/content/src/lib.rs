@@ -70,6 +70,9 @@ struct HashWriter<W> {
 }
 impl<W: Write> Write for HashWriter<W> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if self.bytes.saturating_add(bytes.len() as u64) > 256 * 1024 * 1024 {
+            return Err(io::Error::other("Catalogue exceeds 256 MiB"));
+        }
         let n = self.inner.write(bytes)?;
         self.digest.update(&bytes[..n]);
         self.bytes += n as u64;

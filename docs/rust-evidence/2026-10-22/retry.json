@@ -1,0 +1,32 @@
+{
+  "max_retries": 10,
+  "retry_delay_seconds": "1.0 + request_index * 0.003",
+  "samples": [
+    {
+      "kind": "python",
+      "concurrency": 20,
+      "requests": 60,
+      "successful": 60,
+      "retries": 0,
+      "elapsed_seconds": 23.578597781999633,
+      "successful_rps": 2.54468058511118,
+      "p50_ms": 8682.024736999665,
+      "p95_ms": 19565.170040999874,
+      "VmHWM": 188468,
+      "cpu_seconds": 46.0
+    },
+    {
+      "kind": "rust",
+      "concurrency": 20,
+      "requests": 60,
+      "successful": 60,
+      "retries": 60,
+      "elapsed_seconds": 25.035503954000887,
+      "successful_rps": 2.3965964539895546,
+      "p50_ms": 3446.843814001113,
+      "p95_ms": 15235.561544999655,
+      "VmHWM": 50720,
+      "cpu_seconds": 46.4
+    }
+  ]
+}

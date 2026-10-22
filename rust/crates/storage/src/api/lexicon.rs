@@ -231,7 +231,11 @@ pub fn vocabulary_lists(c: &Connection, user: i64) -> Result<Vec<Value>> {
         .iter()
         .map(|r| s(r, "list_id").to_owned())
         .collect::<BTreeSet<_>>();
-    let mut lists = rows(c, sql("get_vocabulary_lists/0"), &vec![json!(user); 5])?;
+    let mut lists = rows(
+        c,
+        include_str!("vocabulary_progress.sql"),
+        &vec![json!(user); 5],
+    )?;
     for list in &mut lists {
         list["selected"] = json!(selected.contains(s(list, "list_id")));
     }
@@ -246,7 +250,12 @@ pub fn settings(c: &Connection, user: i64) -> Result<Value> {
     )? {
         settings.insert(s(&item, "key").to_owned(), s(&item, "value").to_owned());
     }
-    let lists = vocabulary_lists(c, user)?;
+    // Preferences do not require computing progress for every course.
+    let lists = rows(
+        c,
+        "SELECT v.list_id FROM vocabulary_lists v WHERE EXISTS(SELECT 1 FROM user_vocabulary_lists p WHERE p.user_id=? AND p.list_id=v.list_id AND p.selected=1) OR (v.default_selected=1 AND NOT EXISTS(SELECT 1 FROM user_vocabulary_lists p WHERE p.user_id=?)) ORDER BY v.sort_order,v.title",
+        &[json!(user), json!(user)],
+    )?;
     let speech = settings
         .get("speech_rate")
         .filter(|v| ["90", "120", "175"].contains(&v.as_str()))
@@ -254,7 +263,7 @@ pub fn settings(c: &Connection, user: i64) -> Result<Value> {
     Ok(
         json!({"show_sentence_translation":settings.get("show_sentence_translation").is_some_and(|v|v=="true"),
         "skip_basic_600":settings.get("skip_basic_600").is_some_and(|v|v=="true"),"speech_rate":speech,
-        "selected_word_list_ids":lists.iter().filter(|l|b(l,"selected")).map(|l|l["list_id"].clone()).collect::<Vec<_>>() }),
+        "selected_word_list_ids":lists.iter().map(|l|l["list_id"].clone()).collect::<Vec<_>>() }),
     )
 }
 pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Result<Value> {

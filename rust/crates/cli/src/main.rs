@@ -1,6 +1,10 @@
 use anyhow::{Context, Result, ensure};
 use clap::{Parser, Subcommand};
-use std::{io::BufWriter, path::PathBuf, time::Duration};
+use std::{
+    io::{BufWriter, Read},
+    path::PathBuf,
+    time::Duration,
+};
 
 #[derive(Parser)]
 #[command(version, about = "Bounded native tools for Context Vocabulary Trainer")]
@@ -11,6 +15,49 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Create an empty v22 database; refuses every existing path.
+    Init {
+        #[arg(long)]
+        database: PathBuf,
+    },
+    /// Verify schema, integrity and aggregate row counts.
+    Inspect {
+        #[arg(long)]
+        database: PathBuf,
+    },
+    /// Consistent SQLite backup, including committed WAL contents.
+    Backup {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Provision the reserved administrator without changing existing credentials.
+    CreateAdmin {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long, required = true)]
+        password_stdin: bool,
+    },
+    /// Review exchange as an existing administrator, using bounded JSON files.
+    ReportReview {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        admin_id: i64,
+        #[command(subcommand)]
+        action: ReportAction,
+    },
+
+    /// Run one bounded, deduplicated notification delivery pass.
+    Reminders {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        now: Option<chrono::DateTime<chrono::Utc>>,
+    },
     /// Legacy Python-compatible canonical JSON hash; documents are streamed.
     Fingerprint {
         #[arg(required=true,num_args=1..)]
@@ -44,7 +91,49 @@ enum Command {
 }
 
 #[derive(Subcommand)]
+enum ReportAction {
+    Export {
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long,default_value_t=100,value_parser=clap::value_parser!(i64).range(1..=1000))]
+        limit: i64,
+        #[arg(long, default_value_t = 0)]
+        after_id: i64,
+    },
+    Validate {
+        #[arg(long)]
+        input: PathBuf,
+    },
+    Import {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+fn read_bounded(path: &std::path::Path) -> Result<serde_json::Value> {
+    ensure!(
+        std::fs::metadata(path)?.len() <= 2097152,
+        "Input exceeds 2 MiB"
+    );
+    Ok(serde_json::from_reader(std::fs::File::open(path)?)?)
+}
+fn publish_json(path: &std::path::Path, value: &serde_json::Value) -> Result<()> {
+    let mut temp = tempfile::NamedTempFile::new_in(path.parent().context("Output parent")?)?;
+    serde_json::to_writer(&mut temp, value)?;
+    temp.as_file().sync_all()?;
+    temp.persist_noclobber(path)?;
+    Ok(())
+}
+
+#[derive(Subcommand)]
 enum ContentCommand {
+    ExportSeed {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
     Diff {
         #[arg(long)]
         before: PathBuf,
@@ -75,6 +164,87 @@ enum ContentCommand {
 
 fn main() -> Result<()> {
     match Args::parse().command {
+        Command::Init { database } => {
+            println!("{}", english_storage::operations::initialize(&database)?)
+        }
+        Command::Inspect { database } => {
+            println!("{}", english_storage::operations::inspect(&database)?)
+        }
+        Command::Backup { database, output } => println!(
+            "{}",
+            english_storage::operations::backup(&database, &output)?
+        ),
+        Command::CreateAdmin {
+            database,
+            password_stdin: _,
+        } => {
+            use std::io::BufRead;
+            let mut password = String::new();
+            std::io::stdin()
+                .lock()
+                .take(1024)
+                .read_line(&mut password)?;
+            let password = password.trim_end_matches(['\r', '\n']);
+            println!(
+                "{}",
+                english_storage::operations::create_admin(
+                    &database,
+                    password,
+                    &english_storage::api::Config::from_env(None)
+                )?
+            );
+        }
+        Command::ReportReview {
+            database,
+            admin_id,
+            action,
+        } => {
+            let result = match action {
+                ReportAction::Export {
+                    output,
+                    limit,
+                    after_id,
+                } => {
+                    let value = english_storage::operations::report(
+                        &database, admin_id, "export", None, true, limit, after_id,
+                    )?;
+                    publish_json(&output, &value)?;
+                    serde_json::json!({"status":"exported","records":value["manifest"]["records"].as_array().map(Vec::len)})
+                }
+                ReportAction::Validate { input } => english_storage::operations::report(
+                    &database,
+                    admin_id,
+                    "validate",
+                    Some(read_bounded(&input)?),
+                    true,
+                    100,
+                    0,
+                )?,
+                ReportAction::Import { input, dry_run } => english_storage::operations::report(
+                    &database,
+                    admin_id,
+                    "import",
+                    Some(read_bounded(&input)?),
+                    dry_run,
+                    100,
+                    0,
+                )?,
+            };
+            println!("{result}");
+        }
+
+        Command::Reminders {
+            database,
+            dry_run,
+            now,
+        } => println!(
+            "{}",
+            serde_json::to_string(&english_storage::reminders::run(
+                &database,
+                now.unwrap_or_else(chrono::Utc::now),
+                dry_run
+            )?)?
+        ),
         Command::Fingerprint { inputs } => println!(
             "{}",
             serde_json::to_string(
@@ -83,6 +253,9 @@ fn main() -> Result<()> {
         ),
         Command::Content { command } => {
             let result = match command {
+                ContentCommand::ExportSeed { database, output } => {
+                    english_content::pipeline::export_seed(&database, &output)?
+                }
                 ContentCommand::Diff {
                     before,
                     after,

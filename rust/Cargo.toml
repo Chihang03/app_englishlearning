@@ -13,7 +13,7 @@ anyhow = "1"
 axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
-rusqlite = { version = "0.37", features = ["bundled", "hooks", "limits"] }
+rusqlite = { version = "0.37", features = ["bundled", "hooks", "limits", "backup"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"

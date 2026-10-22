@@ -1,8 +1,10 @@
 //! Native API use cases. A call owns one transaction and cannot partially commit on a domain error.
 pub mod accounts;
+pub mod admin;
 pub mod forms;
 pub mod lexicon;
 pub mod passkeys;
+pub mod push;
 pub mod study;
 pub mod validation;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -30,9 +32,14 @@ pub struct Fault {
 }
 impl From<rusqlite::Error> for Fault {
     fn from(e: rusqlite::Error) -> Self {
+        let busy = matches!(e,rusqlite::Error::SqliteFailure(ref code,_) if matches!(code.code,rusqlite::ErrorCode::DatabaseBusy|rusqlite::ErrorCode::DatabaseLocked|rusqlite::ErrorCode::OperationInterrupted));
         Self {
-            status: 500,
-            detail: e.to_string(),
+            status: if busy { 503 } else { 500 },
+            detail: if busy {
+                "Database busy".into()
+            } else {
+                e.to_string()
+            },
             validation: None,
         }
     }
@@ -66,6 +73,29 @@ pub struct Config {
     pub origins: Vec<String>,
 }
 impl Config {
+    pub fn from_env(clock: Option<DateTime<Utc>>) -> Self {
+        Self {
+            cookie_secure: std::env::var("COOKIE_SECURE")
+                .is_ok_and(|v| matches!(v.as_str(), "1" | "true" | "yes")),
+            registration_code: std::env::var("REGISTRATION_CODE").unwrap_or_default(),
+            default_timezone: std::env::var("DEFAULT_TIMEZONE")
+                .unwrap_or_else(|_| "Asia/Shanghai".into()),
+            clock,
+            rp_id: std::env::var("WEBAUTHN_RP_ID")
+                .unwrap_or_else(|_| "localhost".into())
+                .trim()
+                .to_ascii_lowercase(),
+            rp_name: std::env::var("WEBAUTHN_RP_NAME")
+                .unwrap_or_else(|_| "Context Vocabulary Trainer".into()),
+            origins: std::env::var("WEBAUTHN_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173,http://localhost:8000".into())
+                .split(',')
+                .map(|v| v.trim().to_owned())
+                .filter(|v| !v.is_empty())
+                .collect(),
+        }
+    }
+
     pub fn now(&self) -> DateTime<Utc> {
         self.clock.unwrap_or_else(Utc::now)
     }
@@ -186,6 +216,30 @@ pub fn string<'a>(v: &'a Value, key: &str, min: usize, max: usize) -> Result<&'a
 
 pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<Reply> {
     reset_budget();
+    static ROUTES: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    let routes = ROUTES.get_or_init(|| {
+        serde_json::from_str(include_str!("../../../../fixtures/routes.json"))
+            .expect("frozen routes")
+    });
+    let matches = routes
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|route| {
+            let a = s(route, "path").split('/').collect::<Vec<_>>();
+            let b = request.path.split('/').collect::<Vec<_>>();
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(a, b)| (*a == b) || a.starts_with('{') && !b.is_empty())
+        })
+        .collect::<Vec<_>>();
+    if matches.is_empty() {
+        return Err(fault(404, "Not Found"));
+    }
+    if !matches.iter().any(|r| r["method"] == request.method) {
+        return Err(fault(405, "Method Not Allowed"));
+    }
     let retired = request.path == "/api/words" || request.path == "/api/words/import";
     let public = matches!(
         request.path.as_str(),
@@ -198,7 +252,11 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
     );
     if !public && !retired {
         let user = accounts::authenticate(c, config, request)?;
-        if !request.path.starts_with("/api/auth/") && s(&user, "role") != "learner" {
+        if request.path.starts_with("/api/admin/") {
+            if s(&user, "role") != "admin" {
+                return Err(fault(403, "Administrator access required"));
+            }
+        } else if !request.path.starts_with("/api/auth/") && s(&user, "role") != "learner" {
             return Err(fault(
                 403,
                 "Learning is unavailable for administrator accounts",
@@ -208,6 +266,9 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
     let mut normalized = request.clone();
     normalized.body = validation::normalize(&request.path, &request.method, &request.body)?;
     let request = &normalized;
+    if request.path == "/api/admin/report-review/import" {
+        return admin::import(c, config, request);
+    }
     if request.path.starts_with("/api/auth/passkeys") {
         let result = passkeys::handle(c, config, request);
         if !c.is_autocommit() {
@@ -225,6 +286,9 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             return accounts::handle(c, config, request);
         }
         let user = accounts::authenticate(c, config, request)?;
+        if request.path.starts_with("/api/admin/") {
+            return admin::handle(c, config, request, &user).map(Into::into);
+        }
         if s(&user, "role") != "learner" {
             return Err(fault(
                 403,
@@ -243,6 +307,9 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
                 | "/api/learning-calendar"
         ) {
             return study::handle(c, config, request, &user).map(Into::into);
+        }
+        if request.path.starts_with("/api/push/") {
+            return push::handle(c, config, request, &user).map(Into::into);
         }
         lexicon::handle(c, config, request, &user).map(Into::into)
     })();
