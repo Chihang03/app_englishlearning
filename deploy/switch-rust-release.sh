@@ -83,8 +83,18 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
 done
 test "$ready" = yes
 systemctl reload nginx
-curl -fsS --max-time 10 https://english.16-76-139-180.sslip.io:8443/api/health >/dev/null
-curl -fsS --max-time 10 https://english.16-76-139-180.sslip.io:8443/version.json >/dev/null
+# Reload returns before all new workers serve requests; wait for the exact release.
+public_ready=no
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if curl -fsS --max-time 5 https://english.16-76-139-180.sslip.io:8443/api/health >/dev/null 2>&1 &&
+       curl -fsS --max-time 5 https://english.16-76-139-180.sslip.io:8443/version.json > "$SAVED/public-version.json" 2>/dev/null &&
+       cmp -s "$SAVED/public-version.json" "$RELEASE/static/version.json"; then
+        public_ready=yes
+        break
+    fi
+    sleep 1
+done
+test "$public_ready" = yes
 systemctl enable --now learning-reminders.timer
 SUCCESS=yes
 printf '%s\n' "$SAVED"
