@@ -1,0 +1,4 @@
+-r requirements-dev.txt
+# Freeze the schema generator used by rust/fixtures/openapi.json.
+pydantic==2.13.4
+starlette==0.41.3

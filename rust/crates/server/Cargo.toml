@@ -1,0 +1,33 @@
+[package]
+name = "english-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+english-core = { path = "../core" }
+english-storage = { path = "../storage" }
+english-content = { path = "../content" }
+serde_json.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+percent-encoding = "2"
+form_urlencoded = "1"
+fs2 = "0.4"
+tempfile.workspace = true
+async-stream = "0.3"
+
+[dev-dependencies]
+rusqlite.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

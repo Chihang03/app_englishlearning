@@ -1,0 +1,432 @@
+[
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "overview",
+    "method": "GET",
+    "path": "/api/admin/overview",
+    "source": "backend/app/admin.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "users",
+    "method": "GET",
+    "path": "/api/admin/users",
+    "source": "backend/app/admin.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "user_detail",
+    "method": "GET",
+    "path": "/api/admin/users/{user_id}",
+    "source": "backend/app/admin.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "reports",
+    "method": "GET",
+    "path": "/api/admin/reports",
+    "source": "backend/app/admin.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "report_detail",
+    "method": "GET",
+    "path": "/api/admin/reports/{report_id}",
+    "source": "backend/app/admin.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "update_report",
+    "method": "PATCH",
+    "path": "/api/admin/reports/{report_id}",
+    "source": "backend/app/admin.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "correct_report_content",
+    "method": "PATCH",
+    "path": "/api/admin/reports/{report_id}/content",
+    "source": "backend/app/admin.py",
+    "writes": true
+  },
+  {
+    "dependencies": [],
+    "handler": "register",
+    "method": "POST",
+    "path": "/api/auth/register",
+    "source": "backend/app/auth.py",
+    "writes": true
+  },
+  {
+    "dependencies": [],
+    "handler": "login",
+    "method": "POST",
+    "path": "/api/auth/login",
+    "source": "backend/app/auth.py",
+    "writes": true
+  },
+  {
+    "dependencies": [],
+    "handler": "logout",
+    "method": "POST",
+    "path": "/api/auth/logout",
+    "source": "backend/app/auth.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "me",
+    "method": "GET",
+    "path": "/api/auth/me",
+    "source": "backend/app/auth.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "update_profile",
+    "method": "PATCH",
+    "path": "/api/auth/me",
+    "source": "backend/app/auth.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "change_password",
+    "method": "PATCH",
+    "path": "/api/auth/password",
+    "source": "backend/app/auth.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "learning_calendar",
+    "method": "GET",
+    "path": "/api/learning-calendar",
+    "source": "backend/app/learning_calendar.py",
+    "writes": false
+  },
+  {
+    "dependencies": [],
+    "handler": "health",
+    "method": "GET",
+    "path": "/api/health",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "stats",
+    "method": "GET",
+    "path": "/api/stats",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "next_card",
+    "method": "GET",
+    "path": "/api/next",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "review",
+    "method": "POST",
+    "path": "/api/review",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "study_hint",
+    "method": "POST",
+    "path": "/api/study/hint",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "related_exposure",
+    "method": "POST",
+    "path": "/api/study/related-exposure",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "study_meanings",
+    "method": "POST",
+    "path": "/api/study/meanings",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "study_meaning_catalog",
+    "method": "GET",
+    "path": "/api/study/meaning-catalog",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "content_report",
+    "method": "POST",
+    "path": "/api/content-reports",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "settings",
+    "method": "GET",
+    "path": "/api/settings",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "muted_words",
+    "method": "GET",
+    "path": "/api/muted-words",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "mute",
+    "method": "POST",
+    "path": "/api/words/{word_id}/mute",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "restore",
+    "method": "DELETE",
+    "path": "/api/muted-words/{word}",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "patch_settings",
+    "method": "PATCH",
+    "path": "/api/settings",
+    "source": "backend/app/main.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "word_lists",
+    "method": "GET",
+    "path": "/api/word-lists",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "dictionary_lookup",
+    "method": "GET",
+    "path": "/api/dictionary/{word}",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [],
+    "handler": "retired_word_import",
+    "method": "POST",
+    "path": "/api/words",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [],
+    "handler": "retired_word_import",
+    "method": "POST",
+    "path": "/api/words/import",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [],
+    "handler": "frontend_version",
+    "method": "GET",
+    "path": "/api/version",
+    "source": "backend/app/main.py",
+    "writes": false
+  },
+  {
+    "dependencies": [],
+    "handler": "configuration",
+    "method": "GET",
+    "path": "/api/auth/passkeys/config",
+    "source": "backend/app/passkeys.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "list_passkeys",
+    "method": "GET",
+    "path": "/api/auth/passkeys",
+    "source": "backend/app/passkeys.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "registration_options",
+    "method": "POST",
+    "path": "/api/auth/passkeys/register/options",
+    "source": "backend/app/passkeys.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "registration_verify",
+    "method": "POST",
+    "path": "/api/auth/passkeys/register/verify",
+    "source": "backend/app/passkeys.py",
+    "writes": true
+  },
+  {
+    "dependencies": [],
+    "handler": "authentication_options",
+    "method": "POST",
+    "path": "/api/auth/passkeys/login/options",
+    "source": "backend/app/passkeys.py",
+    "writes": true
+  },
+  {
+    "dependencies": [],
+    "handler": "authentication_verify",
+    "method": "POST",
+    "path": "/api/auth/passkeys/login/verify",
+    "source": "backend/app/passkeys.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_current_user"
+    ],
+    "handler": "delete_passkey",
+    "method": "DELETE",
+    "path": "/api/auth/passkeys/{passkey_id}",
+    "source": "backend/app/passkeys.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "config",
+    "method": "GET",
+    "path": "/api/push/config",
+    "source": "backend/app/push.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_learner_user"
+    ],
+    "handler": "subscribe",
+    "method": "POST",
+    "path": "/api/push/subscription",
+    "source": "backend/app/push.py",
+    "writes": true
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "export_reports",
+    "method": "GET",
+    "path": "/api/admin/report-review/export",
+    "source": "backend/app/report_review.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "validate_reports",
+    "method": "POST",
+    "path": "/api/admin/report-review/validate",
+    "source": "backend/app/report_review.py",
+    "writes": false
+  },
+  {
+    "dependencies": [
+      "get_admin_user"
+    ],
+    "handler": "import_reports",
+    "method": "POST",
+    "path": "/api/admin/report-review/import",
+    "source": "backend/app/report_review.py",
+    "writes": true
+  }
+]
