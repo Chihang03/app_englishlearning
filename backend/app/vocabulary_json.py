@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import io
+
+from .json_stream import canonical_chunks
 
 
 def readable_json(value, *, sort_keys: bool = False) -> str:
@@ -13,11 +16,20 @@ def json_content_bytes(document: bytes) -> bytes:
     # Keep object and array order. Only serialization whitespace is removed.
     if not document:
         return b""
-    return json.dumps(json.loads(document), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    with io.BytesIO() as output:
+        for chunk in canonical_chunks(document):
+            output.write(chunk)
+        return output.getvalue()
 
 
 def json_fingerprint(*documents: bytes) -> str:
-    return hashlib.sha256(b"\0".join(json_content_bytes(document) for document in documents)).hexdigest()
+    digest = hashlib.sha256()
+    for index, document in enumerate(documents):
+        if index:
+            digest.update(b"\0")
+        for chunk in canonical_chunks(document):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def legacy_catalog_fingerprints(catalog: bytes, seed: bytes) -> set[str]:

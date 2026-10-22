@@ -125,7 +125,7 @@ class SenseLearningTests(unittest.TestCase):
         }]}, ensure_ascii=False))
         with patch.object(database, 'sync_sentence_translations', side_effect=lambda db, **kwargs:
                           sync_database(db, supplement, **kwargs)):
-            database.init_database()
+            database.init_database(force_sync=True)
         after = self.next()
         self.assertEqual(after['example_translation_cn'], '我们的警员去了那个地址。')
         for field in ('sense_id', 'example_id', 'attempt_id', 'answer_form', 'status'):

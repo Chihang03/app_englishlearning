@@ -12,7 +12,7 @@ from typing import Any
 from pywebpush import WebPushException, webpush
 from requests import Session
 
-from .database import connect
+from .database import connect, startup_lock
 from .push import push_config
 from .security import local_day_bounds, resolve_timezone, utc_iso_from
 
@@ -40,6 +40,13 @@ def send_reminder(subscription: dict[str, Any], day: str) -> None:
 
 
 def run_reminders(now: datetime | None = None, *, dry_run: bool = False) -> dict[str, int]:
+    with startup_lock(shared=True, blocking=False) as acquired:
+        if not acquired:
+            return {"eligible": 0, "sent": 0, "failed": 0, "expired": 0}
+        return _run_reminders(now, dry_run=dry_run)
+
+
+def _run_reminders(now: datetime | None = None, *, dry_run: bool = False) -> dict[str, int]:
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     counts = {"eligible": 0, "sent": 0, "failed": 0, "expired": 0}
     if not push_config()["enabled"]:

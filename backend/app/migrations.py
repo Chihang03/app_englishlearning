@@ -14,7 +14,7 @@ from .srs import RELEARNING_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 
 def run_migrations(db_path: Path) -> None:
@@ -194,12 +194,43 @@ def run_migrations(db_path: Path) -> None:
             conn.execute("COMMIT")
             logger.info("Database migrated to schema version 21 (semantic review receipts)")
 
+        if version < 22:
+            conn.execute("BEGIN")
+            _migrate_to_v22(conn)
+            conn.execute("PRAGMA user_version = 22")
+            conn.execute("COMMIT")
+            logger.info("Database migrated to schema version 22 (catalog revision)")
+
         conn.execute("PRAGMA foreign_keys = ON")
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise RuntimeError(f"Migration left {len(violations)} foreign key violations")
     finally:
         conn.close()
+
+
+def _migrate_to_v22(conn: sqlite3.Connection) -> None:
+    conn.execute('''CREATE TABLE IF NOT EXISTS meaning_catalog_revision (
+        id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 0)''')
+    conn.execute('''INSERT OR IGNORE INTO meaning_catalog_revision(id,database_id)
+        VALUES(1,lower(hex(randomblob(16))))''')
+    # Review history, sessions and course selections do not alter this snapshot.
+    columns = {
+        'words': ('id', 'word', 'owner_id'),
+        'word_senses': ('id', 'word_id', 'active', 'position', 'part_of_speech', 'definition_cn', 'definition_en'),
+        'learning_unit_senses': ('sense_id', 'learning_unit_id'),
+        'learning_units': ('id', 'unit_key', 'display_definition_cn', 'display_definition_en', 'provenance_json'),
+        'sense_examples': ('id', 'sense_id', 'active', 'sentence', 'translation_cn', 'target_form'),
+    }
+    for table, fields in columns.items():
+        for action in ('INSERT', 'DELETE', 'UPDATE'):
+            condition = ''
+            if action == 'UPDATE':
+                condition = ' WHEN ' + ' OR '.join(f'OLD.{field} IS NOT NEW.{field}' for field in fields)
+            conn.execute(f'''CREATE TRIGGER IF NOT EXISTS catalog_revision_{table}_{action.lower()}
+                AFTER {action} ON {table}{condition} BEGIN
+                UPDATE meaning_catalog_revision SET revision=revision+1 WHERE id=1; END''')
 
 
 def _migrate_to_v20(conn: sqlite3.Connection) -> None:
