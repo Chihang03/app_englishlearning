@@ -108,29 +108,25 @@ async fn main() -> anyhow::Result<()> {
         database: config.database.clone(),
         builds: Arc::new(tokio::sync::Mutex::new(())),
         downloads: Arc::new(Semaphore::new(4)),
-        api: config.enable_api.then(|| english_storage::api::Config {
-            cookie_secure: std::env::var("COOKIE_SECURE")
-                .is_ok_and(|v| matches!(v.as_str(), "1" | "true" | "yes")),
-            registration_code: std::env::var("REGISTRATION_CODE").unwrap_or_default(),
-            default_timezone: std::env::var("DEFAULT_TIMEZONE")
-                .unwrap_or_else(|_| "Asia/Shanghai".into()),
-            clock: config.test_clock,
-            rp_id: std::env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".into()),
-            rp_name: std::env::var("WEBAUTHN_RP_NAME")
-                .unwrap_or_else(|_| "Context Vocabulary Trainer".into()),
-            origins: std::env::var("WEBAUTHN_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:5173,http://localhost:8000".into())
-                .split(',')
-                .map(|s| s.trim().to_owned())
-                .filter(|s| !s.is_empty())
-                .collect(),
-        }),
+        api: config
+            .enable_api
+            .then(|| english_storage::api::Config::from_env(config.test_clock)),
     };
     let router = routes(app);
     let listener = tokio::net::TcpListener::bind(config.listen).await?;
     axum::serve(listener, router)
         .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
+            #[cfg(unix)]
+            {
+                let mut term =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .expect("SIGTERM handler");
+                tokio::select! {_ =tokio::signal::ctrl_c()=>{},_ =term.recv()=>{}}
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = tokio::signal::ctrl_c().await;
+            }
         })
         .await?;
     Ok(())
@@ -146,7 +142,7 @@ fn routes(app: App) -> Router {
         .route("/api/study/meaning-catalog", get(catalogue))
         .route("/api/version", get(version))
         .fallback(native_api)
-        .layer(tower_http::limit::RequestBodyLimitLayer::new(131072))
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))
         .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             header::HeaderValue::from_static("no-store"),
@@ -196,7 +192,9 @@ async fn native_api(State(app): State<App>, request: axum::extract::Request) -> 
         .get(header::ORIGIN)
         .and_then(|h| h.to_str().ok())
         .map(str::to_owned);
-    let body_limit = if path.starts_with("/api/auth/passkeys/") {
+    let body_limit = if path.starts_with("/api/admin/report-review/") {
+        2097152
+    } else if path.starts_with("/api/auth/passkeys/") {
         131072
     } else {
         65536
@@ -220,7 +218,7 @@ async fn native_api(State(app): State<App>, request: axum::extract::Request) -> 
     };
     match worker
         .call(
-            Duration::from_secs(if ordinary_read { 2 } else { 10 }),
+            Duration::from_secs(if ordinary_read { 5 } else { 10 }),
             move |conn| Ok(english_storage::api::handle(conn, &config, &request)),
         )
         .await
@@ -343,6 +341,11 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
         use std::io::{BufWriter, Write};
         let directory = database.with_extension("catalog-cache");
         std::fs::create_dir_all(&directory)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700))?;
+        }
         let lock = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -354,6 +357,7 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
         let target = directory.join(format!("{stem}.json"));
         let metadata = directory.join(format!("{stem}.etag"));
         if target.is_file() && metadata.is_file() {
+            prune_cache(&directory, &target, 512 * 1024 * 1024)?;
             return Ok((
                 std::fs::File::open(target)?,
                 std::fs::read_to_string(metadata)?,
@@ -375,6 +379,7 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
         meta.write_all(tag.as_bytes())?;
         meta.as_file().sync_all()?;
         meta.persist(metadata)?;
+        prune_cache(&directory, &target, 512 * 1024 * 1024)?;
         Ok((std::fs::File::open(target)?, tag))
     })
     .await;
@@ -418,6 +423,46 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
             .insert(header::CONTENT_LENGTH, header::HeaderValue::from(length));
     }
     response
+}
+
+fn prune_cache(
+    directory: &std::path::Path,
+    keep: &std::path::Path,
+    budget: u64,
+) -> std::io::Result<()> {
+    let mut files = Vec::new();
+    let mut total = 0u64;
+    for entry in std::fs::read_dir(directory)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let meta = entry.metadata()?;
+        if name.starts_with("v1-") && name.ends_with(".json") && meta.is_file() {
+            total = total.saturating_add(meta.len());
+            files.push((meta.modified()?, meta.len(), entry.path()));
+        } else if name.starts_with(".tmp")
+            && meta.is_file()
+            && meta
+                .modified()?
+                .elapsed()
+                .is_ok_and(|d| d > Duration::from_secs(3600))
+        {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    files.sort_by_key(|v| v.0);
+    for (_, length, path) in files {
+        if total <= budget {
+            break;
+        }
+        if path == keep {
+            continue;
+        }
+        std::fs::remove_file(&path)?;
+        let _ = std::fs::remove_file(path.with_extension("etag"));
+        total = total.saturating_sub(length);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

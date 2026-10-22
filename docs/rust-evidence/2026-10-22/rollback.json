@@ -1,0 +1,11 @@
+{
+  "sequence": [
+    "rust",
+    "python",
+    "rust"
+  ],
+  "same_database": true,
+  "response_parity": true,
+  "learning_counts_preserved": true,
+  "legacy_cards_parsed": 654
+}

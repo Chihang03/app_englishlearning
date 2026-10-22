@@ -1,0 +1,178 @@
+{
+  "clock": "2026-10-22T04:20:42+00:00",
+  "reference_python": "3.10.12",
+  "source_opened_readonly": true,
+  "samples": [
+    {
+      "kind": "python",
+      "concurrency": 1,
+      "requests": 60,
+      "statuses": {
+        "200": 60
+      },
+      "elapsed_seconds": 25.931394515999273,
+      "requests_per_second": 2.3137976618643057,
+      "successful_requests_per_second": 2.3137976618643057,
+      "successful_p50_ms": 527.5282080001489,
+      "successful_p95_ms": 922.1254399999452,
+      "p50_ms": 527.5282080001489,
+      "p95_ms": 922.1254399999452,
+      "cpu_seconds": 24.38,
+      "VmHWM": 74920,
+      "VmRSS": 74920,
+      "Threads": 6
+    },
+    {
+      "kind": "rust",
+      "concurrency": 1,
+      "requests": 60,
+      "statuses": {
+        "200": 60
+      },
+      "elapsed_seconds": 14.566573422000147,
+      "requests_per_second": 4.119019501826076,
+      "successful_requests_per_second": 4.119019501826076,
+      "successful_p50_ms": 9.028152999235317,
+      "successful_p95_ms": 853.0101500000455,
+      "p50_ms": 9.028152999235317,
+      "p95_ms": 853.0101500000455,
+      "cpu_seconds": 14.15,
+      "VmHWM": 36300,
+      "VmRSS": 31832,
+      "Threads": 6
+    },
+    {
+      "kind": "rust",
+      "concurrency": 5,
+      "requests": 60,
+      "statuses": {
+        "200": 60
+      },
+      "elapsed_seconds": 19.149564234001446,
+      "requests_per_second": 3.133230566858834,
+      "successful_requests_per_second": 3.133230566858834,
+      "successful_p50_ms": 1084.9012070011668,
+      "successful_p95_ms": 3792.6772390001133,
+      "p50_ms": 1084.9012070011668,
+      "p95_ms": 3792.6772390001133,
+      "cpu_seconds": 33.68,
+      "VmHWM": 50808,
+      "VmRSS": 49712,
+      "Threads": 6
+    },
+    {
+      "kind": "python",
+      "concurrency": 5,
+      "requests": 60,
+      "statuses": {
+        "200": 60
+      },
+      "elapsed_seconds": 24.687794853000014,
+      "requests_per_second": 2.4303507201538865,
+      "successful_requests_per_second": 2.4303507201538865,
+      "successful_p50_ms": 2449.9415650006995,
+      "successful_p95_ms": 5030.320037998536,
+      "p50_ms": 2449.9415650006995,
+      "p95_ms": 5030.320037998536,
+      "cpu_seconds": 45.440000000000005,
+      "VmHWM": 101168,
+      "VmRSS": 101092,
+      "Threads": 10
+    },
+    {
+      "kind": "python",
+      "concurrency": 20,
+      "requests": 60,
+      "statuses": {
+        "200": 60
+      },
+      "elapsed_seconds": 24.902595883000686,
+      "requests_per_second": 2.409387369971254,
+      "successful_requests_per_second": 2.409387369971254,
+      "successful_p50_ms": 8945.496701999218,
+      "successful_p95_ms": 20926.803942000333,
+      "p50_ms": 8945.496701999218,
+      "p95_ms": 20926.803942000333,
+      "cpu_seconds": 46.53999999999999,
+      "VmHWM": 184760,
+      "VmRSS": 184760,
+      "Threads": 25
+    },
+    {
+      "kind": "rust",
+      "concurrency": 20,
+      "requests": 60,
+      "statuses": {
+        "200": 17,
+        "503": 43
+      },
+      "elapsed_seconds": 4.376196887000333,
+      "requests_per_second": 13.710534866068844,
+      "successful_requests_per_second": 3.8846515453861725,
+      "successful_p50_ms": 2392.008437000186,
+      "successful_p95_ms": 4359.45730200001,
+      "p50_ms": 4.290058999686153,
+      "p95_ms": 3486.212929999965,
+      "cpu_seconds": 6.920000000000002,
+      "VmHWM": 50808,
+      "VmRSS": 49932,
+      "Threads": 6
+    }
+  ],
+  "parity_paths": [
+    "/api/auth/me",
+    "/api/settings",
+    "/api/word-lists",
+    "/api/stats",
+    "/api/learning-calendar",
+    "/api/dictionary/address",
+    "/api/muted-words",
+    "/api/next",
+    "/api/review",
+    "/api/study/hint",
+    "/api/study/related-exposure",
+    "/api/study/meanings",
+    "/api/review",
+    "/api/stats",
+    "/api/learning-calendar"
+  ],
+  "startup": [
+    {
+      "kind": "python",
+      "seconds": 1.0117483359990729,
+      "VmHWM": 65736,
+      "VmRSS": 65736,
+      "Threads": 6,
+      "cpu_seconds": 0.8
+    },
+    {
+      "kind": "rust",
+      "seconds": 0.021908938000706257,
+      "VmHWM": 10576,
+      "VmRSS": 10576,
+      "Threads": 6,
+      "cpu_seconds": 0.0
+    }
+  ],
+  "catalogue_bytes": 35190486,
+  "catalogue_sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7",
+  "catalogue_cold_http": [
+    {
+      "kind": "python",
+      "elapsed_ms": 3063.49993799995,
+      "VmHWM": 74624,
+      "VmRSS": 74624,
+      "Threads": 6,
+      "cpu_seconds": 6.18
+    },
+    {
+      "kind": "rust",
+      "elapsed_ms": 2170.84508500011,
+      "VmHWM": 34004,
+      "VmRSS": 34004,
+      "Threads": 8,
+      "cpu_seconds": 3.53
+    }
+  ],
+  "parity": true
+}

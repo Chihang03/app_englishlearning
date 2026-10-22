@@ -131,6 +131,21 @@ fn item(value: &Value, rule: &Value, loc: &[Value], errors: &mut Vec<Value>) -> 
             value.clone()
         }
         "integer" => {
+            if loc.len() >= 2
+                && loc[loc.len() - 1] == "id"
+                && loc.iter().any(|v| v == "items")
+                && !value.is_i64()
+            {
+                problem(
+                    errors,
+                    "int_type",
+                    "Input should be a valid integer".into(),
+                    loc,
+                    value,
+                    None,
+                );
+                return value.clone();
+            }
             let parsed = value
                 .as_i64()
                 .or_else(|| value.as_bool().map(i64::from))
@@ -244,6 +259,24 @@ fn item(value: &Value, rule: &Value, loc: &[Value], errors: &mut Vec<Value>) -> 
                 );
                 return value.clone();
             };
+            if let Some(min) = rule["minItems"].as_u64() {
+                if items.len() < min as usize {
+                    problem(
+                        errors,
+                        "too_short",
+                        format!(
+                            "List should have at least {min} item after validation, not {}",
+                            items.len()
+                        ),
+                        loc,
+                        value,
+                        Some(
+                            json!({"field_type":"List","min_length":min,"actual_length":items.len()}),
+                        ),
+                    );
+                    return value.clone();
+                }
+            }
             if let Some(max) = rule["maxItems"].as_u64() {
                 if items.len() > max as usize {
                     problem(
@@ -329,10 +362,40 @@ fn model(value: &Value, name: &str, loc: &[Value], errors: &mut Vec<Value>) -> V
             result.insert(key.into(), default.clone());
         }
     }
+    if rule["additionalProperties"] == false {
+        for key in value
+            .as_object()
+            .unwrap()
+            .keys()
+            .filter(|key| rule["properties"].get(*key).is_none())
+        {
+            let mut at = loc.to_vec();
+            at.push(json!(key));
+            problem(
+                errors,
+                "extra_forbidden",
+                "Extra inputs are not permitted".into(),
+                &at,
+                &value[key],
+                None,
+            );
+        }
+    }
+    if name == "ContentChanges" {
+        result.retain(|key, _| value.get(key).is_some());
+    }
     Value::Object(result)
 }
 pub fn normalize(path: &str, method: &str, input: &Value) -> Result<Value> {
     let name = match (method, path) {
+        ("POST", "/api/push/subscription") => "PushSubscriptionInput",
+        ("POST", "/api/admin/report-review/validate" | "/api/admin/report-review/import") => {
+            "ExchangeInput"
+        }
+        ("PATCH", p) if p.starts_with("/api/admin/reports/") && p.ends_with("/content") => {
+            "ContentUpdate"
+        }
+        ("PATCH", p) if p.starts_with("/api/admin/reports/") => "ReportUpdate",
         ("POST", "/api/auth/register") => "RegisterInput",
         ("POST", "/api/auth/login") => "LoginInput",
         ("PATCH", "/api/auth/me") => "ProfileInput",

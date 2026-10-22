@@ -17,7 +17,7 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 fn unhex(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 2 != 0 {
+    if value.len() % 2 != 0 || !value.is_ascii() {
         return None;
     }
     (0..value.len())

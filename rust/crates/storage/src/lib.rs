@@ -1,5 +1,7 @@
 //! Read-only migration foundation. No schema migration or content sync on open.
 pub mod api;
+pub mod operations;
+pub mod reminders;
 use rusqlite::{Connection, OpenFlags};
 use std::{
     path::Path,

@@ -81,20 +81,32 @@ def documents():
         os.environ["DATA_DIR"] = directory
         try:
             from app.main import app
+            from app.report_review import PROMPT, ReviewResult
             schema=app.openapi()
             return {"routes.json":route_inventory(),"openapi.json":schema,"fsrs-v6.3.0.json":fsrs_cases(),
                 "field-order.json":{name:list(model.get('properties',{})) for name,model in schema['components']['schemas'].items()},
-                "sql.json":frozen_sql()}
+                "schema-v22.json":native_schema(), "sql.json":frozen_sql(), "report-review.json":{"prompt":PROMPT,"result_schema":ReviewResult.model_json_schema()}}
         finally:
             if previous is None: os.environ.pop("DATA_DIR",None)
             else: os.environ["DATA_DIR"] = previous
 
 
+def native_schema():
+    import sqlite3
+    from contextlib import closing
+    from app import migrations
+    with tempfile.TemporaryDirectory(prefix="english-schema-") as temporary:
+        path=Path(temporary)/"schema.db"
+        migrations.run_migrations(path)
+        with closing(sqlite3.connect(path)) as connection:
+            return [row[0] for row in connection.execute("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 WHEN 'index' THEN 1 ELSE 2 END,name")]
+
+
 def frozen_sql():
-    from app import sense_learning,learning_filters,learning_units,database,senses,main
+    from app import sense_learning,learning_filters,learning_units,database,senses,main,admin
     result={}
     modules=[(sense_learning,['learning_metrics','sense_card_content','next_sense_card','record_sense_review']),
-        (database,['get_vocabulary_lists']),(senses,['senses_for_word']),(main,['stats'])]
+        (database,['get_vocabulary_lists']),(senses,['senses_for_word']),(main,['stats']),(admin,['overview','users','user_detail','reports','report_detail_from'])]
     for module,names in modules:
         tree=ast.parse(Path(module.__file__).read_text())
         for node in tree.body:
