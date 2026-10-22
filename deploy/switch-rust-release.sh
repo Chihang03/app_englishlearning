@@ -22,6 +22,7 @@ restore() {
     if [ -f "$saved/reminder.service" ]; then cp "$saved/reminder.service" "$REMINDER"; fi
     if [ -f "$saved/reminder.timer" ]; then cp "$saved/reminder.timer" /etc/systemd/system/learning-reminders.timer; fi
     if [ -f "$saved/snippet" ]; then cp "$saved/snippet" "$SNIPPET"; else rm -f "$SNIPPET"; fi
+    if [ -f "$saved/app-parent-mode" ]; then chmod "$(cat "$saved/app-parent-mode")" /opt/englishlearning; fi
     systemctl daemon-reload
     nginx -t
     systemctl start englishlearning.service
@@ -39,6 +40,7 @@ test -f "$RELEASE/SHA256SUMS"
 SAVED=/var/backups/englishlearning-rust-$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -m 700 "$SAVED"
 readlink -f "$APP" > "$SAVED/old-release"
+stat -c %a /opt/englishlearning > "$SAVED/app-parent-mode"
 cp "$UNIT" "$SAVED/englishlearning.service"
 if [ -d /etc/systemd/system/englishlearning.service.d ]; then cp -a /etc/systemd/system/englishlearning.service.d "$SAVED/service.d"; fi
 for site in englishlearning englishlearning-passkeys; do cp "/etc/nginx/sites-available/$site" "$SAVED/nginx-$site"; done
@@ -57,6 +59,8 @@ cp "$RELEASE/deploy/englishlearning-rust.service" "$UNIT"
 cp "$RELEASE/deploy/learning-reminders-rust.service" "$REMINDER"
 cp "$RELEASE/deploy/learning-reminders.timer" /etc/systemd/system/learning-reminders.timer
 rm -f /etc/systemd/system/englishlearning.service.d/runtime.conf /etc/systemd/system/englishlearning.service.d/native-catalog.conf
+# Nginx needs traversal of this parent, without directory listing permission.
+chmod o+x /opt/englishlearning
 cp "$RELEASE/deploy/nginx-rust-locations.conf" "$SNIPPET"
 for site in englishlearning englishlearning-passkeys; do
     awk '
