@@ -12,6 +12,8 @@
 
 ## 首次独立运行
 
+学习例句统一按账号和学习单元固定，首次优先原形。升级前在生产数据库的服务器本地副本运行 `englishctl fix-study-examples --database /backup/copy.db --dry-run`，再去掉 `--dry-run` 预演。命令只整理原 `rotate` 单元：优先同义项原形句，再按最早有效学习记录选择；更新固定句和策略，不改作答历史、复习状态或已签发题目。已有 `fixed` 卡不重新选句，重复执行无变化。无需改变 v22 表结构。
+
 安装 Nginx、系统 CA 证书和与产物匹配的 glibc；无需安装 Python、Node 或 Rust。新建受限的数据目录后，解压公共种子并通过 CLI 安装备份：
 
 ```sh
@@ -40,6 +42,8 @@ gzip -dc /release/content/public-seed.db.gz > /tmp/public-seed.db
 `englishlearning.service` 限制 256 MiB，提醒任务限制 96 MiB。API 采用固定 1 写/2 读连接与 16 个请求槽；普通请求 64 KiB，Passkey 128 KiB，审核交换 2 MiB。读查询 5 秒、写请求 10 秒。目录冷构建串行、30 秒；传输最多四路，每路 64 KiB 缓冲，单文件最大 256 MiB，磁盘缓存保留上限 512 MiB。资源耗尽返回 503 和 Retry-After，取消任务会停止排队查询。
 
 ## 回退与排查
+
+切换脚本在一致性备份完成后、启动新服务前调用 `fix-study-examples`，结果保存在备份目录的 `fixed-example-repair.json`。正在显示的旧题继续按原题作答，之后使用整理后的固定句。回退程序时继续使用当前学习数据与固定句。
 
 ```sh
 /release/deploy/switch-rust-release.sh --rollback /var/backups/englishlearning-rust-<UTC>

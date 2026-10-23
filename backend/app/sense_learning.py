@@ -180,7 +180,6 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
         ORDER BY p.is_relearning,CASE WHEN p.is_relearning=0 THEN p.next_review_date END,
           CASE WHEN p.is_relearning=0 THEN p.lapse_count END DESC,
           p.queue_order,p.ready_at,p.learning_unit_id LIMIT 1""", due_args).fetchone()
-    rotate = row is not None and not row['is_relearning']
     pending = None
     if row is None:
         pending = conn.execute(f"""SELECT MIN(q.ready_at) AS ready_at FROM relearning_queue q
@@ -204,7 +203,7 @@ def next_sense_card(conn, user_id: int, today: date) -> dict[str, Any]:
             return {"card": None,"retry_after_seconds":retry_after,"message":"所选词库暂无新词或到期复习，可选择其他词库继续学习。"}
         return {"card": None,"message":"今天没有到期复习或未学习义项。"}
     unit_id = row['learning_unit_id']
-    example = example_for_unit(conn,unit_id,user_id,rotate=rotate)
+    example = example_for_unit(conn,unit_id,user_id)
     source = sense_card_content(conn,unit_id,example['sense_id'],user_id)
     attempt = start_attempt(conn,user_id,source['id'],example['id'])
     return {"card": make_card(conn,source,user_id,remaining,attempt)}

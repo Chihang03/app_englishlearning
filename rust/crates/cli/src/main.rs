@@ -25,6 +25,13 @@ enum Command {
         #[arg(long)]
         database: PathBuf,
     },
+    /// Pin old rotating cards to a base-form example, keeping study progress.
+    FixStudyExamples {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Consistent SQLite backup, including committed WAL contents.
     Backup {
         #[arg(long)]
@@ -170,6 +177,10 @@ fn main() -> Result<()> {
         Command::Inspect { database } => {
             println!("{}", english_storage::operations::inspect(&database)?)
         }
+        Command::FixStudyExamples { database, dry_run } => println!(
+            "{}",
+            english_storage::operations::fix_study_examples(&database, dry_run)?
+        ),
         Command::Backup { database, output } => println!(
             "{}",
             english_storage::operations::backup(&database, &output)?

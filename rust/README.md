@@ -51,6 +51,7 @@ regeneration alone does not prove behavioral compatibility.
 englishctl init --database /data/vocabulary.db
 englishctl inspect --database /data/vocabulary.db
 englishctl backup --database /data/vocabulary.db --output /backups/new.db
+englishctl fix-study-examples --database /backups/new.db --dry-run
 # Read the initial password from stdin, never from a command argument.
 englishctl create-admin --database /data/vocabulary.db --password-stdin
 english-server --database /data/vocabulary.db --listen 127.0.0.1:8000 \

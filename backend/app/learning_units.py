@@ -97,7 +97,7 @@ def _merge_group(conn, word, group: dict, senses: list, config_key: str) -> int:
         position=excluded.position,example_strategy=excluded.example_strategy,active=1,
         provenance_json=excluded.provenance_json''',
         (next(iter(lexical)),word['id'],group['key'],senses[0]['id'],group['definition_cn'],
-         min(s['position'] for s in senses),group.get('example_strategy','fixed'),provenance))
+         min(s['position'] for s in senses),'fixed',provenance))
     unit = conn.execute('SELECT * FROM learning_units WHERE word_id=? AND unit_key=?', (word['id'],group['key'])).fetchone()
     if existing and set(old_units.values()) == {unit['id']}:
         return unit['id']
@@ -170,13 +170,9 @@ def _merge_group(conn, word, group: dict, senses: list, config_key: str) -> int:
             queued = max(queues,key=lambda r:r['ready_at'])
             _upsert_snapshot_row(conn,'relearning_queue',{**queued,'sense_id':unit['representative_sense_id'],
                 'learning_unit_id':unit['id'],'retired_at':None,'queue_order':min(r['queue_order'] for r in queues)})
-        fixed = rows['user_sense_examples']
-        if fixed:
-            chosen = next((r for r in fixed if selected and r['sense_id']==selected['sense_id']),fixed[0])
-            if queues:
-                chosen = next((r for r in fixed if r['sense_id']==queued['sense_id']),chosen)
-            _upsert_snapshot_row(conn,'user_sense_examples',{**chosen,'sense_id':unit['representative_sense_id'],
-                'learning_unit_id':unit['id'],'retired_at':None})
+        # Example identity follows the earliest usable encounter, independently
+        # of the curve/queue selected above. Source events were rebound already.
+        example_for_unit(conn, unit['id'], user)
     for prior in set(old_units.values())-{unit['id']}:
         conn.execute('UPDATE learning_units SET active=0 WHERE id=?',(prior,))
     return unit['id']
@@ -251,43 +247,23 @@ def sync_learning_units(conn, config_path: Path | None = None) -> None:
                         VALUES(?,?,?,'reviewed',?)''',(list_id,unit,membership[0],json.dumps(coverage['provenance'],ensure_ascii=False)))
 
 
-def example_for_unit(conn, unit_id: int, user_id: int, *, rotate: bool = False):
+def example_for_unit(conn, unit_id: int, user_id: int):
     unit = conn.execute('SELECT * FROM learning_units WHERE id=?',(unit_id,)).fetchone()
     examples = conn.execute('''SELECT e.* FROM learning_unit_senses us JOIN word_senses s ON s.id=us.sense_id
         JOIN sense_examples e ON e.sense_id=s.id JOIN words w ON w.id=s.word_id
         WHERE us.learning_unit_id=? AND s.active=1 AND s.learning_enabled=1 AND e.active=1
-        ORDER BY lower(e.target_form)!=lower(w.word),s.position,e.id''',(unit_id,)).fetchall()
+        ORDER BY lower(trim(e.target_form))!=lower(trim(w.word)),s.position,e.id''',(unit_id,)).fetchall()
     if not examples:
         return None
     fixed = conn.execute('SELECT example_id FROM user_sense_examples WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL',(user_id,unit_id)).fetchone()
-    if unit['unit_key'].startswith('semantic:'):
-        # Duplicate dictionary examples need one teaching slot, while keeping a
-        # learner's already selected source/example ID whenever it is usable.
-        seen = set()
-        ordered = sorted(examples, key=lambda e: not (fixed and e['id']==fixed[0]))
-        examples = []
-        for example in ordered:
-            key = (example['sentence'].strip().casefold(), example['target_form'].casefold())
-            if key not in seen:
-                seen.add(key)
-                examples.append(example)
     chosen = next((e for e in examples if fixed and e['id']==fixed[0]),None)
-    last = conn.execute('''SELECT example_id,is_independent FROM review_history WHERE user_id=? AND learning_unit_id=?
-        ORDER BY id DESC LIMIT 1''',(user_id,unit_id)).fetchone()
     if chosen is None:
         seen = conn.execute('''SELECT example_id FROM (SELECT example_id,created_at AS seen_at,0 AS source,id AS record_id
             FROM study_attempts WHERE user_id=? AND learning_unit_id=? UNION ALL
             SELECT example_id,review_time,1,id FROM review_history WHERE user_id=? AND learning_unit_id=?)
-            ORDER BY seen_at,source,record_id''',(user_id,unit_id,user_id,unit_id)).fetchall()
+            ORDER BY julianday(seen_at),source,record_id''',(user_id,unit_id,user_id,unit_id)).fetchall()
         valid = {e['id']:e for e in examples}
         chosen = next((valid[r[0]] for r in seen if r[0] in valid),examples[0])
-    if rotate and unit['example_strategy']=='rotate' and last and last['is_independent']==1 and len(examples)>1:
-        # Prefer a different source usage, then an unseen/least recently used
-        # example. A retry of a wrong or assisted answer always keeps its sentence.
-        previous = next((e for e in examples if e['id']==last['example_id']),chosen)
-        uses = {r['example_id']:r['last_id'] for r in conn.execute('''SELECT example_id,MAX(id) AS last_id FROM review_history
-            WHERE user_id=? AND learning_unit_id=? GROUP BY example_id''',(user_id,unit_id))}
-        chosen = min(examples,key=lambda e:(e['sense_id']==previous['sense_id'],e['id']==previous['id'],uses.get(e['id'],0),e['id']))
     _upsert_snapshot_row(conn,'user_sense_examples',{'user_id':user_id,'sense_id':unit['representative_sense_id'],
         'example_id':chosen['id'],'learning_unit_id':unit_id,'retired_at':None})
     return chosen

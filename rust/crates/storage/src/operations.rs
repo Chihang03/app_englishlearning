@@ -61,6 +61,49 @@ pub fn backup(source: &Path, target: &Path) -> anyhow::Result<Value> {
     File::open(parent)?.sync_all()?;
     Ok(json!({"status":"backed_up","database":target}))
 }
+pub fn fix_study_examples(path: &Path, dry_run: bool) -> anyhow::Result<Value> {
+    let mut c = crate::reminders::open_writer(path)?;
+    let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let choices = rows(
+        &tx,
+        include_str!("../../../../backend/app/fixed_example_choices.sql"),
+        &[],
+    )?;
+    let changed = choices
+        .iter()
+        .filter(|r| r["example_id"] != r["previous_example_id"])
+        .count();
+    for row in &choices {
+        exec(
+            &tx,
+            "UPDATE user_sense_examples SET retired_at=strftime('%Y-%m-%dT%H:%M:%f+00:00','now') WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL AND sense_id!=?",
+            &[
+                row["user_id"].clone(),
+                row["learning_unit_id"].clone(),
+                row["sense_id"].clone(),
+            ],
+        )?;
+        exec(
+            &tx,
+            "INSERT INTO user_sense_examples(user_id,sense_id,example_id,learning_unit_id,retired_at) VALUES(?,?,?,?,NULL) ON CONFLICT(user_id,sense_id) DO UPDATE SET example_id=excluded.example_id,learning_unit_id=excluded.learning_unit_id,retired_at=NULL",
+            &[
+                row["user_id"].clone(),
+                row["sense_id"].clone(),
+                row["example_id"].clone(),
+                row["learning_unit_id"].clone(),
+            ],
+        )?;
+    }
+    let units = tx.execute(
+        "UPDATE learning_units SET example_strategy='fixed' WHERE example_strategy='rotate'",
+        [],
+    )?;
+    let result = json!({"units_fixed":units,"cards_checked":choices.len(),"cards_changed":changed,"dry_run":dry_run});
+    if !dry_run {
+        tx.commit()?;
+    }
+    Ok(result)
+}
 pub fn create_admin(path: &Path, password: &str, config: &api::Config) -> anyhow::Result<Value> {
     ensure!(
         (1..=128).contains(&password.chars().count()),

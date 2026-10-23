@@ -404,7 +404,7 @@ def apply_word(conn, word_id: int, source: dict, value: dict) -> str:
         old_units = {unit_for_sense(conn, m['id']) for m in members}
         coverage = [dict(r) for r in conn.execute('SELECT * FROM word_list_learning_units WHERE learning_unit_id IN (' + ','.join('?' for _ in old_units) + ')', tuple(old_units))]
         uid = _merge_group(conn, word, {'key': group_key, 'definition_cn': group.definition_cn.strip(),
-                           'provenance': provenance, 'example_strategy': 'rotate' if len(members)>1 else 'fixed'}, members, group_key)
+                           'provenance': provenance}, members, group_key)
         conn.execute('UPDATE learning_units SET display_definition_en=? WHERE id=?', (group.definition_en, uid))
         for entry in coverage:
             conn.execute('''INSERT OR IGNORE INTO word_list_learning_units(list_id,learning_unit_id,position,verification,provenance_json)
