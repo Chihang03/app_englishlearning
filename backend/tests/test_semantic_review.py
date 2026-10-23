@@ -61,6 +61,7 @@ class SemanticReviewTests(unittest.TestCase):
         with database.connect() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(DISTINCT b.learning_unit_id) FROM learning_unit_senses b JOIN word_senses s ON s.id=b.sense_id WHERE s.word_id=? AND s.active=1",(self.word_id,)).fetchone()[0],1)
             self.assertEqual(len(original_source(conn,self.word_id)['senses']),2)
+            self.assertEqual(conn.execute("SELECT example_strategy FROM learning_units WHERE word_id=? AND active=1",(self.word_id,)).fetchone()[0],'fixed')
 
     def test_exact_bilingual_duplicates_use_rules_but_equal_chinese_alone_does_not(self):
         a=fixtures.sense('a','地址','Please give me your address.')

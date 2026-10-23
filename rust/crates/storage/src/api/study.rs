@@ -373,12 +373,12 @@ fn write_state(c: &Connection, user: i64, sense: i64, state: &Value, example: i6
     Ok(())
 }
 
-fn example(c: &Connection, uid: i64, user: i64, rotate: bool) -> Result<Value> {
+fn example(c: &Connection, uid: i64, user: i64) -> Result<Value> {
     let group = one(c, "SELECT * FROM learning_units WHERE id=?", &[json!(uid)])?
         .ok_or_else(|| fault(404, "Unknown learning unit"))?;
-    let mut examples = rows(
+    let examples = rows(
         c,
-        "SELECT e.* FROM learning_unit_senses us JOIN word_senses s ON s.id=us.sense_id JOIN sense_examples e ON e.sense_id=s.id JOIN words w ON w.id=s.word_id WHERE us.learning_unit_id=? AND s.active=1 AND s.learning_enabled=1 AND e.active=1 ORDER BY lower(e.target_form)!=lower(w.word),s.position,e.id",
+        "SELECT e.* FROM learning_unit_senses us JOIN word_senses s ON s.id=us.sense_id JOIN sense_examples e ON e.sense_id=s.id JOIN words w ON w.id=s.word_id WHERE us.learning_unit_id=? AND s.active=1 AND s.learning_enabled=1 AND e.active=1 ORDER BY lower(trim(e.target_form))!=lower(trim(w.word)),s.position,e.id",
         &[json!(uid)],
     )?;
     if examples.is_empty() {
@@ -389,22 +389,11 @@ fn example(c: &Connection, uid: i64, user: i64, rotate: bool) -> Result<Value> {
         "SELECT example_id FROM user_sense_examples WHERE user_id=? AND learning_unit_id=? AND retired_at IS NULL",
         &[json!(user), json!(uid)],
     )?;
-    if s(&group, "unit_key").starts_with("semantic:") {
-        examples.sort_by_key(|e| e["id"] != fixed);
-        let mut seen = BTreeSet::new();
-        examples
-            .retain(|e| seen.insert((fold(s(e, "sentence").trim()), fold(s(e, "target_form")))));
-    }
-    let last = one(
-        c,
-        "SELECT example_id,is_independent FROM review_history WHERE user_id=? AND learning_unit_id=? ORDER BY id DESC LIMIT 1",
-        &[json!(user), json!(uid)],
-    )?;
     let mut chosen = examples.iter().find(|e| e["id"] == fixed).cloned();
     if chosen.is_none() {
         let seen = rows(
             c,
-            "SELECT example_id FROM (SELECT example_id,created_at AS seen_at,0 AS source,id AS record_id FROM study_attempts WHERE user_id=? AND learning_unit_id=? UNION ALL SELECT example_id,review_time,1,id FROM review_history WHERE user_id=? AND learning_unit_id=?) ORDER BY seen_at,source,record_id",
+            "SELECT example_id FROM (SELECT example_id,created_at AS seen_at,0 AS source,id AS record_id FROM study_attempts WHERE user_id=? AND learning_unit_id=? UNION ALL SELECT example_id,review_time,1,id FROM review_history WHERE user_id=? AND learning_unit_id=?) ORDER BY julianday(seen_at),source,record_id",
             &[json!(user), json!(uid), json!(user), json!(uid)],
         )?;
         chosen = seen
@@ -417,31 +406,7 @@ fn example(c: &Connection, uid: i64, user: i64, rotate: bool) -> Result<Value> {
             })
             .or_else(|| examples.first().cloned());
     }
-    let mut chosen = chosen.unwrap();
-    if rotate
-        && s(&group, "example_strategy") == "rotate"
-        && last.as_ref().is_some_and(|r| b(r, "is_independent"))
-        && examples.len() > 1
-    {
-        let last = last.unwrap();
-        let previous = examples
-            .iter()
-            .find(|e| e["id"] == last["example_id"])
-            .unwrap_or(&chosen);
-        let uses=rows(c,"SELECT example_id,MAX(id) AS last_id FROM review_history WHERE user_id=? AND learning_unit_id=? GROUP BY example_id",&[json!(user),json!(uid)])?.into_iter().map(|r|(n(&r,"example_id"),n(&r,"last_id"))).collect::<BTreeMap<_,_>>();
-        chosen = examples
-            .iter()
-            .min_by_key(|e| {
-                (
-                    e["sense_id"] == previous["sense_id"],
-                    e["id"] == previous["id"],
-                    uses.get(&n(e, "id")).copied().unwrap_or(0),
-                    n(e, "id"),
-                )
-            })
-            .unwrap()
-            .clone();
-    }
+    let chosen = chosen.unwrap();
     exec(
         c,
         "INSERT INTO user_sense_examples(user_id,sense_id,example_id,learning_unit_id,retired_at) VALUES(?,?,?,?,NULL) ON CONFLICT(user_id,sense_id) DO UPDATE SET example_id=excluded.example_id,learning_unit_id=excluded.learning_unit_id,retired_at=NULL",
@@ -548,7 +513,6 @@ fn next(c: &Connection, config: &Config, user: &Value) -> Result<Value> {
         return Ok(json!({"card":make_card(c,id,&source,&active,remaining)?}));
     }
     let mut selected = one(c, sql("next_sense_card/4"), &args)?;
-    let rotate = selected.as_ref().is_some_and(|r| !b(r, "is_relearning"));
     let mut pending = None;
     if selected.is_none() {
         pending = one(
@@ -568,7 +532,7 @@ fn next(c: &Connection, config: &Config, user: &Value) -> Result<Value> {
         return Ok(json!({"card":null,"message":"今天没有到期复习或未学习义项。"}));
     };
     let uid = n(&selected, "learning_unit_id");
-    let example = example(c, uid, id, rotate)?;
+    let example = example(c, uid, id)?;
     let source = one(
         c,
         sql("sense_card_content/0"),

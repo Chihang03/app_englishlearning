@@ -79,7 +79,7 @@ class LearningUnitTests(unittest.TestCase):
         with database.connect() as conn:
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM sense_srs_state WHERE retired_at IS NULL').fetchone()[0],1)
 
-    def test_delayed_reviews_rotate_context_but_reload_keeps_signed_round(self):
+    def test_delayed_reviews_keep_first_example_and_reload_keeps_signed_round(self):
         self.enable_group()
         with self.at('2026-01-01'):
             first=self.next();answer=self.review(first,first['answer_form']).json()
@@ -88,12 +88,17 @@ class LearningUnitTests(unittest.TestCase):
         with self.at(answer['srs_state']['next_review_date']):
             second=self.next();resumed=self.next()
             self.assertEqual(second['learning_unit_id'],first['learning_unit_id'])
-            self.assertNotEqual(second['sense_id'],first['sense_id'])
-            self.assertNotEqual(second['example_id'],first['example_id'])
+            self.assertEqual(second['sense_id'],first['sense_id'])
+            self.assertEqual(second['example_id'],first['example_id'])
             self.assertEqual((second['attempt_id'],second['example_id']),(resumed['attempt_id'],resumed['example_id']))
             result=self.review(second,second['answer_form']).json()
             self.assertEqual(result['memory']['confirmations'],2)
             self.assertEqual(self.client.get('/api/stats').json()['today_success_senses'],1)
+        for _ in range(3):
+            with self.at(result['srs_state']['next_review_date']):
+                card=self.next()
+                self.assertEqual(card['example_id'],first['example_id'])
+                result=self.review(card,card['answer_form']).json()
 
     def test_wrong_correction_and_wait_share_one_queue_and_keep_sentence(self):
         self.enable_group();first=self.next()

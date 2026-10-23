@@ -121,6 +121,8 @@ def init_database(*, force_sync: bool = False) -> None:
         run_migrations(DB_PATH)
         fingerprint = _startup_fingerprint()
         with connect() as conn:
+            from .fixed_examples import normalize_fixed_examples
+            normalize_fixed_examples(conn)
             previous = conn.execute("SELECT value FROM vocabulary_catalog_state WHERE key='startup_sync'").fetchone()
             if not force_sync and previous and previous[0] == _startup_state(conn, fingerprint):
                 logger.info("Startup content unchanged; reusing completed synchronization")

@@ -55,6 +55,7 @@ systemctl stop englishlearning.service
 "$RELEASE/bin/englishctl" backup --database "$DATA" --output "$SAVED/vocabulary.db" >/dev/null
 chown root:root "$SAVED/vocabulary.db"
 chmod 600 "$SAVED/vocabulary.db"
+"$RELEASE/bin/englishctl" fix-study-examples --database "$DATA" > "$SAVED/fixed-example-repair.json"
 cp "$RELEASE/deploy/englishlearning-rust.service" "$UNIT"
 cp "$RELEASE/deploy/learning-reminders-rust.service" "$REMINDER"
 cp "$RELEASE/deploy/learning-reminders.timer" /etc/systemd/system/learning-reminders.timer

@@ -158,6 +158,36 @@ class RustApiParityTests(unittest.TestCase):
         a,b=self.cards();self.review(a,b,a['answer_form']);self.state()
         self.pair('GET','/api/stats');self.pair('GET','/api/learning-calendar?month=2026-10')
 
+    def test_merged_unit_never_rotates_base_sentence_on_due_reviews(self):
+        from app import learning_units
+        from app.senses import save_senses
+        for path in [database.DB_PATH,self.native_db]:
+            with sqlite3.connect(path) as conn:
+                conn.row_factory=sqlite3.Row
+                word=conn.execute("SELECT * FROM words WHERE word='address'").fetchone()
+                save_senses(conn,word['id'],[
+                    fixtures.sense('base','处理','We address the problem.',pos='动词'),
+                    fixtures.sense('past','处理','The problem was addressed.',target='addressed',pos='动词')])
+                members=conn.execute('SELECT * FROM word_senses WHERE word_id=? AND active=1 ORDER BY position',(word['id'],)).fetchall()
+                unit=learning_units._merge_group(conn,word,{'key':'semantic:test','definition_cn':'处理','provenance':{'test':True}},members,'semantic:test')
+                conn.execute('INSERT OR IGNORE INTO word_list_learning_units(list_id,learning_unit_id,position,verification) SELECT list_id,?,position,\'reviewed\' FROM word_list_memberships WHERE word_id=?',(unit,word['id']))
+                # A stale database flag must not re-enable the removed behavior.
+                conn.execute("UPDATE learning_units SET example_strategy='rotate' WHERE id=?",(unit,))
+        a,b=self.cards();first=a['example_id']
+        self.assertEqual(a['answer_form'],'address')
+        for _ in range(3):
+            resumed_a,resumed_b=self.cards()
+            self.assertEqual(resumed_a['attempt_id'],a['attempt_id'])
+            self.assertEqual(resumed_b['attempt_id'],b['attempt_id'])
+            self.review(a,b,a['answer_form']);self.state()
+            for path in [database.DB_PATH,self.native_db]:
+                with sqlite3.connect(path) as conn:
+                    conn.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=?",(self.uid,))
+                    conn.execute("UPDATE review_history SET review_time='2000-01-01T00:00:00+00:00' WHERE user_id=?",(self.uid,))
+            a,b=self.cards()
+            self.assertEqual(a['example_id'],first)
+            self.assertEqual(b['example_id'],first)
+
     def test_delayed_fsrs_multiplier_and_maturity_boundaries_match(self):
         from datetime import timedelta
         from fsrs import Card,State

@@ -8,7 +8,7 @@
           "key": "abandon:v:core",
           "pos_group": "verb",
           "definition_cn": "放弃；抛弃；遗弃",
-          "example_strategy": "rotate",
+          "example_strategy": "fixed",
           "provenance": {"kind": "reviewed_learning_group", "date": "2026-09-29", "basis": "用户确认将四个相近用法合为同一学习知识点"},
           "senses": [
             {"key": "en:m_en_gbus0000850.006", "expected_definition_en": "cease to support or look after (someone); desert"},
