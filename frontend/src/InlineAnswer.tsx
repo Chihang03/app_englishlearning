@@ -42,7 +42,7 @@ export const InlineAnswer = forwardRef<HTMLTextAreaElement, Props>(function Inli
     field.style.height = `${Math.ceil(field.scrollHeight + verticalBorder + 1)}px`;
   }, []);
 
-  useLayoutEffect(resize, [resize, value, props.className]);
+  useLayoutEffect(resize, [resize, value, props.placeholder, props.className]);
 
   useLayoutEffect(() => {
     const sentence = blankRef.current?.parentElement;
@@ -67,7 +67,7 @@ export const InlineAnswer = forwardRef<HTMLTextAreaElement, Props>(function Inli
   return (
     <span ref={blankRef} className="sentence-blank">
       <span className="sentence-measurer" aria-hidden="true">
-        <span ref={textRef} className="sentence-measure">{value}</span>
+        <span ref={textRef} className="sentence-measure">{value || props.placeholder}</span>
         <span ref={minimumRef} className="sentence-measure">00000</span>
       </span>
       <textarea {...props} ref={setField} value={value} rows={1} wrap="soft"

@@ -32,6 +32,11 @@ export function StudyCard({ card, result, answer, showTranslation, soundIcon, me
   onSubmit, onEnter, onWordHint, onAnswerChange }: Props) {
   const split = (card?.cloze_sentence ?? "_______").split("_______");
   const parts = split.length > 1 ? split : [...split, ""];
+  // Feedback is a display hint, never a prefilled retry. A swipe that produces
+  // the correct word must change the actual editable value, even on iOS.
+  const correction = !readOnly && !result?.is_correct && (result || card?.needs_correction)
+    ? result?.correct_answer ?? card?.answer_form : undefined;
+  const inputValue = result && !result.is_correct && !readOnly ? "" : result?.correct_answer ?? answer;
   function handleEdit(event: FormEvent<HTMLTextAreaElement>) {
     if (!busy && !readOnly) onAnswerChange?.(event.currentTarget.value.replace(/[\r\n]+/g, " "));
   }
@@ -55,13 +60,9 @@ export function StudyCard({ card, result, answer, showTranslation, soundIcon, me
           index < parts.length - 1 ? <InlineAnswer key={`blank-${index}`} id={!readOnly && index === 0 ? "study-answer" : undefined}
             ref={index === 0 ? inputRef : undefined}
             className={`sentence-input ${result?.is_correct ? "is-correct" : result || card?.needs_correction ? "is-retry" : ""}`}
-            value={result ? result.correct_answer : answer} readOnly={readOnly} tabIndex={readOnly ? -1 : undefined}
+            value={inputValue} placeholder={correction} readOnly={readOnly} tabIndex={readOnly ? -1 : undefined}
             onEnter={readOnly ? () => {} : onEnter}
-            // React suppresses onChange when a keyboard replaces the selected
-            // answer with identical text. The input event still starts a retry.
             onInput={handleEdit} onChange={handleEdit}
-            onFocus={(event) => { if (!readOnly && result && !result.is_correct) event.currentTarget.select(); }}
-            onClick={(event) => { if (!readOnly && result && !result.is_correct) event.currentTarget.select(); }}
             aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
             aria-busy={busy} aria-invalid={!result?.is_correct && (Boolean(result) || Boolean(card?.needs_correction))}
             autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
