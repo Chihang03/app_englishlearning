@@ -438,3 +438,7 @@ iOS 16.4+ 需从主屏幕 Web App 使用，并通过受信任的 HTTPS 访问。
 公网部署时至少要做到：走 HTTPS 并设置 `COOKIE_SECURE=true`；设置 `REGISTRATION_CODE` 以免被任意注册；把 `DATA_DIR` 指向持久化目录。
 
 数据库 v13 在升级前通过 SQLite backup API 备份，新增 `user_sense_examples` 保存每个账号、每个义项的固定例句。升级时比较已发题记录和答题历史，固定最早仍有效的例句；原学习历史、复习计划与账号数据保留。
+
+## 性能优化
+
+2026-10-24 的查询、浏览器存储和传输优化及同机隔离测量见 [性能与复杂度优化报告](docs/performance-optimization-2026-10-24.md)。

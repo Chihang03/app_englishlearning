@@ -117,6 +117,18 @@ class RustApiParityTests(unittest.TestCase):
             with sqlite3.connect(path) as conn:conn.execute("UPDATE sense_examples SET translation_cn='新译文' WHERE id=(SELECT MIN(id) FROM sense_examples)")
         self.pair('GET','/api/study/meaning-catalog')
 
+    def test_public_catalogue_file_is_shared_after_separate_authentication(self):
+        first=self.native.get('/api/study/meaning-catalog')
+        self.assertEqual(first.status_code,200)
+        self.pair('POST','/api/auth/register',{'username':'public-other','password':'another-password'})
+        second=self.native.get('/api/study/meaning-catalog')
+        self.assertEqual(second.content,first.content)
+        files=list(self.native_db.with_suffix('.catalog-cache').glob('v2-*.json'))
+        self.assertEqual(len(files),1)
+        self.pair('POST','/api/auth/logout')
+        self.native.cookies.clear()
+        self.assertEqual(self.native.get('/api/study/meaning-catalog').status_code,401)
+
     def test_request_validation_and_coercion_match_frozen_contract(self):
         for method,path,body in [
             ('POST','/api/auth/register',{}),
@@ -215,6 +227,34 @@ class RustApiParityTests(unittest.TestCase):
         a,b=self.cards();self.pair('POST','/api/study/meanings',{'attempt_id':a['attempt_id']},{'attempt_id':b['attempt_id']})
         self.state();self.pair('POST',f'/api/words/{a["id"]}/mute',{})
         self.pair('GET','/api/muted-words');self.pair('DELETE',f'/api/muted-words/{a["word"]}')
+
+    def test_optimized_content_indexes_follow_flags_memberships_filters_and_progress(self):
+        # Warm both reader connections, then edit fields not covered by v22's
+        # catalogue revision and confirm no connection can retain old counts.
+        for _ in range(3):
+            self.pair('GET','/api/stats');self.pair('GET','/api/word-lists')
+        def change(sql):
+            for path in [database.DB_PATH,self.native_db]:
+                with sqlite3.connect(path) as conn:conn.execute(sql)
+            for _ in range(3):
+                self.pair('GET','/api/stats');self.pair('GET','/api/word-lists')
+        change("UPDATE word_senses SET learning_enabled=0 WHERE id=(SELECT MIN(id) FROM word_senses)")
+        change("UPDATE word_senses SET learning_enabled=1")
+        change("UPDATE learning_units SET active=0 WHERE id=(SELECT MIN(id) FROM learning_units)")
+        change("UPDATE learning_units SET active=1")
+        change("DELETE FROM word_list_learning_units WHERE list_id='cet4'")
+        self.pair('PATCH','/api/settings',{'skip_basic_600':True})
+        self.pair('GET','/api/stats')
+        self.pair('PATCH','/api/settings',{'skip_basic_600':False,'selected_word_list_ids':['cet6']})
+        a,b=self.cards();self.review(a,b,a['answer_form'])
+        self.pair('GET','/api/stats');self.pair('GET','/api/word-lists')
+
+    def test_cached_meanings_record_identical_exposure_without_returning_content(self):
+        a,b=self.cards()
+        self.pair('POST','/api/study/meanings',{'attempt_id':a['attempt_id'],'content_cached':True},
+                  {'attempt_id':b['attempt_id'],'content_cached':True})
+        self.state()
+        self.review(a,b,a['answer_form']);self.state()
 
     def test_new_registration_and_duplicate_review(self):
         self.pair('POST','/api/auth/register',{'username':'second','password':'another-password','timezone':'Asia/Shanghai'})

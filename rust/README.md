@@ -23,6 +23,14 @@ schemas are rejected so operators must perform an explicit, separately reviewed 
 The current production schema is v22. Existing passwords, session hashes, COSE credentials,
 FSRS Card JSON and content revisions remain readable by the old backend for rollback.
 
+Statistics and new-card selection reuse connection-local TEMP indexes for normalized words,
+content eligibility and basic-word flags. These derived tables never modify the main schema.
+The existing content revision plus streamed narrow-column fingerprints cover changes to
+unit activation/ownership mapping and sense learning flags; review writes do not rebuild
+the content indexes. User filters, progress, course membership and due times remain live.
+The statistics query materializes eligible/progress/due sets once and reuses them.
+All three fixed connections warm their content indexes before the HTTP listener opens.
+
 ## Verification
 
 ```sh

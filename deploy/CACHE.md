@@ -1,6 +1,6 @@
 # 浏览器缓存与更新
 
-缓存策略由应用后端统一设置，IP 和 Passkey 域名入口都有效，不依赖单独修改 Nginx。
+生产环境由 Nginx 提供静态资源和压缩，Rust API 设置接口缓存策略；IP 和 Passkey 域名入口都有效。
 
 | 内容 | 策略 |
 | --- | --- |
@@ -8,13 +8,15 @@
 | HTML、无版本文件 | `no-cache`，保留 ETag / Last-Modified 校验 |
 | `/api/`、错误响应 | `no-store` |
 
-静态文件和足够大的 API 响应使用 gzip。浏览器请求 API 时明确跳过 HTTP 缓存。
+构建时为 JS/CSS 生成 gzip 文件，Nginx 根据 Accept-Encoding 直接提供预压缩产物；JSON 等较大响应按需 gzip，保留 Vary: Accept-Encoding。浏览器请求 API 时明确跳过 HTTP 缓存。
 
 首页统计在当前账号内复用 10 秒，设置和词库列表复用 30 秒，不再学习的单词列表复用 5 分钟。这四类显示数据在 IndexedDB 按账号保存快照；冷启动先显示快照，再核对服务器。后台读取失败时保留已有快照，401 与手动强制刷新错误仍向上层报告。
 
 并发读取合并，写操作仅使关联数据失效，失效时同步删除该快照。下一题和答题影响统计与词库进度；语速、翻译显示设置只影响设置；词库选择、基础词过滤和静音操作影响各自关联资源。失败的写请求也会触发失效，因为服务器可能已经接受写入。失效之前的旧读取不能填回旧数据。下一题、提示和答题始终由服务器确认。
 
 完整词义和例句目录保存在账号隔离的 IndexedDB 中，无固定到期删除时间。每 6 小时、应用版本变化及手动刷新时按内容 ETag 核对，未变化的目录保留；实际内容变化才替换。更多义项的完整词形信息另保存最近 50 个查看记录，保留 30 天。主页刷新先完成必要上传和概览读取，完整词义下载静默进行。
+
+IndexedDB v3 将目录元数据、轻量词头索引和逐词正文分开保存。启动只恢复元数据，304 只更新时间；离线搜索读取词头索引，点击后按 ID 读取正文，最多返回 50 个搜索结果。下载按 JSON 词条流式解析，每批最多 64 词，同时限制批次文本大小；完整解析、保存成功后才原子发布新一代目录。下载失败保留上一份完整目录。旧 v2 整包只在首次升级时读取并迁移，迁移成功后才删除旧对象。不同窗口的下载与 304 不得覆盖另一窗口刚发布的完整目录；中断后遗留、超过一天的暂存代次在后续核对时清理。
 
 Service Worker 在所有受支持的入口注册，不依赖通知授权。生产构建预缓存 HTML、带哈希的 JS/CSS、图标和 manifest；安装下载失败时不会激活不完整版本。页面导航优先联网，网络失败或服务器 5xx 时回退到完整本地页面。API 和写请求不由 Service Worker 缓存或重放。开发模式不启用页面预缓存。
 
@@ -32,6 +34,7 @@ Service Worker 在所有受支持的入口注册，不依赖通知授权。生�
 cd frontend
 node --test tests/cache.test.mjs
 npm run build
+APP_TEST_URL=http://127.0.0.1:18766 PLAYWRIGHT_MODULE=/path/to/playwright node tests/catalog-storage.test.mjs
 # 对本地临时数据库与词库运行浏览器回归：
 APP_TEST_URL=http://127.0.0.1:18766 PLAYWRIGHT_MODULE=/path/to/playwright node tests/offline-cache.test.mjs
 APP_TEST_URL=http://127.0.0.1:18766 PLAYWRIGHT_MODULE=/path/to/playwright node tests/manual-sync.test.mjs

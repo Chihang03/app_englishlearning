@@ -5,6 +5,7 @@ pub mod forms;
 pub mod lexicon;
 pub mod passkeys;
 pub mod push;
+mod query_cache;
 pub mod study;
 pub mod validation;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -214,6 +215,24 @@ pub fn string<'a>(v: &'a Value, key: &str, min: usize, max: usize) -> Result<&'a
     Ok(text)
 }
 
+/// Warm derived TEMP indexes before accepting HTTP traffic.
+pub fn prepare_content(c: &Connection) -> Result<()> {
+    c.execute_batch("BEGIN")?;
+    let result = query_cache::ensure_content(c);
+    if result.is_ok() {
+        c.execute_batch("COMMIT")?;
+    } else {
+        let _ = c.execute_batch("ROLLBACK");
+    }
+    result
+}
+
+fn learning_write(request: &Request) -> bool {
+    request.path == "/api/next"
+        || request.method == "POST"
+            && (request.path == "/api/review" || request.path.starts_with("/api/study/"))
+}
+
 pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<Reply> {
     reset_budget();
     static ROUTES: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
@@ -282,6 +301,14 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
     let writes = request.method != "GET" || request.path == "/api/next";
     c.execute_batch(if writes { "BEGIN IMMEDIATE" } else { "BEGIN" })?;
     let result = (|| {
+        if learning_write(request)
+            || matches!(
+                request.path.as_str(),
+                "/api/stats" | "/api/word-lists" | "/api/next"
+            )
+        {
+            query_cache::ensure_content(c)?;
+        }
         if request.path.starts_with("/api/auth/") {
             return accounts::handle(c, config, request);
         }
@@ -315,6 +342,11 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
     })();
     match result {
         Ok(reply) => {
+            if learning_write(request) {
+                // These handlers only change learner state. Their own committed
+                // changes need no content fingerprint scan on the next card.
+                query_cache::note_learning_write(c)?;
+            }
             c.execute_batch("COMMIT")?;
             Ok(reply)
         }

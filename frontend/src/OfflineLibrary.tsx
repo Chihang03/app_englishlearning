@@ -1,27 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { StudyContentCache } from "./studyContentCache";
-import type { CatalogWord } from "./studyContentCache";
+import type { CatalogWord, CatalogSummary } from "./studyContentCache";
 import type { User } from "./types";
 import { chineseMeaning, learningMeanings } from "./learningMeanings";
 
 export function OfflineLibrary({ user, onRetry }: { user: User; onRetry: () => void }) {
   const cache = useMemo(() => new StudyContentCache(user.id), [user.id]);
-  const [words, setWords] = useState<CatalogWord[]>([]);
+  const [words, setWords] = useState<CatalogSummary[]>([]);
   const [ready, setReady] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<CatalogWord | null>(null);
   useEffect(() => {
     let active = true;
-    void cache.savedWords().then((saved) => {
+    void cache.searchWords(query).then((saved) => {
       if (active) { setWords(saved); setReady(true); }
-    });
+    }).catch(() => { if (active) { setWords([]); setReady(true); } });
     return () => { active = false; };
-  }, [cache]);
-  const visible = useMemo(() => {
-    const search = query.trim().toLowerCase();
-    return words.filter((word) => !search || word.word.toLowerCase().includes(search)).slice(0, 50);
-  }, [words, query]);
-
+  }, [cache, query]);
   return <main className="page-container offline-library">
     <header className="section-heading">
       <h1>{selected ? selected.word : "离线词义"}</h1>
@@ -41,11 +36,10 @@ export function OfflineLibrary({ user, onRetry }: { user: User; onRetry: () => v
     </> : <>
       <input className="offline-search" type="search" aria-label="搜索缓存单词" placeholder="搜索单词"
         value={query} onChange={(event) => setQuery(event.target.value)} />
-      {!ready ? <p role="status">加载中…</p> : words.length === 0 ? <p role="status">暂无缓存词义</p>
-        : visible.length === 0 ? <p role="status">未找到单词</p> : <ul className="offline-words">
-          {visible.map((word) => <li key={word.id}>
-            <button type="button" onClick={() => setSelected(word)}>
-              <strong>{word.word}</strong><span>{word.senses[0]?.definition_cn}</span>
+      {!ready ? <p role="status">加载中…</p> : words.length === 0 ? <p role="status">{query.trim() ? "未找到单词" : "暂无缓存词义"}</p> : <ul className="offline-words">
+          {words.map((word) => <li key={word.id}>
+            <button type="button" onClick={() => { void cache.savedWord(word.id).then((value) => { if (value) setSelected(value); }).catch(() => {}); }}>
+              <strong>{word.word}</strong><span>{word.definition_cn}</span>
             </button>
           </li>)}
         </ul>}

@@ -1,0 +1,251 @@
+{
+  "clock": "2026-10-24T06:55:06+00:00",
+  "snapshot_only": true,
+  "response_parity": true,
+  "results": [
+    {
+      "kind": "baseline",
+      "startup_seconds": 0.02524246901157312,
+      "endpoints": {
+        "/api/stats": {
+          "first_ms": 3006.469012994785,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 871.7595750058535,
+          "p95_ms": 881.0543139989022
+        },
+        "/api/word-lists": {
+          "first_ms": 622.2138979937881,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 313.5453430004418,
+          "p95_ms": 327.54094098345377
+        },
+        "/api/settings": {
+          "first_ms": 0.9837399993557483,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 0.6852530059404671,
+          "p95_ms": 0.7543399988207966
+        },
+        "/api/learning-calendar": {
+          "first_ms": 6.1969720118213445,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 6.484746991191059,
+          "p95_ms": 6.792506988858804
+        },
+        "/api/dictionary/address": {
+          "first_ms": 23.040963016683236,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 9.364033001475036,
+          "p95_ms": 9.512075979728252
+        }
+      },
+      "mixed": [
+        {
+          "concurrency": 1,
+          "elapsed_seconds": 14.207333052996546,
+          "requests": 60,
+          "statuses": {
+            "200": 60
+          },
+          "p50_ms": 10.084501991514117,
+          "p95_ms": 853.0476019950584,
+          "VmHWM": 37700,
+          "VmRSS": 26932
+        },
+        {
+          "concurrency": 5,
+          "elapsed_seconds": 18.076451339002233,
+          "requests": 60,
+          "statuses": {
+            "200": 60
+          },
+          "p50_ms": 1069.7457119822502,
+          "p95_ms": 3203.276984015247,
+          "VmHWM": 49288,
+          "VmRSS": 49288
+        },
+        {
+          "concurrency": 20,
+          "elapsed_seconds": 5.047945117985364,
+          "requests": 60,
+          "statuses": {
+            "200": 12,
+            "503": 48
+          },
+          "p50_ms": 3.467642003670335,
+          "p95_ms": 5002.437185001327,
+          "VmHWM": 49696,
+          "VmRSS": 49696
+        }
+      ],
+      "next_ms": 152.6201230008155,
+      "meanings_ms": 41.608767001889646,
+      "meanings_warm": {
+        "requests": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50_ms": 6.335756013868377,
+        "p95_ms": 8.409314003074542
+      },
+      "meanings_cached_ms": 3.9682410133536905,
+      "meanings_cached_warm": {
+        "requests": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50_ms": 5.262077000224963,
+        "p95_ms": 6.179544987389818
+      },
+      "after_review_next_ms": 21.30248400499113,
+      "catalogue": {
+        "bytes": 35190486,
+        "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+      },
+      "learning_counts": {
+        "review_history": 2049,
+        "sense_srs_state": 675,
+        "adaptive_memory": 675,
+        "sense_exposures": 584
+      },
+      "VmHWM": 60684,
+      "VmRSS": 55528
+    },
+    {
+      "kind": "candidate",
+      "startup_seconds": 4.647024229983799,
+      "endpoints": {
+        "/api/stats": {
+          "first_ms": 361.17461998946965,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 146.15310900262557,
+          "p95_ms": 150.5691430065781
+        },
+        "/api/word-lists": {
+          "first_ms": 475.21984099876136,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 210.81448698532768,
+          "p95_ms": 212.06083099241368
+        },
+        "/api/settings": {
+          "first_ms": 0.9578460012562573,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 0.6772979977540672,
+          "p95_ms": 0.7102839881554246
+        },
+        "/api/learning-calendar": {
+          "first_ms": 11.453265004092827,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 6.360700004734099,
+          "p95_ms": 9.49978901189752
+        },
+        "/api/dictionary/address": {
+          "first_ms": 44.178181007737294,
+          "requests": 10,
+          "statuses": {
+            "200": 10
+          },
+          "p50_ms": 8.02078700507991,
+          "p95_ms": 8.942794986069202
+        }
+      },
+      "mixed": [
+        {
+          "concurrency": 1,
+          "elapsed_seconds": 4.7195613569929264,
+          "requests": 60,
+          "statuses": {
+            "200": 60
+          },
+          "p50_ms": 9.230916999513283,
+          "p95_ms": 212.39252801751718,
+          "VmHWM": 47840,
+          "VmRSS": 47840
+        },
+        {
+          "concurrency": 5,
+          "elapsed_seconds": 4.65546722500585,
+          "requests": 60,
+          "statuses": {
+            "200": 60
+          },
+          "p50_ms": 348.67409997968934,
+          "p95_ms": 882.0851199852768,
+          "VmHWM": 49364,
+          "VmRSS": 49364
+        },
+        {
+          "concurrency": 20,
+          "elapsed_seconds": 1.30397384299431,
+          "requests": 60,
+          "statuses": {
+            "200": 16,
+            "503": 44
+          },
+          "p50_ms": 3.34977000602521,
+          "p95_ms": 1086.2939640064724,
+          "VmHWM": 49324,
+          "VmRSS": 47356
+        }
+      ],
+      "next_ms": 118.35655898903497,
+      "meanings_ms": 17.312515003141016,
+      "meanings_warm": {
+        "requests": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50_ms": 2.606637019198388,
+        "p95_ms": 2.7238919865339994
+      },
+      "meanings_cached_ms": 1.7243229958694428,
+      "meanings_cached_warm": {
+        "requests": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50_ms": 1.6759749851189554,
+        "p95_ms": 1.6942729998845607
+      },
+      "after_review_next_ms": 21.516806009458378,
+      "catalogue": {
+        "bytes": 35190486,
+        "sha256": "ef7175b4741924efa1d182e6453c487b2f401cf1e5682d4f74005478d75d10e7"
+      },
+      "learning_counts": {
+        "review_history": 2049,
+        "sense_srs_state": 675,
+        "adaptive_memory": 675,
+        "sense_exposures": 584
+      },
+      "VmHWM": 52380,
+      "VmRSS": 47600
+    }
+  ]
+}
