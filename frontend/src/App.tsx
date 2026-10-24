@@ -340,6 +340,11 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       };
       try {
         synth.cancel();
+        try {
+          // Ask iOS to allow speaker playback while the silent switch is on.
+          const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+          if (session) session.type = "playback";
+        } catch { /* Unsupported audio-session controls must not block speech. */ }
         utterance = new SpeechSynthesisUtterance(clean);
         const voice = voices.find((item) => item.voiceURI === speech.voiceURI);
         if (voice) utterance.voice = voice;
