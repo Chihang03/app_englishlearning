@@ -112,6 +112,15 @@ async fn main() -> anyhow::Result<()> {
             .enable_api
             .then(|| english_storage::api::Config::from_env(config.test_clock)),
     };
+    if config.enable_api {
+        for worker in std::iter::once(&app.db).chain(app.reads.iter()) {
+            worker
+                .call(Duration::from_secs(30), |conn| {
+                    Ok(english_storage::api::prepare_content(conn))
+                })
+                .await??;
+        }
+    }
     let router = routes(app);
     let listener = tokio::net::TcpListener::bind(config.listen).await?;
     axum::serve(listener, router)
@@ -314,12 +323,17 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
                     n(&user, "id"),
                     s(&revision, "database_id").to_owned(),
                     n(&revision, "revision"),
+                    conn.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM words WHERE owner_id=?)",
+                        [n(&user, "id")],
+                        |r| r.get::<_, bool>(0),
+                    )?,
                 ))
             })();
             Ok(result)
         })
         .await;
-    let (user, identity, revision) = match result {
+    let (user, identity, revision, private_content) = match result {
         Ok(Ok(value)) => value,
         Ok(Err(e)) => {
             return error(
@@ -353,7 +367,10 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
             .truncate(false)
             .open(directory.join("build.lock"))?;
         lock.try_lock_exclusive()?;
-        let stem = format!("v1-{identity}-{user}-{revision}");
+        // Public-only catalogues have identical bytes across learners. Keep
+        // authentication per request, and share only this derived public file.
+        let cache_owner = if private_content { user } else { 0 };
+        let stem = format!("v2-{identity}-{cache_owner}-{revision}");
         let target = directory.join(format!("{stem}.json"));
         let metadata = directory.join(format!("{stem}.etag"));
         if target.is_file() && metadata.is_file() {

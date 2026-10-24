@@ -520,7 +520,7 @@ fn next(c: &Connection, config: &Config, user: &Value) -> Result<Value> {
             sql("next_sense_card/5"),
             &[json!(id), json!(now), json!(id)],
         )?;
-        selected = one(c, sql("next_sense_card/6"), &vec![json!(id); 7])?;
+        selected = super::query_cache::new_unit(c, id)?;
     }
     let Some(selected) = selected else {
         if let Some(ready) = pending.as_ref().and_then(|r| r["ready_at"].as_str()) {
@@ -568,9 +568,14 @@ fn meanings(c: &Connection, user: i64, p: &Value, config: &Config) -> Result<Val
     let attempt = string(p, "attempt_id", 1, 100)?;
     related(c, user, attempt, config)?;
     let content = attempt_content(c, user, attempt)?;
+    let detailed = !b(p, "content_cached");
     let mut word = content["word"].clone();
-    let mut senses = lexicon::senses(c, n(&content, "word_id"), user)?;
-    let mut entries = lexicon::entries(c, s(&content, "word"), user)?;
+    let mut senses = if detailed {
+        lexicon::senses(c, n(&content, "word_id"), user)?
+    } else {
+        lexicon::sense_ids(c, n(&content, "word_id"))?
+    };
+    let mut entries = lexicon::entries_mode(c, s(&content, "word"), user, detailed)?;
     let mut morphology = lexicon::morphology(c, content["lexical_unit_id"].as_i64(), user)?;
     if let Some(target) = p["target_lexical_unit_id"]
         .as_i64()
@@ -584,7 +589,7 @@ fn meanings(c: &Connection, user: i64, p: &Value, config: &Config) -> Result<Val
             return Err(fault(404, "找不到这条词族关系。"));
         }
         let unit=one(c,"SELECT * FROM lexical_units WHERE id=? AND active=1 AND (owner_id IS NULL OR owner_id=?)",&[json!(target),json!(user)])?.ok_or_else(||fault(404,"找不到这条词族关系。"))?;
-        let entry = lexicon::entries(c, s(&unit, "headword"), user)?
+        let entry = lexicon::entries_mode(c, s(&unit, "headword"), user, detailed)?
             .into_iter()
             .find(|v| n(v, "lexical_unit_id") == target && s(v, "classification") != "INFLECTION")
             .ok_or_else(|| fault(404, "找不到这条词族关系。"))?;
@@ -613,10 +618,8 @@ fn meanings(c: &Connection, user: i64, p: &Value, config: &Config) -> Result<Val
         }
     }
     for spelling in spellings {
-        for entry in lexicon::entries(c, &spelling, user)? {
-            for sense in entry["senses"].as_array().unwrap() {
-                exposed.insert(n(sense, "id"));
-            }
+        for sense in lexicon::entry_sense_ids(c, &spelling, user)? {
+            exposed.insert(n(&sense, "id"));
         }
     }
     for &sense in &exposed {
@@ -883,40 +886,8 @@ fn record_review(c: &Connection, config: &Config, user: &Value, p: &Value) -> Re
 }
 
 fn metrics(c: &Connection, id: i64, today: NaiveDate, now: &str) -> Result<Value> {
-    let new = one(c, sql("learning_metrics/0"), &vec![json!(id); 5])?.unwrap();
-    let new_words = scalar(c, sql("learning_metrics/1"), &vec![json!(id); 6])?;
-    let learned = scalar(c, sql("learning_metrics/2"), &vec![json!(id); 4])?;
-    let mut result = json!({"total_learned":learned,"new_words":new_words,"new_senses":new["senses"],"words_with_new_senses":new["words"]});
-    for (name, args) in [
-        (
-            "learning_metrics/3",
-            vec![
-                json!(id),
-                json!(id),
-                json!(today.to_string()),
-                json!(now),
-                json!(id),
-            ],
-        ),
-        (
-            "learning_metrics/4",
-            vec![json!(id), json!(id), json!(today.to_string()), json!(now)],
-        ),
-        ("learning_metrics/5", vec![json!(id); 3]),
-    ] {
-        for (key, value) in one(c, sql(name), &args)?.unwrap().as_object().unwrap() {
-            result[key] = value.clone();
-        }
-    }
+    let mut result = super::query_cache::metrics(c, id, &today.to_string(), now)?;
     result["due_review"] = result["due_senses"].clone();
-    result["legacy_unmapped_words"] = scalar(c, sql("learning_metrics/6"), &[json!(id)])?;
-    result["next_relearning_at"] = one(
-        c,
-        sql("learning_metrics/7"),
-        &[json!(id), json!(now), json!(id)],
-    )?
-    .unwrap()["next_relearning_at"]
-        .clone();
     result["memory_model"] = memory_summary(c, id)?;
     Ok(result)
 }
@@ -927,19 +898,19 @@ fn stats(c: &Connection, config: &Config, user: &Value) -> Result<Value> {
     let (start, end) = bounds(today, zone)?;
     let row = one(c, sql("stats/0"), &[json!(id), json!(start), json!(end)])?.unwrap();
     let total = scalar(c, sql("stats/1"), &[json!(id)])?;
-    let history = rows(
-        c,
-        sql("stats/2"),
-        &[json!(id), json!(stamp(config.now() - Duration::days(400)))],
-    )?;
-    let days = history
-        .iter()
-        .filter_map(|v| {
-            instant(s(v, "review_time"))
-                .ok()
-                .map(|v| v.with_timezone(&zone).date_naive())
-        })
-        .collect::<BTreeSet<_>>();
+    // Keep dates only, rather than materializing every history row as JSON.
+    let mut statement = c.prepare_cached(sql("stats/2"))?;
+    let mut history = statement.query(rusqlite::params![
+        id,
+        stamp(config.now() - Duration::days(400))
+    ])?;
+    let mut days = BTreeSet::new();
+    while let Some(row) = history.next()? {
+        let value: String = row.get(0)?;
+        if let Ok(moment) = instant(&value) {
+            days.insert(moment.with_timezone(&zone).date_naive());
+        }
+    }
     let mut streak = 0;
     let mut cursor = today;
     while days.contains(&cursor) {

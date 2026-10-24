@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -125,11 +126,35 @@ def frozen_sql():
     return result
 
 
+def content_index(check):
+    from app.learning_filters import basic_word_sql
+    path = ROOT / "rust/crates/storage/src/api/content_index.sql"
+    source = path.read_text()
+    generated = source
+    def lazy_basic(expression):
+        # CASE is short-circuiting in SQLite. Boolean expressions in SELECT
+        # need not be, so avoid grammatical subqueries for unrelated spellings.
+        head, forms = expression[1:-1].split(" OR (", 1)
+        condition, grammar = forms[:-1].split("\n        AND ", 1)
+        return f"CASE WHEN {head} THEN 1 WHEN {condition} THEN ({grammar}) ELSE 0 END"
+    for name, expression in [("WORD", lazy_basic(basic_word_sql())), ("UNIT", lazy_basic(basic_word_sql(unit_expression="u.id")))]:
+        pattern = rf"(/\* BASIC_{name}_BEGIN \*/ ).*?( /\* BASIC_{name}_END \*/)"
+        generated, count = re.subn(pattern, lambda m: m[1] + expression + m[2], generated, flags=re.S)
+        if count != 1:
+            raise RuntimeError("Missing content index generation marker: " + name)
+    if check and generated != source:
+        raise SystemExit(f"Reference drift: {path}")
+    if not check:
+        path.write_text(generated)
+    print(f"{'checked' if check else 'wrote'} content_index.sql")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output",type=Path,default=ROOT / "rust" / "fixtures")
     parser.add_argument("--check",action="store_true")
     args = parser.parse_args()
+    content_index(args.check)
     for name,value in documents().items():
         encoded = json.dumps(value,ensure_ascii=False,indent=2,sort_keys=True)+"\n"
         path = args.output/name

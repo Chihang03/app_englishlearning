@@ -41,6 +41,16 @@ gzip -dc /release/content/public-seed.db.gz > /tmp/public-seed.db
 
 `englishlearning.service` 限制 256 MiB，提醒任务限制 96 MiB。API 采用固定 1 写/2 读连接与 16 个请求槽；普通请求 64 KiB，Passkey 128 KiB，审核交换 2 MiB。读查询 5 秒、写请求 10 秒。目录冷构建串行、30 秒；传输最多四路，每路 64 KiB 缓冲，单文件最大 256 MiB，磁盘缓存保留上限 512 MiB。资源耗尽返回 503 和 Retry-After，取消任务会停止排队查询。
 
+统计与新词选择的内容索引保存在每个固定 SQLite 连接的 TEMP 库，不改变 v22 主库。三个连接在开始监听前预热，部署 readiness 最多等待 30 轮。主库只读连接仍以只读标志打开；构建 TEMP 时暂时解除 query_only，再恢复。索引创建和失效检查位于请求事务的同一快照中。目录版本未覆盖的 learning_units.active/word_id 与 word_senses.learning_enabled 通过窄列流式指纹补充验证；课程映射直接查询主库，答题不重建内容索引。语法基础词标志使用 CASE 短路计算，避免对全部学习单元执行不必要的子查询。
+
+`performance_preflight.py` 在服务器本地的两份一致性副本上对照两个 Rust release，冻结时钟，核对响应、学习动作、目录哈希及内存，并测量单接口和混合并发。只输出聚合结果，不导出账号或词库正文。示例：
+
+```sh
+python3 performance_preflight.py --database /data/vocabulary.db \
+  --baseline /previous/bin/english-server --candidate /candidate/bin/english-server \
+  --directory /data/new-performance-check
+```
+
 ## 回退与排查
 
 切换脚本在一致性备份完成后、启动新服务前调用 `fix-study-examples`，结果保存在备份目录的 `fixed-example-repair.json`。正在显示的旧题继续按原题作答，之后使用整理后的固定句。回退程序时继续使用当前学习数据与固定句。

@@ -78,7 +78,7 @@ systemctl daemon-reload
 nginx -t
 systemctl start englishlearning.service
 ready=no
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
+for attempt in $(seq 1 30); do
     if curl -fsS --max-time 3 http://127.0.0.1:8000/internal/ready >/dev/null; then ready=yes; break; fi
     sleep 1
 done

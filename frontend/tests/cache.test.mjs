@@ -16,7 +16,7 @@ async function loadSource(name) {
 const { ReadCache } = await loadSource("readCache");
 const api = await loadSource("api");
 globalThis.__cacheTestApiError = api.ApiError;
-const { StudyContentCache } = await loadSource("studyContentCache");
+const { StudyContentCache, streamCatalogWords } = await loadSource("studyContentCache");
 delete globalThis.__cacheTestApiError;
 const { watchForeground, canReloadForUpdate } = await loadSource("foreground");
 const deferred = () => {
@@ -24,6 +24,26 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 };
+
+test("catalogue streaming handles split UTF-8, escaped quotes and nested JSON without whole-response parsing", async () => {
+  const words = [{ id: 1, word: 'quote"测试', senses: [{ examples: [{ sentence: 'A \\"quoted\\" [word] 😀' }] }] },
+    { id: 2, word: "next", senses: [] }];
+  const bytes = new TextEncoder().encode(JSON.stringify({ words }));
+  for (const length of [1, 7, 64, bytes.length]) {
+    let offset = 0;
+    const response = new Response(new ReadableStream({ pull(controller) {
+      if (offset === bytes.length) controller.close();
+      else { controller.enqueue(bytes.slice(offset, offset + length)); offset = Math.min(bytes.length, offset + length); }
+    } }));
+    response.json = () => { throw new Error("whole-response parser must not be called"); };
+    const result = [];
+    for await (const word of streamCatalogWords(response)) result.push(word);
+    assert.deepEqual(result, words);
+  }
+  for (const invalid of ['{"words":[', '{"words":[{"id":1,"word":"x","senses":[]},]}', '{"words":[]}garbage', '{"other":[]}']) {
+    await assert.rejects(async () => { for await (const _word of streamCatalogWords(new Response(invalid))) { /* consume */ } });
+  }
+});
 
 test("reuses fresh data, deduplicates concurrent reads, and supports explicit refresh", async () => {
   let calls = 0;

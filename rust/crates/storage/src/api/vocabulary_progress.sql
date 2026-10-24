@@ -5,12 +5,11 @@
                 UNION SELECT s.word_id FROM sense_srs_state p JOIN word_senses s ON s.id=p.sense_id WHERE p.user_id=?
                 UNION SELECT s.word_id FROM study_attempts a JOIN word_senses s ON s.id=a.sense_id WHERE a.user_id=?
             ), usable AS MATERIALIZED (
-                SELECT u.id,u.word_id,MIN(CASE WHEN p.status='Mature' THEN 1 ELSE 0 END) AS mastered
-                FROM learning_units u JOIN learning_unit_senses us ON us.learning_unit_id=u.id
-                JOIN word_senses ds ON ds.id=us.sense_id JOIN sense_examples ex ON ex.sense_id=ds.id
-                LEFT JOIN sense_srs_state p INDEXED BY idx_sense_srs_state_learning_unit ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
-                WHERE u.active=1 AND ds.active=1 AND ds.learning_enabled=1 AND ex.active=1
-                GROUP BY u.id
+                SELECT u.id,u.word_id,CASE WHEN p.status='Mature' THEN 1 ELSE 0 END AS mastered
+                FROM perf_units u
+                LEFT JOIN sense_srs_state p INDEXED BY idx_sense_srs_state_learning_unit
+                ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
+                WHERE u.usable=1
             ), word_progress AS (
                 SELECT m.list_id,u.word_id,MIN(u.mastered) AS mastered
                 FROM word_list_learning_units m JOIN usable u ON u.id=m.learning_unit_id

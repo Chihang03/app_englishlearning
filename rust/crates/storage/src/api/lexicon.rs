@@ -24,11 +24,66 @@ pub fn scalar(c: &Connection, sql: &str, args: &[Value]) -> Result<Value> {
 }
 pub fn senses(c: &Connection, word: i64, user: i64) -> Result<Vec<Value>> {
     let mut result = rows(c, sql("senses_for_word/0"), &[json!(user), json!(word)])?;
+    let mut examples = BTreeMap::<i64, Vec<Value>>::new();
+    for example in rows(
+        c,
+        "SELECT e.* FROM sense_examples e JOIN word_senses s ON s.id=e.sense_id WHERE s.word_id=? AND s.active=1 AND e.active=1 ORDER BY e.sense_id,e.id",
+        &[json!(word)],
+    )? {
+        examples
+            .entry(n(&example, "sense_id"))
+            .or_default()
+            .push(example);
+    }
     for sense in &mut result {
-        sense["examples"] = json!(rows(c, sql("senses_for_word/1"), &[sense["id"].clone()])?);
+        sense["examples"] = json!(examples.remove(&n(sense, "id")).unwrap_or_default());
     }
     Ok(result)
 }
+
+pub fn sense_ids(c: &Connection, word: i64) -> Result<Vec<Value>> {
+    rows(
+        c,
+        "SELECT s.id FROM word_senses s JOIN learning_unit_senses b ON b.sense_id=s.id JOIN learning_units u ON u.id=b.learning_unit_id WHERE s.word_id=? AND s.active=1 ORDER BY s.position,s.id",
+        &[json!(word)],
+    )
+}
+
+fn unit_sense_ids(
+    c: &Connection,
+    unit: &Value,
+    scope: Option<&BTreeSet<i64>>,
+) -> Result<Vec<Value>> {
+    let Some(word) = unit["word_id"].as_i64() else {
+        return Ok(Vec::new());
+    };
+    Ok(rows(c,"SELECT s.id FROM word_senses s JOIN learning_unit_senses b ON b.sense_id=s.id JOIN learning_units u ON u.id=b.learning_unit_id WHERE s.word_id=? AND s.lexical_unit_id=? AND s.active=1 ORDER BY s.position,s.id",&[json!(word),unit["id"].clone()])?.into_iter().filter(|s|scope.is_none_or(|ids|ids.contains(&n(s,"id")))).collect())
+}
+
+pub fn entry_sense_ids(c: &Connection, spelling: &str, user: i64) -> Result<Vec<Value>> {
+    let normalized = fold(spelling.trim());
+    rows(
+        c,
+        r#"WITH matches AS MATERIALIZED (
+        SELECT id,word_id,NULL AS scope_sense_id FROM lexical_units
+        WHERE normalized_headword=? AND active=1 AND (owner_id IS NULL OR owner_id=?)
+        UNION ALL
+        SELECT u.id,u.word_id,f.scope_sense_id FROM word_forms f JOIN lexical_units u ON u.id=f.lexical_unit_id
+        WHERE f.normalized_form=? AND f.active=1 AND f.verification='verified'
+        AND u.active=1 AND u.identity_status='verified' AND (u.owner_id IS NULL OR u.owner_id=?)
+    ) SELECT DISTINCT s.id FROM matches u
+      JOIN word_senses s ON s.word_id=u.word_id AND s.lexical_unit_id=u.id
+      JOIN learning_unit_senses b ON b.sense_id=s.id JOIN learning_units lu ON lu.id=b.learning_unit_id
+      WHERE s.active=1 AND (u.scope_sense_id IS NULL OR u.scope_sense_id=s.id)"#,
+        &[
+            json!(normalized),
+            json!(user),
+            json!(normalized),
+            json!(user),
+        ],
+    )
+}
+
 pub fn morphology(c: &Connection, unit: Option<i64>, user: i64) -> Result<Value> {
     let empty = json!({"inflected_forms":[],"derived_words":[],"related_words":[]});
     let Some(unit) = unit else {
@@ -49,16 +104,17 @@ pub fn morphology(c: &Connection, unit: Option<i64>, user: i64) -> Result<Value>
         &[json!(unit)],
     )?;
     let mut groups: Vec<(String, Value, Vec<String>)> = Vec::new();
+    let mut positions = BTreeMap::new();
     for form in forms {
         let spelling = s(&form, "spelling").to_owned();
         let scope = form["scope_sense_id"].clone();
         let kind = s(&form, "form_type").to_owned();
-        if let Some((_, _, types)) = groups
-            .iter_mut()
-            .find(|(sp, sc, _)| *sp == spelling && *sc == scope)
-        {
-            types.push(kind);
+        let key = (spelling.clone(), scope.as_i64());
+        if let Some(&index) = positions.get(&key) {
+            let item: &mut (String, Value, Vec<String>) = &mut groups[index];
+            item.2.push(kind);
         } else {
+            positions.insert(key, groups.len());
             groups.push((spelling, scope, vec![kind]));
         }
     }
@@ -81,7 +137,7 @@ pub fn morphology(c: &Connection, unit: Option<i64>, user: i64) -> Result<Value>
             "SELECT * FROM lexical_units WHERE id=? AND active=1 AND (owner_id IS NULL OR owner_id=?)",
             &[json!(target), json!(user)],
         )? {
-            let learnable = !unit_senses(c, &peer, user, None)?.is_empty();
+            let learnable = scalar(c,"SELECT EXISTS(SELECT 1 FROM word_senses s JOIN learning_unit_senses b ON b.sense_id=s.id JOIN learning_units u ON u.id=b.learning_unit_id WHERE s.word_id=? AND s.lexical_unit_id=? AND s.active=1)", &[peer["word_id"].clone(),peer["id"].clone()])?.as_i64()==Some(1);
             let item = json!({"lexical_unit_id":target,"headword":peer["headword"],"pos_group":peer["pos_group"],"relation_type":edge["relation_type"],
                 "direction":if n(&edge,"from_unit_id")==unit{"outgoing"}else{"incoming"},"learnable":learnable});
             if s(&edge, "relation_type").starts_with("derived_") {
@@ -116,14 +172,27 @@ fn entry(
     user: i64,
     classification: &str,
     scope: Option<&BTreeSet<i64>>,
+    content: bool,
 ) -> Result<Value> {
-    let senses = unit_senses(c, unit, user, scope)?;
+    let senses = if content {
+        unit_senses(c, unit, user, scope)?
+    } else {
+        unit_sense_ids(c, unit, scope)?
+    };
     Ok(
         json!({"lexical_unit_id":unit["id"],"word_id":unit["word_id"],"headword":unit["headword"],"pos_group":unit["pos_group"],"classification":classification,
         "learnable":!senses.is_empty(),"senses":senses,"morphology":morphology(c,unit["id"].as_i64(),user)?}),
     )
 }
 pub fn entries(c: &Connection, spelling: &str, user: i64) -> Result<Vec<Value>> {
+    entries_mode(c, spelling, user, true)
+}
+pub fn entries_mode(
+    c: &Connection,
+    spelling: &str,
+    user: i64,
+    content: bool,
+) -> Result<Vec<Value>> {
     let normalized = fold(spelling.trim());
     let mut result = Vec::new();
     for unit in rows(
@@ -151,7 +220,7 @@ pub fn entries(c: &Connection, spelling: &str, user: i64) -> Result<Vec<Value>> 
         } else {
             "UNKNOWN"
         };
-        result.push(entry(c, &unit, user, classification, None)?);
+        result.push(entry(c, &unit, user, classification, None, content)?);
     }
     let forms = rows(
         c,
@@ -159,11 +228,14 @@ pub fn entries(c: &Connection, spelling: &str, user: i64) -> Result<Vec<Value>> 
         &[json!(normalized), json!(user)],
     )?;
     let mut grouped: Vec<(i64, Vec<Value>)> = Vec::new();
+    let mut positions = BTreeMap::new();
     for form in forms {
         let id = n(&form, "lexical_unit_id");
-        if let Some((_, items)) = grouped.iter_mut().find(|(uid, _)| *uid == id) {
-            items.push(form);
+        if let Some(&index) = positions.get(&id) {
+            let item: &mut (i64, Vec<Value>) = &mut grouped[index];
+            item.1.push(form);
         } else {
+            positions.insert(id, grouped.len());
             grouped.push((id, vec![form]));
         }
     }
@@ -178,7 +250,7 @@ pub fn entries(c: &Connection, spelling: &str, user: i64) -> Result<Vec<Value>> 
         } else {
             Some(&scopes)
         };
-        let mut value = entry(c, &unit, user, "INFLECTION", scope)?;
+        let mut value = entry(c, &unit, user, "INFLECTION", scope, content)?;
         let mut types = Vec::new();
         for form in forms {
             let kind = form["form_type"].clone();

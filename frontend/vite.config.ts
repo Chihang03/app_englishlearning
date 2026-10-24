@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { gzipSync } from "node:zlib";
 
 export default defineConfig({
   plugins: [react(), {
@@ -11,6 +12,11 @@ export default defineConfig({
         source: readFileSync(new URL("./src/version.json", import.meta.url), "utf8") });
     },
     writeBundle(options, bundle) {
+      for (const [name, item] of Object.entries(bundle)) {
+        if (!/\.(js|css)$/.test(name)) continue;
+        const content = item.type === "chunk" ? item.code : item.source;
+        writeFileSync(resolve(options.dir ?? "dist", `${name}.gz`), gzipSync(content, { level: 9 }));
+      }
       const { version } = JSON.parse(readFileSync(new URL("./src/version.json", import.meta.url), "utf8"));
       const urls = ["/index.html", "/manifest.webmanifest", "/apple-touch-icon.png", "/logo.png",
         ...Object.keys(bundle).filter((name) => name.startsWith("assets/")).map((name) => `/${name}`)];

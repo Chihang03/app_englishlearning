@@ -41,8 +41,8 @@ try {
   await settings().waitFor();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.waitForFunction(async (id) => {
-    const db = await new Promise((resolve) => { const open = indexedDB.open("cvt-study-content-v1", 2); open.onsuccess = () => resolve(open.result); });
-    const saved = await new Promise((resolve) => { const get = db.transaction("catalog").objectStore("catalog").get(id); get.onsuccess = () => resolve(get.result); });
+    const db = await new Promise((resolve) => { const open = indexedDB.open("cvt-study-content-v1", 3); open.onsuccess = () => resolve(open.result); });
+    const saved = await new Promise((resolve) => { const get = db.transaction("catalog-meta").objectStore("catalog-meta").get(id); get.onsuccess = () => resolve(get.result); });
     db.close(); return Boolean(saved);
   }, user.id);
   await settings().click(); await muted().click();
