@@ -19,6 +19,7 @@ const card = {
   definition_cn: "苹果", cloze_sentence: "I ate an _______.", example_sentence: "I ate an apple.",
   status: "New", remaining_today: 1
 };
+let nextCard = card;
 const stats = {
   total_study_time_ms: 0, today_completed_cards: 0, due_words: 0, total_learned: 0,
   learning: 0, new_words: 1, mature: 0, streak_days: 0, today_independent_accuracy: null,
@@ -57,15 +58,15 @@ try {
       case "/api/word-lists": json = { lists: [] }; break;
       case "/api/study/meaning-catalog": json = { words: [] }; break;
       case "/api/push/config": json = { enabled: false, public_key: null }; break;
-      case "/api/next": json = { card }; break;
+      case "/api/next": json = { card: nextCard }; break;
       case "/api/review": {
         const body = route.request().postDataJSON();
         reviews.push(body);
         if (releaseReview) await new Promise((resolve) => { releaseReview.resolve = resolve; });
-        const correct = body.user_answer.trim() === "apple";
+        const correct = body.user_answer.trim() === nextCard.answer_form;
         json = { sense_id: 1, learning_unit_id: 1, example_id: 1, word: "apple", other_senses: [],
           is_correct: correct, is_independent: false, outcome: correct ? "corrected" : "incorrect",
-          is_blank: !body.user_answer.trim(), correct_answer: "apple", example_sentence: card.example_sentence };
+          is_blank: !body.user_answer.trim(), correct_answer: nextCard.answer_form, example_sentence: nextCard.example_sentence };
         break;
       }
       default:
@@ -76,25 +77,31 @@ try {
   });
   const answer = page.getByRole("textbox", { name: "输入英文答案", exact: true });
   const waitForReview = () => page.waitForResponse((response) => new URL(response.url()).pathname === "/api/review");
-  const wrongAnswer = async () => {
+  const openCard = async (fixture = card) => {
+    nextCard = fixture;
     reviews.length = 0;
     await page.goto(origin);
     await page.getByRole("button", { name: "开始学习", exact: true }).click();
     await page.waitForFunction(() => document.querySelector("#study-answer")?.getAttribute("aria-busy") === "false");
+  };
+  const wrongAnswer = async (fixture = card) => {
+    await openCard(fixture);
     await answer.fill("wrong");
     const response = waitForReview();
     await answer.press("Enter");
     await response;
-    await page.waitForFunction(() => {
+    await page.waitForFunction((expected) => {
       const field = document.querySelector("#study-answer");
-      return field?.value === "apple" && field.selectionStart === 0 && field.selectionEnd === 5
+      return field?.value === "" && field.placeholder === expected
         && field.getAttribute("aria-busy") === "false";
-    });
+    }, fixture.answer_form);
     assert.equal(reviews.length, 1);
   };
-  // Model the events emitted when a keyboard commits one complete replacement.
-  // Replacing a selection with identical text deliberately leaves value unchanged.
+  // Model a keyboard optimizing away identical replacements, including both
+  // beforeinput and input. The correction hint must not occupy the edit buffer.
   const replace = async (value, inputType = "insertReplacementText") => answer.evaluate((field, edit) => {
+    const next = field.value.slice(0, field.selectionStart) + edit.value + field.value.slice(field.selectionEnd);
+    if (next === field.value) return;
     const before = new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: edit.inputType, data: edit.value });
     if (!field.dispatchEvent(before)) return;
     field.setRangeText(edit.value, field.selectionStart, field.selectionEnd, "end");
@@ -120,6 +127,12 @@ try {
   }
 
   await wrongAnswer();
+  await answer.focus();
+  await page.keyboard.insertText("apple");
+  await submit("apple");
+  console.log(`PASS ${engine}: browser-native text insertion retries the displayed correct word`);
+
+  await wrongAnswer();
   await answer.click();
   await answer.evaluate((field) => { field.select(); });
   const spoken = await page.evaluate(() => window.testSpeech.length);
@@ -137,10 +150,15 @@ try {
   await wrongAnswer();
   await replace("pear");
   await submit("pear");
-  await page.waitForFunction(() => document.querySelector("#study-answer")?.value === "apple");
+  await page.waitForFunction(() => {
+    const field = document.querySelector("#study-answer");
+    return field?.value === "" && field.placeholder === "apple";
+  });
   console.log(`PASS ${engine}: different replacement submits the actual text and displays feedback`);
 
   await wrongAnswer();
+  await page.keyboard.insertText("pear");
+  await answer.evaluate((field) => field.select());
   await answer.press("Backspace");
   assert.equal(await answer.inputValue(), "");
   await answer.pressSequentially("apple");
@@ -177,6 +195,35 @@ try {
   assert.equal(await answer.inputValue(), "apple");
   assert.equal(reviews[1].user_answer, "apple");
   console.log(`PASS ${engine}: pending retry ignores duplicate submission and edits`);
+
+  await openCard({ ...card, needs_correction: true });
+  assert.equal(await answer.inputValue(), "", "Resumed correction must also start with an empty edit buffer");
+  assert.equal(await answer.getAttribute("placeholder"), "apple");
+  await page.keyboard.insertText("apple");
+  const resumed = waitForReview();
+  await answer.press("Enter");
+  await resumed;
+  assert.equal(reviews.length, 1);
+  assert.equal(reviews[0].user_answer, "apple");
+  console.log(`PASS ${engine}: resumed correction displays the answer without prefilling it`);
+
+  const longWord = "pneumonoultramicroscopicsilicovolcanoconiosis";
+  await page.setViewportSize({ width: 320, height: 844 });
+  await wrongAnswer({ ...card, answer_form: longWord, example_sentence: `The word is ${longWord}.`, cloze_sentence: "The word is _______." });
+  const layout = await answer.evaluate((field) => {
+    const style = getComputedStyle(field);
+    const hint = getComputedStyle(field, "::placeholder");
+    return { height: field.clientHeight, scrollHeight: field.scrollHeight, lineHeight: parseFloat(style.lineHeight),
+      color: style.color, hintColor: hint.color, hintOpacity: hint.opacity };
+  });
+  assert.ok(layout.height >= layout.lineHeight * 2, "Long correction hint must wrap without clipping");
+  assert.ok(layout.scrollHeight <= layout.height + 1, "Correction hint must fit the input height");
+  assert.equal(layout.hintColor, layout.color);
+  assert.equal(layout.hintOpacity, "1");
+  await page.screenshot({ path: process.env.INPUT_TEST_SCREENSHOT ?? "/tmp/english-answer-correction.png" });
+  await page.keyboard.insertText(longWord);
+  await submit(longWord);
+  console.log(`PASS ${engine}: narrow-screen correction retains full color and wraps long words`);
   assert.deepEqual(errors, [], "No browser errors or unmocked API requests");
   await context.close();
 } finally {

@@ -253,7 +253,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     if (reviewingRef.current || deckMovingRef.current) return;
     inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    if (result && !result.is_correct) inputRef.current?.select();
   }
 
   const guarded = useCallback(
@@ -431,8 +430,9 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       setCard(payload.card);
       setResult(null);
       studyToolsOpenRef.current = false;
-      // A resumed failed round still needs correction; it is never a clean test.
-      setAnswer(payload.card?.needs_correction ? payload.card.answer_form : "");
+      // A resumed correction shows its answer as a hint, keeping the edit buffer
+      // empty so retyping that same word is a real value change on iOS.
+      setAnswer("");
       setQueueMessage(payload.message ?? "");
       const delay = payload.retry_after_seconds ?? 0;
       setRetryAt(delay > 0 ? Date.now() + delay * 1000 : null);

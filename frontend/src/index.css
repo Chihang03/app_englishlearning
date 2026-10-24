@@ -231,6 +231,7 @@ h1, h2, p { margin: 0; }
 .sentence-input.is-retry { background: #fff0ed; color: #b42318; border-bottom-color: #b42318; }
 .sentence-input.is-retry:focus { background: #fff0ed; box-shadow: 0 2px 0 #b42318; }
 .sentence-input.is-retry::selection { background: #f9d0ca; color: #b42318; }
+.sentence-input.is-retry::placeholder { color: inherit; opacity: 1; }
 .meaning-block { flex-shrink: 0; max-height: 160px; overflow-y: auto; overscroll-behavior-y: contain; border-top: 1px solid var(--line); padding: 10px 2px 2px; margin-top: 10px; }
 .part-of-speech { color: var(--muted); font-size: 12px; }
 .word-meaning, .sentence-translation { font-size: 18px; font-weight: 550; color: var(--ink); line-height: 1.5; overflow-wrap: anywhere; }
