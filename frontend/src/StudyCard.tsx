@@ -32,6 +32,9 @@ export function StudyCard({ card, result, answer, showTranslation, soundIcon, me
   onSubmit, onEnter, onWordHint, onAnswerChange }: Props) {
   const split = (card?.cloze_sentence ?? "_______").split("_______");
   const parts = split.length > 1 ? split : [...split, ""];
+  function handleEdit(event: FormEvent<HTMLTextAreaElement>) {
+    if (!busy && !readOnly) onAnswerChange?.(event.currentTarget.value.replace(/[\r\n]+/g, " "));
+  }
   return <form onSubmit={readOnly ? (event) => event.preventDefault() : onSubmit}
     className={`question-card${readOnly ? " previous-question" : ""}`}
     aria-busy={loading} aria-label={readOnly ? "上一题，仅回看" : "当前题目"}>
@@ -54,7 +57,9 @@ export function StudyCard({ card, result, answer, showTranslation, soundIcon, me
             className={`sentence-input ${result?.is_correct ? "is-correct" : result || card?.needs_correction ? "is-retry" : ""}`}
             value={result ? result.correct_answer : answer} readOnly={readOnly} tabIndex={readOnly ? -1 : undefined}
             onEnter={readOnly ? () => {} : onEnter}
-            onChange={(event) => { if (!busy && !readOnly) onAnswerChange?.(event.target.value.replace(/[\r\n]+/g, " ")); }}
+            // React suppresses onChange when a keyboard replaces the selected
+            // answer with identical text. The input event still starts a retry.
+            onInput={handleEdit} onChange={handleEdit}
             onFocus={(event) => { if (!readOnly && result && !result.is_correct) event.currentTarget.select(); }}
             onClick={(event) => { if (!readOnly && result && !result.is_correct) event.currentTarget.select(); }}
             aria-label={index === 0 ? "输入英文答案" : `输入英文答案，第 ${index + 1} 处挖空`}
