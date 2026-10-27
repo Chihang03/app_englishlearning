@@ -8,6 +8,7 @@ import type { AdminSession } from "./adminData";
 import { version } from "./version.json";
 import { activateAppUpdate } from "./appWorker";
 import type { User } from "./types";
+import { ThemeSettings } from "./ThemeSettings";
 
 type Overview = {
   users: number; today_active_users: number; reviews: number;
@@ -89,6 +90,7 @@ export function AdminDashboard({ user, onSignedOut, onSessionChanged, accountSec
       {updateAvailable ? <button type="button" className="secondary-button admin-update" onClick={() => {
         void activateAppUpdate().then(() => window.location.reload()).catch(() => {});
       }}>更新应用</button> : null}
+      <section className="settings-group panel"><h2>外观</h2><ThemeSettings /></section>
       <details className="learning-details panel admin-security"><summary><span>账号安全</span><AdminChevron /></summary><div className="pb-4">{accountSecurity}</div></details>
       <button type="button" className="sign-out-button secondary-button" disabled={endingSession} onClick={() => { void signOut(); }}>退出登录</button>
       <p className="app-version">版本 {version}</p>

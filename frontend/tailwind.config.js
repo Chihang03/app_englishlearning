@@ -3,6 +3,10 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      colors: Object.fromEntries([
+        "canvas", "surface", "ink", "muted", "line", "control-line", "control", "on-control",
+        "control-disabled", "danger", "danger-line", "danger-bg", "success", "warning"
+      ].map(name => [name, `var(--${name})`])),
       fontFamily: {
         sans: [
           "Inter",
