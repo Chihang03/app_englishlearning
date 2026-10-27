@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { errorMessage, request } from "./api";
 import { loginWithPasskey, passkeyError, usePasskeyAvailability } from "./passkeys";
 import type { User } from "./types";
+import { ThemeSettings } from "./ThemeSettings";
 
 type Mode = "login" | "register";
 
@@ -73,11 +74,11 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7f7f4] px-4 py-10 text-gray-950">
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-semibold">Context Vocabulary Trainer</h1>
 
-        <div className="mt-7 flex border border-gray-300 bg-white">
+        <div className="mt-7 flex border border-control-line bg-surface">
           <TabButton disabled={busy} active={mode === "login"} onClick={() => switchMode("login")}>
             登录
           </TabButton>
@@ -86,15 +87,15 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
           </TabButton>
         </div>
 
-        <form onSubmit={submit} className="mt-5 space-y-4 border border-gray-300 bg-white px-5 py-5">
+        <form onSubmit={submit} className="mt-5 space-y-4 border border-control-line bg-surface px-5 py-5">
           {mode === "login" ? (
-            <div className="space-y-2 border-b border-gray-200 pb-4">
+            <div className="space-y-2 border-b border-line pb-4">
               <button type="button" onClick={() => void signInWithPasskey()}
                 disabled={busy || !availability.ready}
-                className="h-11 w-full border border-gray-950 bg-gray-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300">
+                className="h-11 w-full border border-control bg-control text-sm font-semibold text-on-control disabled:cursor-not-allowed disabled:border-control-line disabled:bg-control-disabled">
                 {passkeyBusy ? "正在验证通行密钥…" : "使用通行密钥登录"}
               </button>
-              <p className="text-xs text-gray-500">{availability.ready
+              <p className="text-xs text-muted">{availability.ready
                 ? "首次使用需在设置中添加通行密钥"
                 : availability.reason}</p>
             </div>
@@ -106,7 +107,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
               autoComplete="username"
               disabled={busy}
               autoFocus
-              className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
+              className="h-11 w-full border border-control-line px-3 outline-none focus:border-control"
             />
           </Field>
 
@@ -117,7 +118,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
               onChange={(event) => setPassword(event.target.value)}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               disabled={busy}
-              className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
+              className="h-11 w-full border border-control-line px-3 outline-none focus:border-control"
             />
           </Field>
 
@@ -128,35 +129,36 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
                   value={timezone}
                   onChange={(event) => setTimezone(event.target.value)}
                   placeholder="Asia/Shanghai"
-                  className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
+                  className="h-11 w-full border border-control-line px-3 outline-none focus:border-control"
                 />
               </Field>
               <Field label="邀请码" hint="如无则留空">
                 <input
                   value={registrationCode}
                   onChange={(event) => setRegistrationCode(event.target.value)}
-                  className="h-11 w-full border border-gray-300 px-3 outline-none focus:border-gray-950"
+                  className="h-11 w-full border border-control-line px-3 outline-none focus:border-control"
                 />
               </Field>
             </>
           ) : null}
 
           {error ? (
-            <p role="alert" className="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+            <p role="alert" className="border border-danger-line bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>
           ) : null}
 
           <button
             type="submit"
             disabled={busy || !username || !password}
-            className="h-11 w-full border border-gray-950 bg-white text-sm font-semibold text-gray-950 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+            className="h-11 w-full border border-control bg-surface text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:border-control-line disabled:text-muted"
           >
             {submitting ? "处理中" : mode === "login" ? "密码登录" : "创建账号"}
           </button>
 
           {mode === "register" ? (
-            <p className="text-xs text-gray-500">密码至少 8 位；用户名 3–32 位，支持字母、数字、_ . -。</p>
+            <p className="text-xs text-muted">密码至少 8 位；用户名 3–32 位，支持字母、数字、_ . -。</p>
           ) : null}
         </form>
+        <ThemeSettings />
       </div>
     </main>
   );
@@ -179,7 +181,7 @@ function TabButton({
       disabled={disabled}
       onClick={onClick}
       className={`h-11 flex-1 text-sm font-medium ${
-        active ? "bg-gray-950 text-white" : "text-gray-700"
+        active ? "bg-control text-on-control" : "text-ink"
       }`}
     >
       {children}
@@ -197,9 +199,9 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block text-sm text-gray-700">
+    <label className="block text-sm text-ink">
       <span className="font-medium">{label}</span>
-      {hint ? <span className="ml-2 text-xs text-gray-500">{hint}</span> : null}
+      {hint ? <span className="ml-2 text-xs text-muted">{hint}</span> : null}
       <div className="mt-1">{children}</div>
     </label>
   );
