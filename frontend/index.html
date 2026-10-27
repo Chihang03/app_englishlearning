@@ -12,7 +12,7 @@
         try { theme = localStorage.getItem("context-theme") || "system"; } catch {}
         const dark = theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
-        document.querySelector('meta[name="theme-color"]').content = dark ? "#151c19" : "#f7f7f2";
+        document.querySelector('meta[name="theme-color"]').content = dark ? "#181a20" : "#f7f7f2";
       })();
     </script>
     <link rel="manifest" href="/manifest.webmanifest" />

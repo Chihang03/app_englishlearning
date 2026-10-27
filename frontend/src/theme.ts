@@ -13,7 +13,7 @@ function applyTheme() {
   const dark = preference === "dark" ||
     (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#151c19" : "#f7f7f2");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#181a20" : "#f7f7f2");
 }
 
 export function initializeTheme() {

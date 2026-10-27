@@ -54,7 +54,7 @@ test("system follows live changes; explicit choices override them and update bro
   assert.equal(env.api.getThemePreference(), "system");
   env.system(true);
   assert.equal(env.theme(), "dark");
-  assert.equal(env.meta.content, "#151c19");
+  assert.equal(env.meta.content, "#181a20");
   env.api.setThemePreference("light");
   env.system(true);
   assert.equal(env.theme(), "light");

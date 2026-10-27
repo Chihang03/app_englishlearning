@@ -52,7 +52,7 @@ try {
   const theme = async expected => {
     await page.waitForFunction(value => document.documentElement.dataset.theme === value, expected);
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme), expected);
-    assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), expected === "dark" ? "#151c19" : "#f7f7f2");
+    assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), expected === "dark" ? "#181a20" : "#f7f7f2");
   };
   await page.goto(origin);
   await page.getByRole("group", { name: "外观", exact: true }).waitFor();
