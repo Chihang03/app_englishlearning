@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AuthScreen } from "./AuthScreen";
+import { ThemeSettings } from "./ThemeSettings";
 import { AdminDashboard } from "./AdminDashboard";
 import { PasskeySettings } from "./PasskeySettings";
 import { StudyCard } from "./StudyCard";
@@ -119,11 +120,11 @@ function App() {
     const cached = connectionError ? savedLearner() : null;
     if (cached) return <OfflineLibrary key={cached.id} user={cached} onRetry={() => { void checkSession(); }} />;
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f7f7f4]">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas">
         {connectionError ? <>
           <p role="alert">暂时无法连接服务器</p>
           <button type="button" className="secondary-button" onClick={() => { void checkSession(); }}>重试</button>
-        </> : <p className="text-gray-500">Loading...</p>}
+        </> : <p className="text-muted">Loading...</p>}
       </main>
     );
   }
@@ -1076,6 +1077,7 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       </section>
       <section className="settings-group panel">
         <h2><Icon name="book" /> 学习显示</h2>
+        <ThemeSettings />
         <label className="setting-row"><span><strong>句子中文翻译</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.show_sentence_translation} onChange={(event) => onSetting({ show_sentence_translation: event.target.checked })} /></label>
       </section>
       <section className="settings-group panel">
@@ -1214,7 +1216,7 @@ function PasswordForm() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-3 h-10 w-full border border-gray-300 text-sm text-gray-700"
+        className="mt-3 h-10 w-full border border-control-line text-sm text-ink"
       >
         修改密码
       </button>
@@ -1230,7 +1232,7 @@ function PasswordForm() {
         placeholder="当前密码"
         aria-label="当前密码"
         autoComplete="current-password"
-        className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-gray-950"
+        className="h-10 w-full border border-control-line px-3 text-sm outline-none focus:border-control"
       />
       <input
         type="password"
@@ -1239,15 +1241,15 @@ function PasswordForm() {
         placeholder="新密码（至少 8 位）"
         aria-label="新密码（至少 8 位）"
         autoComplete="new-password"
-        className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-gray-950"
+        className="h-10 w-full border border-control-line px-3 text-sm outline-none focus:border-control"
       />
-      {error ? <p className="text-xs text-red-700">{error}</p> : null}
-      {status ? <p className="text-xs text-emerald-700">{status}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+      {status ? <p className="text-xs text-success">{status}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <button
           type="submit"
           disabled={busy || !currentPassword || !newPassword}
-          className="h-10 border border-gray-950 bg-gray-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300"
+          className="h-10 border border-control bg-control text-sm font-semibold text-on-control disabled:cursor-not-allowed disabled:border-control-line disabled:bg-control-disabled"
         >
           {busy ? "提交中" : "保存"}
         </button>
@@ -1258,7 +1260,7 @@ function PasswordForm() {
             setError("");
             setStatus("");
           }}
-          className="h-10 border border-gray-300 text-sm"
+          className="h-10 border border-control-line text-sm"
         >
           取消
         </button>
