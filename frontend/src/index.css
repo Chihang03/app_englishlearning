@@ -430,6 +430,13 @@ h1, h2, p { margin: 0; }
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
 
+.auth-theme-toggle { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.auth-theme-toggle:hover { background: var(--hover); color: var(--ink); }
+.auth-theme-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.auth-theme-toggle svg { width: 18px; height: 18px; }
+.auth-theme-toggle .theme-sun { display: none; }
+:root[data-theme="dark"] .auth-theme-toggle .theme-sun { display: block; }
+:root[data-theme="dark"] .auth-theme-toggle .theme-moon { display: none; }
 .theme-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; }
 .theme-options button { padding: 9px 4px; }
 .theme-options button[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); color: var(--accent); font-weight: 600; }

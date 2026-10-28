@@ -55,12 +55,33 @@ try {
     assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), expected === "dark" ? "#181a20" : "#f7f7f2");
   };
   await page.goto(origin);
-  await page.getByRole("group", { name: "外观", exact: true }).waitFor();
+  await page.getByRole("textbox", { name: "用户名", exact: true }).waitFor();
+  assert.equal(await page.getByRole("group", { name: "外观", exact: true }).count(), 0);
   await theme("dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await theme("light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await theme("dark");
+  await page.getByRole("button", { name: "切换浅色或深色", exact: true }).click();
+  await theme("light");
+  await page.reload();
+  await theme("light");
+  await page.getByRole("button", { name: "切换浅色或深色", exact: true }).click();
+  await theme("dark");
+  await page.getByRole("button", { name: "注册", exact: true }).click();
+  assert.equal(await page.getByRole("group", { name: "外观", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.screenshot({ path: "/tmp/englishlearning-dark-login.png", fullPage: true });
+
+  role = "learner";
+  await page.reload();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.locator(".settings-page .theme-options").waitFor();
   await page.getByRole("button", { name: "浅色", exact: true }).click();
   await theme("light");
   await page.reload();
   await theme("light");
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "跟随系统", exact: true }).click();
   await theme("dark");
   await page.emulateMedia({ colorScheme: "light" });
@@ -68,12 +89,6 @@ try {
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await page.emulateMedia({ colorScheme: "light" });
   await theme("dark");
-  await page.screenshot({ path: "/tmp/englishlearning-dark-login.png", fullPage: true });
-
-  role = "learner";
-  await page.reload();
-  await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.locator(".settings-page .theme-options").waitFor();
   assert.equal(await page.getByRole("button", { name: "深色", exact: true }).getAttribute("aria-pressed"), "true");
   for (const width of [320, 390, 430, 1024]) {
     await page.setViewportSize({ width, height: 844 });
@@ -99,6 +114,7 @@ try {
   await page.getByRole("button", { name: "开始学习", exact: true }).click();
   const answer = page.getByRole("textbox", { name: "输入英文答案", exact: true });
   await answer.waitFor();
+  await page.waitForFunction(() => document.querySelector("#study-answer")?.getAttribute("aria-busy") === "false");
   await answer.fill("draft");
   for (const status of ["is-correct", "is-retry"]) {
     await answer.evaluate((el, status) => { el.className = `sentence-input ${status}`; }, status);
