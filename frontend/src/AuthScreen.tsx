@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { errorMessage, request } from "./api";
 import { loginWithPasskey, passkeyError, usePasskeyAvailability } from "./passkeys";
 import type { User } from "./types";
-import { ThemeSettings } from "./ThemeSettings";
+import { ThemeToggle } from "./ThemeSettings";
 
 type Mode = "login" | "register";
 
@@ -74,7 +74,8 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink">
+    <main className="relative flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink">
+      <ThemeToggle />
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-semibold">Context Vocabulary Trainer</h1>
 
@@ -158,7 +159,6 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
             <p className="text-xs text-muted">密码至少 8 位；用户名 3–32 位，支持字母、数字、_ . -。</p>
           ) : null}
         </form>
-        <ThemeSettings />
       </div>
     </main>
   );
