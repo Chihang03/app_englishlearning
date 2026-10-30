@@ -2,8 +2,8 @@
 import hashlib,json,os,sqlite3,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
-CTL=ROOT/'rust/target/debug/englishctl'
-SERVER=ROOT/'rust/target/debug/english-server'
+CTL=Path(os.environ.get('ENGLISH_TEST_NATIVE_CATALOG',ROOT/'rust/target/debug/englishctl'))
+SERVER=Path(os.environ.get('ENGLISH_TEST_RUST_SERVER',ROOT/'rust/target/debug/english-server'))
 import socket,time,httpx
 from contextlib import contextmanager
 @contextmanager

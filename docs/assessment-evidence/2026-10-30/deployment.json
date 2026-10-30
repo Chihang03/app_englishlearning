@@ -1,0 +1,34 @@
+{
+  "version": "26.10.30.110",
+  "source_commit": "a5da1b1f8667f785f4fcf19cdd35718817add7b2",
+  "binary_sha256": "8ade5cd7dfe9be10c5fda3d1105d4c58c5561cf0f983d3880f14da0bf8d6354f",
+  "release": "/opt/englishlearning/releases/english-assessment-26.10.30.110",
+  "backup": "/var/backups/englishlearning-rust-20261030T101827Z",
+  "server_local_preflight": {
+    "passed": true,
+    "original_tables_unchanged": 41,
+    "legacy_v22_cli_compatible": true,
+    "bank_items": 600,
+    "assessment_questions": 39,
+    "checks": 92,
+    "maximum_request_ms": 278.76,
+    "production_mutated": false
+  },
+  "live_checks": {
+    "https_version": "26.10.30.110",
+    "https_health": 200,
+    "unauthenticated_proficiency": 401,
+    "public_internal_ready": 404,
+    "service": "active",
+    "restarts": 0,
+    "memory_current_bytes": 46899200,
+    "main_schema": 22,
+    "assessment_extension": 1,
+    "bank_items": 600,
+    "active_calibrations": 0,
+    "existing_account_automatically_opted_in": false
+  },
+  "real_user_calibration": false,
+  "automatic_deferral": false,
+  "real_iphone_validation": false
+}
