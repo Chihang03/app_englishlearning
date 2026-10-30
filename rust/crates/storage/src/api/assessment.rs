@@ -181,8 +181,13 @@ pub fn profile(c: &Connection, uid: i64) -> Result<Value> {
         "SELECT id,state FROM assessment_sessions WHERE user_id=? ORDER BY rowid DESC LIMIT 1",
         &[json!(uid)],
     )?;
+    let gate = scalar(
+        c,
+        "SELECT EXISTS(SELECT 1 FROM assessment_calibrations WHERE active=1)",
+        &[],
+    )? == json!(1);
     Ok(
-        json!({"enabled":true,"mode":p.as_ref().map_or("frequency",|p|s(p,"mode")),"profile":p,"session":last,"labels":model::LABELS,"automatic_deferral":false}),
+        json!({"enabled":true,"mode":p.as_ref().map_or("frequency",|p|s(p,"mode")),"profile":p,"session":last,"labels":model::LABELS,"automatic_deferral":gate}),
     )
 }
 fn switch_filters(c: &Connection, uid: i64, mode: &str) -> Result<()> {
