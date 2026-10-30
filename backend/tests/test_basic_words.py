@@ -213,6 +213,13 @@ class BasicWordFormTests(unittest.TestCase):
         self.skip(False)
         self.assertEqual(self.client.get('/api/stats').json()['new_words'], len(forms))
 
+    def test_dictionary_article_labels_are_grammatical_forms(self):
+        for word in ('those', 'these', 'our', 'your'):
+            self.word(word, '冠词')
+        self.skip()
+        self.assertIsNone(self.next())
+        self.assertEqual(self.client.get('/api/stats').json()['new_senses'], 0)
+
     def test_case_insensitive_untyped_legacy_forms_are_also_skipped(self):
         for word in ('HIM', 'Me', 'OUR'):
             self.word(word, '词汇')

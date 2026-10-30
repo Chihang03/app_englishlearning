@@ -4,7 +4,7 @@ CREATE TEMP TABLE perf_words AS
         lower(trim(w.word)) IN ('her','hers','herself','him','himself','his','its','itself','me','mine','my','myself','oneself','our','ours','ourselves','their','theirs','them','themself','themselves','these','those','us','whom','whose','your','yours','yourself','yourselves') THEN (EXISTS (SELECT 1 FROM word_senses basic_sense WHERE basic_sense.word_id=w.id AND basic_sense.active=1
         AND basic_sense.learning_enabled=1 AND EXISTS (
             SELECT 1 FROM sense_examples basic_example
-            WHERE basic_example.sense_id=basic_sense.id AND basic_example.active=1) AND (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
+            WHERE basic_example.sense_id=basic_sense.id AND basic_example.active=1) AND (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','冠词','article','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
         OR (lower(trim(w.word)) IN ('whose','these','those')
             AND lower(trim(basic_sense.part_of_speech)) IN ('形容词','adjective'))
         OR (lower(trim(w.word))!='mine'
@@ -12,7 +12,7 @@ CREATE TEMP TABLE perf_words AS
         AND NOT EXISTS (SELECT 1 FROM word_senses basic_sense WHERE basic_sense.word_id=w.id AND basic_sense.active=1
         AND basic_sense.learning_enabled=1 AND EXISTS (
             SELECT 1 FROM sense_examples basic_example
-            WHERE basic_example.sense_id=basic_sense.id AND basic_example.active=1) AND NOT (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
+            WHERE basic_example.sense_id=basic_sense.id AND basic_example.active=1) AND NOT (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','冠词','article','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
         OR (lower(trim(w.word)) IN ('whose','these','those')
             AND lower(trim(basic_sense.part_of_speech)) IN ('形容词','adjective'))
         OR (lower(trim(w.word))!='mine'
@@ -30,7 +30,7 @@ CREATE TEMP TABLE perf_units AS
             SELECT 1 FROM sense_examples basic_example
             WHERE basic_example.sense_id=basic_sense.id AND basic_example.active=1) AND EXISTS (SELECT 1 FROM learning_unit_senses basic_binding
             WHERE basic_binding.sense_id=basic_sense.id
-              AND basic_binding.learning_unit_id=u.id) AND (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
+              AND basic_binding.learning_unit_id=u.id) AND (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','冠词','article','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
         OR (lower(trim(w.word)) IN ('whose','these','those')
             AND lower(trim(basic_sense.part_of_speech)) IN ('形容词','adjective'))
         OR (lower(trim(w.word))!='mine'
@@ -40,7 +40,7 @@ CREATE TEMP TABLE perf_units AS
             SELECT 1 FROM sense_examples basic_example
             WHERE basic_example.sense_id=basic_sense.id AND basic_example.active=1) AND EXISTS (SELECT 1 FROM learning_unit_senses basic_binding
             WHERE basic_binding.sense_id=basic_sense.id
-              AND basic_binding.learning_unit_id=u.id) AND NOT (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
+              AND basic_binding.learning_unit_id=u.id) AND NOT (lower(trim(basic_sense.part_of_speech)) IN ('代词','限定词','冠词','article','pronoun','personal pronoun','possessive pronoun','reflexive pronoun','relative pronoun','demonstrative pronoun','determiner','possessive determiner','demonstrative determiner')
         OR (lower(trim(w.word)) IN ('whose','these','those')
             AND lower(trim(basic_sense.part_of_speech)) IN ('形容词','adjective'))
         OR (lower(trim(w.word))!='mine'
