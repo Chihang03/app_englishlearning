@@ -1,0 +1,14 @@
+{
+  "rust_unit_tests": 13,
+  "native_assessment_integration_tests": 6,
+  "basic_word_regression_tests": 17,
+  "repository_native_compatibility_tests": 48,
+  "mobile_browser": {
+    "engine": "Chromium 141",
+    "widths": [320, 390, 430],
+    "checks": ["resume", "lost-response retry", "IME composition", "apply result", "learning mode", "no horizontal overflow"]
+  },
+  "real_iphone_safari_tested": false,
+  "real_user_psychometric_validation": false,
+  "automatic_deferral": false
+}
