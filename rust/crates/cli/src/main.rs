@@ -15,6 +15,17 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Validate or activate externally calibrated common-sense readiness metadata.
+    AssessmentCalibrate {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, required_unless_present = "dry_run")]
+        backup: Option<PathBuf>,
+    },
     /// Install the vocabulary assessment extension after a consistent backup.
     AssessmentInstall {
         #[arg(long)]
@@ -183,6 +194,25 @@ fn main() -> Result<()> {
         }
         Command::Inspect { database } => {
             println!("{}", english_storage::operations::inspect(&database)?)
+        }
+        Command::AssessmentCalibrate {
+            database,
+            input,
+            dry_run,
+            backup,
+        } => {
+            let report = read_bounded(&input)?;
+            english_storage::assessment_calibration::validate(&report)?;
+            if !dry_run {
+                english_storage::operations::backup(
+                    &database,
+                    &backup.context("--backup required for activation")?,
+                )?;
+            }
+            println!(
+                "{}",
+                english_storage::assessment_calibration::import(&database, &report, dry_run)?
+            );
         }
         Command::AssessmentInstall { database, backup } => println!(
             "{}",

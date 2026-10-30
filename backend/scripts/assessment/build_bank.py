@@ -40,7 +40,7 @@ def build():
             item['options']=[item['meaning']]+[pool[(index+offset)%len(pool)]['meaning'] for offset in (7,23,47)]
             item['answer']='0'
     return {'version':'original-2026-10-v1','license':'Project-original; no external test items copied',
-            'calibration':'expert-prior-only','items':items}
+            'calibration':'authored-prior-only','items':items}
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(); parser.add_argument('--check',action='store_true');args=parser.parse_args()

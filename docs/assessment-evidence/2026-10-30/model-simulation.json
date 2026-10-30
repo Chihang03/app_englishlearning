@@ -1,0 +1,56 @@
+{
+  "kind": "model-consistent-simulation",
+  "seed": 20261030,
+  "real_user_calibration": false,
+  "results": [
+    {
+      "theta": -3,
+      "subjects": 30,
+      "bias": 0.158403549369235,
+      "rmse": 0.6251954678251865,
+      "normal90_coverage": 0.9666666666666667
+    },
+    {
+      "theta": -2,
+      "subjects": 30,
+      "bias": 0.011244131686816735,
+      "rmse": 0.7021737046273855,
+      "normal90_coverage": 0.8666666666666667
+    },
+    {
+      "theta": -1,
+      "subjects": 30,
+      "bias": 0.08182916151146763,
+      "rmse": 0.4067144790318897,
+      "normal90_coverage": 0.9666666666666667
+    },
+    {
+      "theta": 0,
+      "subjects": 30,
+      "bias": 0.01925878662507866,
+      "rmse": 0.5485095836516239,
+      "normal90_coverage": 0.8333333333333334
+    },
+    {
+      "theta": 1,
+      "subjects": 30,
+      "bias": -0.03423511950749097,
+      "rmse": 0.4115376851476912,
+      "normal90_coverage": 0.9333333333333333
+    },
+    {
+      "theta": 2,
+      "subjects": 30,
+      "bias": -0.20824494723176193,
+      "rmse": 0.5439170696633081,
+      "normal90_coverage": 0.8666666666666667
+    },
+    {
+      "theta": 3,
+      "subjects": 30,
+      "bias": -0.3886339396522235,
+      "rmse": 0.7557533029583893,
+      "normal90_coverage": 0.6666666666666666
+    }
+  ]
+}
