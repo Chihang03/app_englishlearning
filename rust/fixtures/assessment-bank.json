@@ -1,7 +1,7 @@
 {
   "version": "original-2026-10-v1",
   "license": "Project-original; no external test items copied",
-  "calibration": "expert-prior-only",
+  "calibration": "authored-prior-only",
   "items": [
     {
       "id": "r-four",
