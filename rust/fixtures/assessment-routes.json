@@ -1,0 +1,65 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/assessments",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/assessments/{session_id}",
+    "writes": false,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/assessments/{session_id}/answers",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/assessments/{session_id}/abandon",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/assessments/{session_id}/apply",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/proficiency",
+    "writes": false,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/proficiency/mode",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/assessment.rs",
+    "dependencies": [
+      "learner"
+    ]
+  }
+]

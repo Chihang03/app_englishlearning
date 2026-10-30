@@ -120,6 +120,9 @@ pub fn note_learning_write(c: &Connection) -> Result<()> {
 }
 
 pub fn new_unit(c: &Connection, user: i64) -> Result<Option<Value>> {
+    if super::proficiency::adaptive_profile(c, user)?.is_some() {
+        return super::proficiency::new_unit(c, user);
+    }
     use rusqlite::OptionalExtension;
     let skip: bool = c.query_row("SELECT EXISTS(SELECT 1 FROM settings WHERE user_id=? AND key='skip_basic_600' AND value='true')",[user],|r|r.get(0))?;
     Ok(c.prepare_cached(include_str!("new_unit.sql"))?

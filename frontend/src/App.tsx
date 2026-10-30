@@ -1,3 +1,4 @@
+import { Assessment, ProficiencySettings } from "./Assessment";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AuthScreen } from "./AuthScreen";
@@ -145,11 +146,11 @@ function App() {
     onSessionChanged={setUser} updateAvailable={updateAvailable} checkVersion={checkVersion} />;
 }
 
-type Page = "home" | "study" | "settings" | "learning-calendar" | "muted-words" | `word-list/${string}`;
+type Page = "assessment" | "home" | "study" | "settings" | "learning-calendar" | "muted-words" | `word-list/${string}`;
 
 function pageFromHash(): Page {
   const value = window.location.hash.slice(1);
-  return value === "study" || value === "settings" || value === "learning-calendar" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
+  return value === "assessment" || value === "study" || value === "settings" || value === "learning-calendar" || value === "muted-words" || value.startsWith("word-list/") ? value as Page : "home";
 }
 
 function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVersion }: {
@@ -964,8 +965,11 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           settingsSaving={settingsSaving}
           speechSupported={speechSupported} onBack={() => navigate("home")}
           onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
-          onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} />
+          onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} onOpenAssessment={() => navigate("assessment")} />
       ) : null}
+
+      {page === "assessment" ? <Assessment onBack={() => navigate("settings")} onSignedOut={onSignedOut}
+        onApplied={() => { readCache.clear(); setWriteEpoch(v => v + 1); }} /> : null}
 
       {page === "muted-words" ? <section className="settings-page page-container muted-words-page" aria-label="不再学习的单词管理">
         <header className="settings-header">
@@ -1055,13 +1059,13 @@ function Metric({ icon, label, value }: { icon: IconName; label: string; value: 
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
-function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired, onOpenMutedWords }: {
+function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired, onOpenMutedWords, onOpenAssessment }: {
   user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
   onOpenWordList: (listId: string) => void;
   onSpeech: (next: Partial<SpeechSettings>) => void; onSignOut: () => void; onSessionExpired: () => void;
-  onOpenMutedWords: () => void;
+  onOpenMutedWords: () => void; onOpenAssessment: () => void;
 }) {
   return (
     <section className="settings-page page-container" aria-label="设置">
@@ -1070,7 +1074,9 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
       <section className="settings-group panel">
         <h2><Icon name="book" /> 智能复习</h2>
         <p className="settings-hint">根据你的作答表现自动安排复习。</p>
+        <ProficiencySettings onOpen={onOpenAssessment} onSignedOut={onSessionExpired}>
         <label className="setting-row"><span><strong>跳过基础 800 词</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.skip_basic_600} onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} /></label>
+        </ProficiencySettings>
         <button type="button" className="word-list-option" onClick={onOpenMutedWords}>
           <strong>不再学习的单词</strong><Icon name="chevron" />
         </button>
