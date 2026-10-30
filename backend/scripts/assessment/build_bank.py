@@ -32,6 +32,13 @@ def build():
                     'options':[],'answer':word})
     assert groups==[20]*6,groups
     assert len(items)==600
+    # Do not put near-synonyms (e.g. recondite/abstruse) in the same question.
+    # At higher bands, use semantically unrelated distractors from other sets.
+    for band in (4,5):
+        pool=[x for x in items if x['band']==band and x['kind']=='recognition']
+        for index,item in enumerate(pool):
+            item['options']=[item['meaning']]+[pool[(index+offset)%len(pool)]['meaning'] for offset in (7,23,47)]
+            item['answer']='0'
     return {'version':'original-2026-10-v1','license':'Project-original; no external test items copied',
             'calibration':'expert-prior-only','items':items}
 

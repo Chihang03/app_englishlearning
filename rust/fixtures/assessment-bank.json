@@ -7213,9 +7213,9 @@
       "prompt": "scrutinize",
       "options": [
         "仔细审查",
-        "用证据证实",
-        "驳斥",
-        "承认（不情愿地）"
+        "使不可能",
+        "反例",
+        "过剩"
       ],
       "answer": "0",
       "meaning": "仔细审查",
@@ -7245,12 +7245,12 @@
       "kind": "recognition",
       "prompt": "corroborate",
       "options": [
-        "仔细审查",
         "用证据证实",
-        "驳斥",
-        "承认（不情愿地）"
+        "无处不在的",
+        "取决于条件的",
+        "逆境"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "用证据证实",
       "review_status": "authored",
       "calibrated": false
@@ -7278,12 +7278,12 @@
       "kind": "recognition",
       "prompt": "refute",
       "options": [
-        "仔细审查",
-        "用证据证实",
         "驳斥",
-        "承认（不情愿地）"
+        "零星发生的",
+        "内在固有的",
+        "正直"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "驳斥",
       "review_status": "authored",
       "calibrated": false
@@ -7311,12 +7311,12 @@
       "kind": "recognition",
       "prompt": "concede",
       "options": [
-        "仔细审查",
-        "用证据证实",
-        "驳斥",
-        "承认（不情愿地）"
+        "承认（不情愿地）",
+        "过时淘汰的",
+        "无关外来的",
+        "自主权"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "承认（不情愿地）",
       "review_status": "authored",
       "calibrated": false
@@ -7345,9 +7345,9 @@
       "prompt": "mitigate",
       "options": [
         "减轻不良影响",
-        "使恶化加剧",
-        "纠正错误",
-        "使不可能"
+        "刚萌芽的",
+        "无意造成的",
+        "团结互助"
       ],
       "answer": "0",
       "meaning": "减轻不良影响",
@@ -7377,12 +7377,12 @@
       "kind": "recognition",
       "prompt": "exacerbate",
       "options": [
-        "减轻不良影响",
         "使恶化加剧",
-        "纠正错误",
-        "使不可能"
+        "一丝不苟的",
+        "绕过规避",
+        "侵犯权利"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "使恶化加剧",
       "review_status": "authored",
       "calibrated": false
@@ -7410,12 +7410,12 @@
       "kind": "recognition",
       "prompt": "rectify",
       "options": [
-        "减轻不良影响",
-        "使恶化加剧",
         "纠正错误",
-        "使不可能"
+        "粗略匆忙的",
+        "调和矛盾",
+        "放弃权力等"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "纠正错误",
       "review_status": "authored",
       "calibrated": false
@@ -7443,12 +7443,12 @@
       "kind": "recognition",
       "prompt": "preclude",
       "options": [
-        "减轻不良影响",
-        "使恶化加剧",
-        "纠正错误",
-        "使不可能"
+        "使不可能",
+        "务实的",
+        "用事实支持",
+        "公开支持"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "使不可能",
       "review_status": "authored",
       "calibrated": false
@@ -7477,9 +7477,9 @@
       "prompt": "ubiquitous",
       "options": [
         "无处不在的",
-        "零星发生的",
-        "过时淘汰的",
-        "刚萌芽的"
+        "武断教条的",
+        "区分",
+        "否认或拒绝接受"
       ],
       "answer": "0",
       "meaning": "无处不在的",
@@ -7509,12 +7509,12 @@
       "kind": "recognition",
       "prompt": "sporadic",
       "options": [
-        "无处不在的",
         "零星发生的",
-        "过时淘汰的",
-        "刚萌芽的"
+        "异常现象",
+        "迅速增殖",
+        "使持续下去"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "零星发生的",
       "review_status": "authored",
       "calibrated": false
@@ -7542,12 +7542,12 @@
       "kind": "recognition",
       "prompt": "obsolete",
       "options": [
-        "无处不在的",
-        "零星发生的",
         "过时淘汰的",
-        "刚萌芽的"
+        "悖论",
+        "逐渐减少",
+        "根除"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "过时淘汰的",
       "review_status": "authored",
       "calibrated": false
@@ -7575,12 +7575,12 @@
       "kind": "recognition",
       "prompt": "nascent",
       "options": [
-        "无处不在的",
-        "零星发生的",
-        "过时淘汰的",
-        "刚萌芽的"
+        "刚萌芽的",
+        "差异不符",
+        "停滞不前",
+        "吸收同化"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "刚萌芽的",
       "review_status": "authored",
       "calibrated": false
@@ -7609,9 +7609,9 @@
       "prompt": "meticulous",
       "options": [
         "一丝不苟的",
-        "粗略匆忙的",
-        "务实的",
-        "武断教条的"
+        "歧义",
+        "来回摆动",
+        "传播信息"
       ],
       "answer": "0",
       "meaning": "一丝不苟的",
@@ -7641,12 +7641,12 @@
       "kind": "recognition",
       "prompt": "cursory",
       "options": [
-        "一丝不苟的",
         "粗略匆忙的",
-        "务实的",
-        "武断教条的"
+        "推论",
+        "公正无偏的",
+        "显眼的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "粗略匆忙的",
       "review_status": "authored",
       "calibrated": false
@@ -7674,12 +7674,12 @@
       "kind": "recognition",
       "prompt": "pragmatic",
       "options": [
-        "一丝不苟的",
-        "粗略匆忙的",
         "务实的",
-        "武断教条的"
+        "论证前提",
+        "偏袒一方的",
+        "不引人注意的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "务实的",
       "review_status": "authored",
       "calibrated": false
@@ -7707,12 +7707,12 @@
       "kind": "recognition",
       "prompt": "dogmatic",
       "options": [
-        "一丝不苟的",
-        "粗略匆忙的",
-        "务实的",
-        "武断教条的"
+        "武断教条的",
+        "类比",
+        "含糊两可的",
+        "普遍流行的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "武断教条的",
       "review_status": "authored",
       "calibrated": false
@@ -7741,9 +7741,9 @@
       "prompt": "anomaly",
       "options": [
         "异常现象",
-        "悖论",
-        "差异不符",
-        "歧义"
+        "反例",
+        "明确无疑的",
+        "前所未有的"
       ],
       "answer": "0",
       "meaning": "异常现象",
@@ -7773,12 +7773,12 @@
       "kind": "recognition",
       "prompt": "paradox",
       "options": [
-        "异常现象",
         "悖论",
-        "差异不符",
-        "歧义"
+        "取决于条件的",
+        "勤勉的",
+        "胁迫"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "悖论",
       "review_status": "authored",
       "calibrated": false
@@ -7806,12 +7806,12 @@
       "kind": "recognition",
       "prompt": "discrepancy",
       "options": [
-        "异常现象",
-        "悖论",
         "差异不符",
-        "歧义"
+        "内在固有的",
+        "自满的",
+        "同意许可"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "差异不符",
       "review_status": "authored",
       "calibrated": false
@@ -7839,12 +7839,12 @@
       "kind": "recognition",
       "prompt": "ambiguity",
       "options": [
-        "异常现象",
-        "悖论",
-        "差异不符",
-        "歧义"
+        "歧义",
+        "无关外来的",
+        "持怀疑态度的",
+        "遵从"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "歧义",
       "review_status": "authored",
       "calibrated": false
@@ -7873,9 +7873,9 @@
       "prompt": "inference",
       "options": [
         "推论",
-        "论证前提",
-        "类比",
-        "反例"
+        "无意造成的",
+        "轻信的",
+        "异议"
       ],
       "answer": "0",
       "meaning": "推论",
@@ -7891,12 +7891,12 @@
       "kind": "recognition",
       "prompt": "premise",
       "options": [
-        "推论",
         "论证前提",
-        "类比",
-        "反例"
+        "绕过规避",
+        "紧缩政策",
+        "趋同"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "论证前提",
       "review_status": "authored",
       "calibrated": false
@@ -7910,12 +7910,12 @@
       "kind": "recognition",
       "prompt": "analogy",
       "options": [
-        "推论",
-        "论证前提",
         "类比",
-        "反例"
+        "调和矛盾",
+        "繁荣",
+        "分化背离"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "类比",
       "review_status": "authored",
       "calibrated": false
@@ -7929,12 +7929,12 @@
       "kind": "recognition",
       "prompt": "counterexample",
       "options": [
-        "推论",
-        "论证前提",
-        "类比",
-        "反例"
+        "反例",
+        "用事实支持",
+        "稀缺",
+        "相关关系"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "反例",
       "review_status": "authored",
       "calibrated": false
@@ -7949,9 +7949,9 @@
       "prompt": "contingent",
       "options": [
         "取决于条件的",
-        "内在固有的",
-        "无关外来的",
-        "无意造成的"
+        "区分",
+        "过剩",
+        "因果关系"
       ],
       "answer": "0",
       "meaning": "取决于条件的",
@@ -7967,12 +7967,12 @@
       "kind": "recognition",
       "prompt": "intrinsic",
       "options": [
-        "取决于条件的",
         "内在固有的",
-        "无关外来的",
-        "无意造成的"
+        "迅速增殖",
+        "逆境",
+        "难以捉摸的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "内在固有的",
       "review_status": "authored",
       "calibrated": false
@@ -7986,12 +7986,12 @@
       "kind": "recognition",
       "prompt": "extraneous",
       "options": [
-        "取决于条件的",
-        "内在固有的",
         "无关外来的",
-        "无意造成的"
+        "逐渐减少",
+        "正直",
+        "可触及的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "无关外来的",
       "review_status": "authored",
       "calibrated": false
@@ -8005,12 +8005,12 @@
       "kind": "recognition",
       "prompt": "inadvertent",
       "options": [
-        "取决于条件的",
-        "内在固有的",
-        "无关外来的",
-        "无意造成的"
+        "无意造成的",
+        "停滞不前",
+        "自主权",
+        "临时性的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "无意造成的",
       "review_status": "authored",
       "calibrated": false
@@ -8025,9 +8025,9 @@
       "prompt": "circumvent",
       "options": [
         "绕过规避",
-        "调和矛盾",
-        "用事实支持",
-        "区分"
+        "来回摆动",
+        "团结互助",
+        "最终权威的"
       ],
       "answer": "0",
       "meaning": "绕过规避",
@@ -8043,12 +8043,12 @@
       "kind": "recognition",
       "prompt": "reconcile",
       "options": [
-        "绕过规避",
         "调和矛盾",
-        "用事实支持",
-        "区分"
+        "公正无偏的",
+        "侵犯权利",
+        "清楚表达"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "调和矛盾",
       "review_status": "authored",
       "calibrated": false
@@ -8062,12 +8062,12 @@
       "kind": "recognition",
       "prompt": "substantiate",
       "options": [
-        "绕过规避",
-        "调和矛盾",
         "用事实支持",
-        "区分"
+        "偏袒一方的",
+        "放弃权力等",
+        "仔细商议"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "用事实支持",
       "review_status": "authored",
       "calibrated": false
@@ -8081,12 +8081,12 @@
       "kind": "recognition",
       "prompt": "differentiate",
       "options": [
-        "绕过规避",
-        "调和矛盾",
-        "用事实支持",
-        "区分"
+        "区分",
+        "含糊两可的",
+        "公开支持",
+        "推测"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "区分",
       "review_status": "authored",
       "calibrated": false
@@ -8101,9 +8101,9 @@
       "prompt": "proliferate",
       "options": [
         "迅速增殖",
-        "逐渐减少",
-        "停滞不前",
-        "来回摆动"
+        "明确无疑的",
+        "否认或拒绝接受",
+        "演绎推断"
       ],
       "answer": "0",
       "meaning": "迅速增殖",
@@ -8119,12 +8119,12 @@
       "kind": "recognition",
       "prompt": "dwindle",
       "options": [
-        "迅速增殖",
         "逐渐减少",
-        "停滞不前",
-        "来回摆动"
+        "勤勉的",
+        "使持续下去",
+        "仔细审查"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "逐渐减少",
       "review_status": "authored",
       "calibrated": false
@@ -8138,12 +8138,12 @@
       "kind": "recognition",
       "prompt": "stagnate",
       "options": [
-        "迅速增殖",
-        "逐渐减少",
         "停滞不前",
-        "来回摆动"
+        "自满的",
+        "根除",
+        "用证据证实"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "停滞不前",
       "review_status": "authored",
       "calibrated": false
@@ -8157,12 +8157,12 @@
       "kind": "recognition",
       "prompt": "oscillate",
       "options": [
-        "迅速增殖",
-        "逐渐减少",
-        "停滞不前",
-        "来回摆动"
+        "来回摆动",
+        "持怀疑态度的",
+        "吸收同化",
+        "驳斥"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "来回摆动",
       "review_status": "authored",
       "calibrated": false
@@ -8177,9 +8177,9 @@
       "prompt": "impartial",
       "options": [
         "公正无偏的",
-        "偏袒一方的",
-        "含糊两可的",
-        "明确无疑的"
+        "轻信的",
+        "传播信息",
+        "承认（不情愿地）"
       ],
       "answer": "0",
       "meaning": "公正无偏的",
@@ -8195,12 +8195,12 @@
       "kind": "recognition",
       "prompt": "partisan",
       "options": [
-        "公正无偏的",
         "偏袒一方的",
-        "含糊两可的",
-        "明确无疑的"
+        "紧缩政策",
+        "显眼的",
+        "减轻不良影响"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "偏袒一方的",
       "review_status": "authored",
       "calibrated": false
@@ -8214,12 +8214,12 @@
       "kind": "recognition",
       "prompt": "equivocal",
       "options": [
-        "公正无偏的",
-        "偏袒一方的",
         "含糊两可的",
-        "明确无疑的"
+        "繁荣",
+        "不引人注意的",
+        "使恶化加剧"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "含糊两可的",
       "review_status": "authored",
       "calibrated": false
@@ -8233,12 +8233,12 @@
       "kind": "recognition",
       "prompt": "unequivocal",
       "options": [
-        "公正无偏的",
-        "偏袒一方的",
-        "含糊两可的",
-        "明确无疑的"
+        "明确无疑的",
+        "稀缺",
+        "普遍流行的",
+        "纠正错误"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "明确无疑的",
       "review_status": "authored",
       "calibrated": false
@@ -8253,9 +8253,9 @@
       "prompt": "diligent",
       "options": [
         "勤勉的",
-        "自满的",
-        "持怀疑态度的",
-        "轻信的"
+        "过剩",
+        "前所未有的",
+        "使不可能"
       ],
       "answer": "0",
       "meaning": "勤勉的",
@@ -8271,12 +8271,12 @@
       "kind": "recognition",
       "prompt": "complacent",
       "options": [
-        "勤勉的",
         "自满的",
-        "持怀疑态度的",
-        "轻信的"
+        "逆境",
+        "胁迫",
+        "无处不在的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "自满的",
       "review_status": "authored",
       "calibrated": false
@@ -8290,12 +8290,12 @@
       "kind": "recognition",
       "prompt": "skeptical",
       "options": [
-        "勤勉的",
-        "自满的",
         "持怀疑态度的",
-        "轻信的"
+        "正直",
+        "同意许可",
+        "零星发生的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "持怀疑态度的",
       "review_status": "authored",
       "calibrated": false
@@ -8309,12 +8309,12 @@
       "kind": "recognition",
       "prompt": "credulous",
       "options": [
-        "勤勉的",
-        "自满的",
-        "持怀疑态度的",
-        "轻信的"
+        "轻信的",
+        "自主权",
+        "遵从",
+        "过时淘汰的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "轻信的",
       "review_status": "authored",
       "calibrated": false
@@ -8329,9 +8329,9 @@
       "prompt": "austerity",
       "options": [
         "紧缩政策",
-        "繁荣",
-        "稀缺",
-        "过剩"
+        "团结互助",
+        "异议",
+        "刚萌芽的"
       ],
       "answer": "0",
       "meaning": "紧缩政策",
@@ -8347,12 +8347,12 @@
       "kind": "recognition",
       "prompt": "prosperity",
       "options": [
-        "紧缩政策",
         "繁荣",
-        "稀缺",
-        "过剩"
+        "侵犯权利",
+        "趋同",
+        "一丝不苟的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "繁荣",
       "review_status": "authored",
       "calibrated": false
@@ -8366,12 +8366,12 @@
       "kind": "recognition",
       "prompt": "scarcity",
       "options": [
-        "紧缩政策",
-        "繁荣",
         "稀缺",
-        "过剩"
+        "放弃权力等",
+        "分化背离",
+        "粗略匆忙的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "稀缺",
       "review_status": "authored",
       "calibrated": false
@@ -8385,12 +8385,12 @@
       "kind": "recognition",
       "prompt": "surplus",
       "options": [
-        "紧缩政策",
-        "繁荣",
-        "稀缺",
-        "过剩"
+        "过剩",
+        "公开支持",
+        "相关关系",
+        "务实的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "过剩",
       "review_status": "authored",
       "calibrated": false
@@ -8405,9 +8405,9 @@
       "prompt": "adversity",
       "options": [
         "逆境",
-        "正直",
-        "自主权",
-        "团结互助"
+        "否认或拒绝接受",
+        "因果关系",
+        "武断教条的"
       ],
       "answer": "0",
       "meaning": "逆境",
@@ -8423,12 +8423,12 @@
       "kind": "recognition",
       "prompt": "integrity",
       "options": [
-        "逆境",
         "正直",
-        "自主权",
-        "团结互助"
+        "使持续下去",
+        "难以捉摸的",
+        "异常现象"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "正直",
       "review_status": "authored",
       "calibrated": false
@@ -8442,12 +8442,12 @@
       "kind": "recognition",
       "prompt": "autonomy",
       "options": [
-        "逆境",
-        "正直",
         "自主权",
-        "团结互助"
+        "根除",
+        "可触及的",
+        "悖论"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "自主权",
       "review_status": "authored",
       "calibrated": false
@@ -8461,12 +8461,12 @@
       "kind": "recognition",
       "prompt": "solidarity",
       "options": [
-        "逆境",
-        "正直",
-        "自主权",
-        "团结互助"
+        "团结互助",
+        "吸收同化",
+        "临时性的",
+        "差异不符"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "团结互助",
       "review_status": "authored",
       "calibrated": false
@@ -8481,9 +8481,9 @@
       "prompt": "infringe",
       "options": [
         "侵犯权利",
-        "放弃权力等",
-        "公开支持",
-        "否认或拒绝接受"
+        "传播信息",
+        "最终权威的",
+        "歧义"
       ],
       "answer": "0",
       "meaning": "侵犯权利",
@@ -8499,12 +8499,12 @@
       "kind": "recognition",
       "prompt": "relinquish",
       "options": [
-        "侵犯权利",
         "放弃权力等",
-        "公开支持",
-        "否认或拒绝接受"
+        "显眼的",
+        "清楚表达",
+        "推论"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "放弃权力等",
       "review_status": "authored",
       "calibrated": false
@@ -8518,12 +8518,12 @@
       "kind": "recognition",
       "prompt": "endorse",
       "options": [
-        "侵犯权利",
-        "放弃权力等",
         "公开支持",
-        "否认或拒绝接受"
+        "不引人注意的",
+        "仔细商议",
+        "论证前提"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "公开支持",
       "review_status": "authored",
       "calibrated": false
@@ -8537,12 +8537,12 @@
       "kind": "recognition",
       "prompt": "repudiate",
       "options": [
-        "侵犯权利",
-        "放弃权力等",
-        "公开支持",
-        "否认或拒绝接受"
+        "否认或拒绝接受",
+        "普遍流行的",
+        "推测",
+        "类比"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "否认或拒绝接受",
       "review_status": "authored",
       "calibrated": false
@@ -8557,9 +8557,9 @@
       "prompt": "perpetuate",
       "options": [
         "使持续下去",
-        "根除",
-        "吸收同化",
-        "传播信息"
+        "前所未有的",
+        "演绎推断",
+        "反例"
       ],
       "answer": "0",
       "meaning": "使持续下去",
@@ -8575,12 +8575,12 @@
       "kind": "recognition",
       "prompt": "eradicate",
       "options": [
-        "使持续下去",
         "根除",
-        "吸收同化",
-        "传播信息"
+        "胁迫",
+        "仔细审查",
+        "取决于条件的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "根除",
       "review_status": "authored",
       "calibrated": false
@@ -8594,12 +8594,12 @@
       "kind": "recognition",
       "prompt": "assimilate",
       "options": [
-        "使持续下去",
-        "根除",
         "吸收同化",
-        "传播信息"
+        "同意许可",
+        "用证据证实",
+        "内在固有的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "吸收同化",
       "review_status": "authored",
       "calibrated": false
@@ -8613,12 +8613,12 @@
       "kind": "recognition",
       "prompt": "disseminate",
       "options": [
-        "使持续下去",
-        "根除",
-        "吸收同化",
-        "传播信息"
+        "传播信息",
+        "遵从",
+        "驳斥",
+        "无关外来的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "传播信息",
       "review_status": "authored",
       "calibrated": false
@@ -8633,9 +8633,9 @@
       "prompt": "conspicuous",
       "options": [
         "显眼的",
-        "不引人注意的",
-        "普遍流行的",
-        "前所未有的"
+        "异议",
+        "承认（不情愿地）",
+        "无意造成的"
       ],
       "answer": "0",
       "meaning": "显眼的",
@@ -8651,12 +8651,12 @@
       "kind": "recognition",
       "prompt": "inconspicuous",
       "options": [
-        "显眼的",
         "不引人注意的",
-        "普遍流行的",
-        "前所未有的"
+        "趋同",
+        "减轻不良影响",
+        "绕过规避"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "不引人注意的",
       "review_status": "authored",
       "calibrated": false
@@ -8670,12 +8670,12 @@
       "kind": "recognition",
       "prompt": "prevalent",
       "options": [
-        "显眼的",
-        "不引人注意的",
         "普遍流行的",
-        "前所未有的"
+        "分化背离",
+        "使恶化加剧",
+        "调和矛盾"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "普遍流行的",
       "review_status": "authored",
       "calibrated": false
@@ -8689,12 +8689,12 @@
       "kind": "recognition",
       "prompt": "unprecedented",
       "options": [
-        "显眼的",
-        "不引人注意的",
-        "普遍流行的",
-        "前所未有的"
+        "前所未有的",
+        "相关关系",
+        "纠正错误",
+        "用事实支持"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "前所未有的",
       "review_status": "authored",
       "calibrated": false
@@ -8709,9 +8709,9 @@
       "prompt": "coercion",
       "options": [
         "胁迫",
-        "同意许可",
-        "遵从",
-        "异议"
+        "因果关系",
+        "使不可能",
+        "区分"
       ],
       "answer": "0",
       "meaning": "胁迫",
@@ -8727,12 +8727,12 @@
       "kind": "recognition",
       "prompt": "consent",
       "options": [
-        "胁迫",
         "同意许可",
-        "遵从",
-        "异议"
+        "难以捉摸的",
+        "无处不在的",
+        "迅速增殖"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "同意许可",
       "review_status": "authored",
       "calibrated": false
@@ -8746,12 +8746,12 @@
       "kind": "recognition",
       "prompt": "compliance",
       "options": [
-        "胁迫",
-        "同意许可",
         "遵从",
-        "异议"
+        "可触及的",
+        "零星发生的",
+        "逐渐减少"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "遵从",
       "review_status": "authored",
       "calibrated": false
@@ -8765,12 +8765,12 @@
       "kind": "recognition",
       "prompt": "dissent",
       "options": [
-        "胁迫",
-        "同意许可",
-        "遵从",
-        "异议"
+        "异议",
+        "临时性的",
+        "过时淘汰的",
+        "停滞不前"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "异议",
       "review_status": "authored",
       "calibrated": false
@@ -8785,9 +8785,9 @@
       "prompt": "convergence",
       "options": [
         "趋同",
-        "分化背离",
-        "相关关系",
-        "因果关系"
+        "最终权威的",
+        "刚萌芽的",
+        "来回摆动"
       ],
       "answer": "0",
       "meaning": "趋同",
@@ -8803,12 +8803,12 @@
       "kind": "recognition",
       "prompt": "divergence",
       "options": [
-        "趋同",
         "分化背离",
-        "相关关系",
-        "因果关系"
+        "清楚表达",
+        "一丝不苟的",
+        "公正无偏的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "分化背离",
       "review_status": "authored",
       "calibrated": false
@@ -8822,12 +8822,12 @@
       "kind": "recognition",
       "prompt": "correlation",
       "options": [
-        "趋同",
-        "分化背离",
         "相关关系",
-        "因果关系"
+        "仔细商议",
+        "粗略匆忙的",
+        "偏袒一方的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "相关关系",
       "review_status": "authored",
       "calibrated": false
@@ -8841,12 +8841,12 @@
       "kind": "recognition",
       "prompt": "causation",
       "options": [
-        "趋同",
-        "分化背离",
-        "相关关系",
-        "因果关系"
+        "因果关系",
+        "推测",
+        "务实的",
+        "含糊两可的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "因果关系",
       "review_status": "authored",
       "calibrated": false
@@ -8861,9 +8861,9 @@
       "prompt": "elusive",
       "options": [
         "难以捉摸的",
-        "可触及的",
-        "临时性的",
-        "最终权威的"
+        "演绎推断",
+        "武断教条的",
+        "明确无疑的"
       ],
       "answer": "0",
       "meaning": "难以捉摸的",
@@ -8879,12 +8879,12 @@
       "kind": "recognition",
       "prompt": "tangible",
       "options": [
-        "难以捉摸的",
         "可触及的",
-        "临时性的",
-        "最终权威的"
+        "仔细审查",
+        "异常现象",
+        "勤勉的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "可触及的",
       "review_status": "authored",
       "calibrated": false
@@ -8898,12 +8898,12 @@
       "kind": "recognition",
       "prompt": "provisional",
       "options": [
-        "难以捉摸的",
-        "可触及的",
         "临时性的",
-        "最终权威的"
+        "用证据证实",
+        "悖论",
+        "自满的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "临时性的",
       "review_status": "authored",
       "calibrated": false
@@ -8917,12 +8917,12 @@
       "kind": "recognition",
       "prompt": "definitive",
       "options": [
-        "难以捉摸的",
-        "可触及的",
-        "临时性的",
-        "最终权威的"
+        "最终权威的",
+        "驳斥",
+        "差异不符",
+        "持怀疑态度的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "最终权威的",
       "review_status": "authored",
       "calibrated": false
@@ -8937,9 +8937,9 @@
       "prompt": "articulate",
       "options": [
         "清楚表达",
-        "仔细商议",
-        "推测",
-        "演绎推断"
+        "承认（不情愿地）",
+        "歧义",
+        "轻信的"
       ],
       "answer": "0",
       "meaning": "清楚表达",
@@ -8955,12 +8955,12 @@
       "kind": "recognition",
       "prompt": "deliberate",
       "options": [
-        "清楚表达",
         "仔细商议",
-        "推测",
-        "演绎推断"
+        "减轻不良影响",
+        "推论",
+        "紧缩政策"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "仔细商议",
       "review_status": "authored",
       "calibrated": false
@@ -8974,12 +8974,12 @@
       "kind": "recognition",
       "prompt": "speculate",
       "options": [
-        "清楚表达",
-        "仔细商议",
         "推测",
-        "演绎推断"
+        "使恶化加剧",
+        "论证前提",
+        "繁荣"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "推测",
       "review_status": "authored",
       "calibrated": false
@@ -8993,12 +8993,12 @@
       "kind": "recognition",
       "prompt": "deduce",
       "options": [
-        "清楚表达",
-        "仔细商议",
-        "推测",
-        "演绎推断"
+        "演绎推断",
+        "纠正错误",
+        "类比",
+        "稀缺"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "演绎推断",
       "review_status": "authored",
       "calibrated": false
@@ -9013,9 +9013,9 @@
       "prompt": "obfuscate",
       "options": [
         "使含混难懂",
-        "阐明",
-        "含糊其辞",
-        "搪塞说谎"
+        "卑躬屈膝的",
+        "卖弄学问的",
+        "引起产生"
       ],
       "answer": "0",
       "meaning": "使含混难懂",
@@ -9045,12 +9045,12 @@
       "kind": "recognition",
       "prompt": "elucidate",
       "options": [
-        "使含混难懂",
         "阐明",
-        "含糊其辞",
-        "搪塞说谎"
+        "敷衍了事的",
+        "吝啬节俭过度的",
+        "混为一谈"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "阐明",
       "review_status": "authored",
       "calibrated": false
@@ -9078,12 +9078,12 @@
       "kind": "recognition",
       "prompt": "equivocate",
       "options": [
-        "使含混难懂",
-        "阐明",
         "含糊其辞",
-        "搪塞说谎"
+        "坚持不懈勤勉的",
+        "挥霍无度的",
+        "消除歧义"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "含糊其辞",
       "review_status": "authored",
       "calibrated": false
@@ -9111,12 +9111,12 @@
       "kind": "recognition",
       "prompt": "prevaricate",
       "options": [
-        "使含混难懂",
-        "阐明",
-        "含糊其辞",
-        "搪塞说谎"
+        "搪塞说谎",
+        "过分讲究的",
+        "宽宏大量的",
+        "外推估计"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "搪塞说谎",
       "review_status": "authored",
       "calibrated": false
@@ -9145,9 +9145,9 @@
       "prompt": "intransigent",
       "options": [
         "不肯妥协的",
-        "愿意接受建议的",
-        "桀骜不驯的",
-        "卑躬屈膝的"
+        "反复无常的",
+        "怀恨报复的",
+        "内插估计"
       ],
       "answer": "0",
       "meaning": "不肯妥协的",
@@ -9177,12 +9177,12 @@
       "kind": "recognition",
       "prompt": "amenable",
       "options": [
-        "不肯妥协的",
         "愿意接受建议的",
-        "桀骜不驯的",
-        "卑躬屈膝的"
+        "短暂易逝的",
+        "诚实正直",
+        "不冒犯人的；乏味的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "愿意接受建议的",
       "review_status": "authored",
       "calibrated": false
@@ -9210,12 +9210,12 @@
       "kind": "recognition",
       "prompt": "recalcitrant",
       "options": [
-        "不肯妥协的",
-        "愿意接受建议的",
         "桀骜不驯的",
-        "卑躬屈膝的"
+        "不可改变的",
+        "表里不一",
+        "尖刻的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "桀骜不驯的",
       "review_status": "authored",
       "calibrated": false
@@ -9243,12 +9243,12 @@
       "kind": "recognition",
       "prompt": "obsequious",
       "options": [
-        "不肯妥协的",
-        "愿意接受建议的",
-        "桀骜不驯的",
-        "卑躬屈膝的"
+        "卑躬屈膝的",
+        "不可阻挡的",
+        "背信弃义",
+        "讥讽的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "卑躬屈膝的",
       "review_status": "authored",
       "calibrated": false
@@ -9277,9 +9277,9 @@
       "prompt": "perfunctory",
       "options": [
         "敷衍了事的",
-        "坚持不懈勤勉的",
-        "过分讲究的",
-        "反复无常的"
+        "间歇性的",
+        "鲁莽胆大",
+        "谄媚虚伪的"
       ],
       "answer": "0",
       "meaning": "敷衍了事的",
@@ -9309,12 +9309,12 @@
       "kind": "recognition",
       "prompt": "assiduous",
       "options": [
-        "敷衍了事的",
         "坚持不懈勤勉的",
-        "过分讲究的",
-        "反复无常的"
+        "尚未成形的",
+        "静止休眠的",
+        "天生倾向"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "坚持不懈勤勉的",
       "review_status": "authored",
       "calibrated": false
@@ -9342,12 +9342,12 @@
       "kind": "recognition",
       "prompt": "fastidious",
       "options": [
-        "敷衍了事的",
-        "坚持不懈勤勉的",
         "过分讲究的",
-        "反复无常的"
+        "初现的",
+        "难以治疗或控制的",
+        "强烈反感"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "过分讲究的",
       "review_status": "authored",
       "calibrated": false
@@ -9375,12 +9375,12 @@
       "kind": "recognition",
       "prompt": "capricious",
       "options": [
-        "敷衍了事的",
-        "坚持不懈勤勉的",
-        "过分讲究的",
-        "反复无常的"
+        "反复无常的",
+        "残留退化的",
+        "难处理的",
+        "特别偏爱"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "反复无常的",
       "review_status": "authored",
       "calibrated": false
@@ -9409,9 +9409,9 @@
       "prompt": "ephemeral",
       "options": [
         "短暂易逝的",
-        "不可改变的",
-        "不可阻挡的",
-        "间歇性的"
+        "返祖的",
+        "易于处理的",
+        "内疚不安"
       ],
       "answer": "0",
       "meaning": "短暂易逝的",
@@ -9441,12 +9441,12 @@
       "kind": "recognition",
       "prompt": "immutable",
       "options": [
-        "短暂易逝的",
         "不可改变的",
-        "不可阻挡的",
-        "间歇性的"
+        "洞察力敏锐的",
+        "深奥冷僻的",
+        "境遇变迁"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "不可改变的",
       "review_status": "authored",
       "calibrated": false
@@ -9474,12 +9474,12 @@
       "kind": "recognition",
       "prompt": "inexorable",
       "options": [
-        "短暂易逝的",
-        "不可改变的",
         "不可阻挡的",
-        "间歇性的"
+        "迟钝难理解的",
+        "清晰易懂的",
+        "可能发生的意外"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "不可阻挡的",
       "review_status": "authored",
       "calibrated": false
@@ -9507,12 +9507,12 @@
       "kind": "recognition",
       "prompt": "intermittent",
       "options": [
-        "短暂易逝的",
-        "不可改变的",
-        "不可阻挡的",
-        "间歇性的"
+        "间歇性的",
+        "博学的",
+        "难以理解的",
+        "紧急需要"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "间歇性的",
       "review_status": "authored",
       "calibrated": false
@@ -9541,9 +9541,9 @@
       "prompt": "inchoate",
       "options": [
         "尚未成形的",
-        "初现的",
-        "残留退化的",
-        "返祖的"
+        "卖弄学问的",
+        "神秘少有人知的",
+        "僵局"
       ],
       "answer": "0",
       "meaning": "尚未成形的",
@@ -9573,12 +9573,12 @@
       "kind": "recognition",
       "prompt": "incipient",
       "options": [
-        "尚未成形的",
         "初现的",
-        "残留退化的",
-        "返祖的"
+        "吝啬节俭过度的",
+        "正式废除",
+        "提喻"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "初现的",
       "review_status": "authored",
       "calibrated": false
@@ -9606,12 +9606,12 @@
       "kind": "recognition",
       "prompt": "vestigial",
       "options": [
-        "尚未成形的",
-        "初现的",
         "残留退化的",
-        "返祖的"
+        "挥霍无度的",
+        "颁布法规",
+        "转喻"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "残留退化的",
       "review_status": "authored",
       "calibrated": false
@@ -9639,12 +9639,12 @@
       "kind": "recognition",
       "prompt": "atavistic",
       "options": [
-        "尚未成形的",
-        "初现的",
-        "残留退化的",
-        "返祖的"
+        "返祖的",
+        "宽宏大量的",
+        "正式批准",
+        "夸张修辞"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "返祖的",
       "review_status": "authored",
       "calibrated": false
@@ -9673,9 +9673,9 @@
       "prompt": "perspicacious",
       "options": [
         "洞察力敏锐的",
-        "迟钝难理解的",
-        "博学的",
-        "卖弄学问的"
+        "怀恨报复的",
+        "撤销决定",
+        "矛盾修辞"
       ],
       "answer": "0",
       "meaning": "洞察力敏锐的",
@@ -9691,12 +9691,12 @@
       "kind": "recognition",
       "prompt": "obtuse",
       "options": [
-        "洞察力敏锐的",
         "迟钝难理解的",
-        "博学的",
-        "卖弄学问的"
+        "诚实正直",
+        "改善不良状况",
+        "真实性可疑的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "迟钝难理解的",
       "review_status": "authored",
       "calibrated": false
@@ -9710,12 +9710,12 @@
       "kind": "recognition",
       "prompt": "erudite",
       "options": [
-        "洞察力敏锐的",
-        "迟钝难理解的",
         "博学的",
-        "卖弄学问的"
+        "表里不一",
+        "损害效力",
+        "不言自明的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "博学的",
       "review_status": "authored",
       "calibrated": false
@@ -9729,12 +9729,12 @@
       "kind": "recognition",
       "prompt": "pedantic",
       "options": [
-        "洞察力敏锐的",
-        "迟钝难理解的",
-        "博学的",
-        "卖弄学问的"
+        "卖弄学问的",
+        "背信弃义",
+        "使减弱稀薄",
+        "无可辩驳的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "卖弄学问的",
       "review_status": "authored",
       "calibrated": false
@@ -9749,9 +9749,9 @@
       "prompt": "parsimonious",
       "options": [
         "吝啬节俭过度的",
-        "挥霍无度的",
-        "宽宏大量的",
-        "怀恨报复的"
+        "鲁莽胆大",
+        "引起产生",
+        "谬误的"
       ],
       "answer": "0",
       "meaning": "吝啬节俭过度的",
@@ -9767,12 +9767,12 @@
       "kind": "recognition",
       "prompt": "profligate",
       "options": [
-        "吝啬节俭过度的",
         "挥霍无度的",
-        "宽宏大量的",
-        "怀恨报复的"
+        "静止休眠的",
+        "混为一谈",
+        "热情洋溢的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "挥霍无度的",
       "review_status": "authored",
       "calibrated": false
@@ -9786,12 +9786,12 @@
       "kind": "recognition",
       "prompt": "magnanimous",
       "options": [
-        "吝啬节俭过度的",
-        "挥霍无度的",
         "宽宏大量的",
-        "怀恨报复的"
+        "难以治疗或控制的",
+        "消除歧义",
+        "郁郁不乐的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "宽宏大量的",
       "review_status": "authored",
       "calibrated": false
@@ -9805,12 +9805,12 @@
       "kind": "recognition",
       "prompt": "vindictive",
       "options": [
-        "吝啬节俭过度的",
-        "挥霍无度的",
-        "宽宏大量的",
-        "怀恨报复的"
+        "怀恨报复的",
+        "难处理的",
+        "外推估计",
+        "沉着冷静的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "怀恨报复的",
       "review_status": "authored",
       "calibrated": false
@@ -9825,9 +9825,9 @@
       "prompt": "probity",
       "options": [
         "诚实正直",
-        "表里不一",
-        "背信弃义",
-        "鲁莽胆大"
+        "易于处理的",
+        "内插估计",
+        "易怒的"
       ],
       "answer": "0",
       "meaning": "诚实正直",
@@ -9843,12 +9843,12 @@
       "kind": "recognition",
       "prompt": "duplicity",
       "options": [
-        "诚实正直",
         "表里不一",
-        "背信弃义",
-        "鲁莽胆大"
+        "深奥冷僻的",
+        "不冒犯人的；乏味的",
+        "怯懦的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "表里不一",
       "review_status": "authored",
       "calibrated": false
@@ -9862,12 +9862,12 @@
       "kind": "recognition",
       "prompt": "perfidy",
       "options": [
-        "诚实正直",
-        "表里不一",
         "背信弃义",
-        "鲁莽胆大"
+        "清晰易懂的",
+        "尖刻的",
+        "无畏的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "背信弃义",
       "review_status": "authored",
       "calibrated": false
@@ -9881,12 +9881,12 @@
       "kind": "recognition",
       "prompt": "temerity",
       "options": [
-        "诚实正直",
-        "表里不一",
-        "背信弃义",
-        "鲁莽胆大"
+        "鲁莽胆大",
+        "难以理解的",
+        "讥讽的",
+        "好斗的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "鲁莽胆大",
       "review_status": "authored",
       "calibrated": false
@@ -9901,9 +9901,9 @@
       "prompt": "quiescent",
       "options": [
         "静止休眠的",
-        "难以治疗或控制的",
-        "难处理的",
-        "易于处理的"
+        "神秘少有人知的",
+        "谄媚虚伪的",
+        "缺乏自信的"
       ],
       "answer": "0",
       "meaning": "静止休眠的",
@@ -9919,12 +9919,12 @@
       "kind": "recognition",
       "prompt": "refractory",
       "options": [
-        "静止休眠的",
         "难以治疗或控制的",
-        "难处理的",
-        "易于处理的"
+        "正式废除",
+        "天生倾向",
+        "使含混难懂"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "难以治疗或控制的",
       "review_status": "authored",
       "calibrated": false
@@ -9938,12 +9938,12 @@
       "kind": "recognition",
       "prompt": "intractable",
       "options": [
-        "静止休眠的",
-        "难以治疗或控制的",
         "难处理的",
-        "易于处理的"
+        "颁布法规",
+        "强烈反感",
+        "阐明"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "难处理的",
       "review_status": "authored",
       "calibrated": false
@@ -9957,12 +9957,12 @@
       "kind": "recognition",
       "prompt": "tractable",
       "options": [
-        "静止休眠的",
-        "难以治疗或控制的",
-        "难处理的",
-        "易于处理的"
+        "易于处理的",
+        "正式批准",
+        "特别偏爱",
+        "含糊其辞"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "易于处理的",
       "review_status": "authored",
       "calibrated": false
@@ -9977,9 +9977,9 @@
       "prompt": "recondite",
       "options": [
         "深奥冷僻的",
-        "清晰易懂的",
-        "难以理解的",
-        "神秘少有人知的"
+        "撤销决定",
+        "内疚不安",
+        "搪塞说谎"
       ],
       "answer": "0",
       "meaning": "深奥冷僻的",
@@ -9995,12 +9995,12 @@
       "kind": "recognition",
       "prompt": "pellucid",
       "options": [
-        "深奥冷僻的",
         "清晰易懂的",
-        "难以理解的",
-        "神秘少有人知的"
+        "改善不良状况",
+        "境遇变迁",
+        "不肯妥协的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "清晰易懂的",
       "review_status": "authored",
       "calibrated": false
@@ -10014,12 +10014,12 @@
       "kind": "recognition",
       "prompt": "abstruse",
       "options": [
-        "深奥冷僻的",
-        "清晰易懂的",
         "难以理解的",
-        "神秘少有人知的"
+        "损害效力",
+        "可能发生的意外",
+        "愿意接受建议的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "难以理解的",
       "review_status": "authored",
       "calibrated": false
@@ -10033,12 +10033,12 @@
       "kind": "recognition",
       "prompt": "arcane",
       "options": [
-        "深奥冷僻的",
-        "清晰易懂的",
-        "难以理解的",
-        "神秘少有人知的"
+        "神秘少有人知的",
+        "使减弱稀薄",
+        "紧急需要",
+        "桀骜不驯的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "神秘少有人知的",
       "review_status": "authored",
       "calibrated": false
@@ -10053,9 +10053,9 @@
       "prompt": "abrogate",
       "options": [
         "正式废除",
-        "颁布法规",
-        "正式批准",
-        "撤销决定"
+        "引起产生",
+        "僵局",
+        "卑躬屈膝的"
       ],
       "answer": "0",
       "meaning": "正式废除",
@@ -10071,12 +10071,12 @@
       "kind": "recognition",
       "prompt": "promulgate",
       "options": [
-        "正式废除",
         "颁布法规",
-        "正式批准",
-        "撤销决定"
+        "混为一谈",
+        "提喻",
+        "敷衍了事的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "颁布法规",
       "review_status": "authored",
       "calibrated": false
@@ -10090,12 +10090,12 @@
       "kind": "recognition",
       "prompt": "ratify",
       "options": [
-        "正式废除",
-        "颁布法规",
         "正式批准",
-        "撤销决定"
+        "消除歧义",
+        "转喻",
+        "坚持不懈勤勉的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "正式批准",
       "review_status": "authored",
       "calibrated": false
@@ -10109,12 +10109,12 @@
       "kind": "recognition",
       "prompt": "rescind",
       "options": [
-        "正式废除",
-        "颁布法规",
-        "正式批准",
-        "撤销决定"
+        "撤销决定",
+        "外推估计",
+        "夸张修辞",
+        "过分讲究的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "撤销决定",
       "review_status": "authored",
       "calibrated": false
@@ -10129,9 +10129,9 @@
       "prompt": "ameliorate",
       "options": [
         "改善不良状况",
-        "损害效力",
-        "使减弱稀薄",
-        "引起产生"
+        "内插估计",
+        "矛盾修辞",
+        "反复无常的"
       ],
       "answer": "0",
       "meaning": "改善不良状况",
@@ -10147,12 +10147,12 @@
       "kind": "recognition",
       "prompt": "vitiate",
       "options": [
-        "改善不良状况",
         "损害效力",
-        "使减弱稀薄",
-        "引起产生"
+        "不冒犯人的；乏味的",
+        "真实性可疑的",
+        "短暂易逝的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "损害效力",
       "review_status": "authored",
       "calibrated": false
@@ -10166,12 +10166,12 @@
       "kind": "recognition",
       "prompt": "attenuate",
       "options": [
-        "改善不良状况",
-        "损害效力",
         "使减弱稀薄",
-        "引起产生"
+        "尖刻的",
+        "不言自明的",
+        "不可改变的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "使减弱稀薄",
       "review_status": "authored",
       "calibrated": false
@@ -10185,12 +10185,12 @@
       "kind": "recognition",
       "prompt": "engender",
       "options": [
-        "改善不良状况",
-        "损害效力",
-        "使减弱稀薄",
-        "引起产生"
+        "引起产生",
+        "讥讽的",
+        "无可辩驳的",
+        "不可阻挡的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "引起产生",
       "review_status": "authored",
       "calibrated": false
@@ -10205,9 +10205,9 @@
       "prompt": "conflate",
       "options": [
         "混为一谈",
-        "消除歧义",
-        "外推估计",
-        "内插估计"
+        "谄媚虚伪的",
+        "谬误的",
+        "间歇性的"
       ],
       "answer": "0",
       "meaning": "混为一谈",
@@ -10223,12 +10223,12 @@
       "kind": "recognition",
       "prompt": "disambiguate",
       "options": [
-        "混为一谈",
         "消除歧义",
-        "外推估计",
-        "内插估计"
+        "天生倾向",
+        "热情洋溢的",
+        "尚未成形的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "消除歧义",
       "review_status": "authored",
       "calibrated": false
@@ -10242,12 +10242,12 @@
       "kind": "recognition",
       "prompt": "extrapolate",
       "options": [
-        "混为一谈",
-        "消除歧义",
         "外推估计",
-        "内插估计"
+        "强烈反感",
+        "郁郁不乐的",
+        "初现的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "外推估计",
       "review_status": "authored",
       "calibrated": false
@@ -10261,12 +10261,12 @@
       "kind": "recognition",
       "prompt": "interpolate",
       "options": [
-        "混为一谈",
-        "消除歧义",
-        "外推估计",
-        "内插估计"
+        "内插估计",
+        "特别偏爱",
+        "沉着冷静的",
+        "残留退化的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "内插估计",
       "review_status": "authored",
       "calibrated": false
@@ -10281,9 +10281,9 @@
       "prompt": "anodyne",
       "options": [
         "不冒犯人的；乏味的",
-        "尖刻的",
-        "讥讽的",
-        "谄媚虚伪的"
+        "内疚不安",
+        "易怒的",
+        "返祖的"
       ],
       "answer": "0",
       "meaning": "不冒犯人的；乏味的",
@@ -10299,12 +10299,12 @@
       "kind": "recognition",
       "prompt": "acerbic",
       "options": [
-        "不冒犯人的；乏味的",
         "尖刻的",
-        "讥讽的",
-        "谄媚虚伪的"
+        "境遇变迁",
+        "怯懦的",
+        "洞察力敏锐的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "尖刻的",
       "review_status": "authored",
       "calibrated": false
@@ -10318,12 +10318,12 @@
       "kind": "recognition",
       "prompt": "sardonic",
       "options": [
-        "不冒犯人的；乏味的",
-        "尖刻的",
         "讥讽的",
-        "谄媚虚伪的"
+        "可能发生的意外",
+        "无畏的",
+        "迟钝难理解的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "讥讽的",
       "review_status": "authored",
       "calibrated": false
@@ -10337,12 +10337,12 @@
       "kind": "recognition",
       "prompt": "unctuous",
       "options": [
-        "不冒犯人的；乏味的",
-        "尖刻的",
-        "讥讽的",
-        "谄媚虚伪的"
+        "谄媚虚伪的",
+        "紧急需要",
+        "好斗的",
+        "博学的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "谄媚虚伪的",
       "review_status": "authored",
       "calibrated": false
@@ -10357,9 +10357,9 @@
       "prompt": "proclivity",
       "options": [
         "天生倾向",
-        "强烈反感",
-        "特别偏爱",
-        "内疚不安"
+        "僵局",
+        "缺乏自信的",
+        "卖弄学问的"
       ],
       "answer": "0",
       "meaning": "天生倾向",
@@ -10375,12 +10375,12 @@
       "kind": "recognition",
       "prompt": "antipathy",
       "options": [
-        "天生倾向",
         "强烈反感",
-        "特别偏爱",
-        "内疚不安"
+        "提喻",
+        "使含混难懂",
+        "吝啬节俭过度的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "强烈反感",
       "review_status": "authored",
       "calibrated": false
@@ -10394,12 +10394,12 @@
       "kind": "recognition",
       "prompt": "predilection",
       "options": [
-        "天生倾向",
-        "强烈反感",
         "特别偏爱",
-        "内疚不安"
+        "转喻",
+        "阐明",
+        "挥霍无度的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "特别偏爱",
       "review_status": "authored",
       "calibrated": false
@@ -10413,12 +10413,12 @@
       "kind": "recognition",
       "prompt": "compunction",
       "options": [
-        "天生倾向",
-        "强烈反感",
-        "特别偏爱",
-        "内疚不安"
+        "内疚不安",
+        "夸张修辞",
+        "含糊其辞",
+        "宽宏大量的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "内疚不安",
       "review_status": "authored",
       "calibrated": false
@@ -10433,9 +10433,9 @@
       "prompt": "vicissitude",
       "options": [
         "境遇变迁",
-        "可能发生的意外",
-        "紧急需要",
-        "僵局"
+        "矛盾修辞",
+        "搪塞说谎",
+        "怀恨报复的"
       ],
       "answer": "0",
       "meaning": "境遇变迁",
@@ -10451,12 +10451,12 @@
       "kind": "recognition",
       "prompt": "contingency",
       "options": [
-        "境遇变迁",
         "可能发生的意外",
-        "紧急需要",
-        "僵局"
+        "真实性可疑的",
+        "不肯妥协的",
+        "诚实正直"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "可能发生的意外",
       "review_status": "authored",
       "calibrated": false
@@ -10470,12 +10470,12 @@
       "kind": "recognition",
       "prompt": "exigency",
       "options": [
-        "境遇变迁",
-        "可能发生的意外",
         "紧急需要",
-        "僵局"
+        "不言自明的",
+        "愿意接受建议的",
+        "表里不一"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "紧急需要",
       "review_status": "authored",
       "calibrated": false
@@ -10489,12 +10489,12 @@
       "kind": "recognition",
       "prompt": "impasse",
       "options": [
-        "境遇变迁",
-        "可能发生的意外",
-        "紧急需要",
-        "僵局"
+        "僵局",
+        "无可辩驳的",
+        "桀骜不驯的",
+        "背信弃义"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "僵局",
       "review_status": "authored",
       "calibrated": false
@@ -10509,9 +10509,9 @@
       "prompt": "synecdoche",
       "options": [
         "提喻",
-        "转喻",
-        "夸张修辞",
-        "矛盾修辞"
+        "谬误的",
+        "卑躬屈膝的",
+        "鲁莽胆大"
       ],
       "answer": "0",
       "meaning": "提喻",
@@ -10527,12 +10527,12 @@
       "kind": "recognition",
       "prompt": "metonymy",
       "options": [
-        "提喻",
         "转喻",
-        "夸张修辞",
-        "矛盾修辞"
+        "热情洋溢的",
+        "敷衍了事的",
+        "静止休眠的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "转喻",
       "review_status": "authored",
       "calibrated": false
@@ -10546,12 +10546,12 @@
       "kind": "recognition",
       "prompt": "hyperbole",
       "options": [
-        "提喻",
-        "转喻",
         "夸张修辞",
-        "矛盾修辞"
+        "郁郁不乐的",
+        "坚持不懈勤勉的",
+        "难以治疗或控制的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "夸张修辞",
       "review_status": "authored",
       "calibrated": false
@@ -10565,12 +10565,12 @@
       "kind": "recognition",
       "prompt": "oxymoron",
       "options": [
-        "提喻",
-        "转喻",
-        "夸张修辞",
-        "矛盾修辞"
+        "矛盾修辞",
+        "沉着冷静的",
+        "过分讲究的",
+        "难处理的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "矛盾修辞",
       "review_status": "authored",
       "calibrated": false
@@ -10585,9 +10585,9 @@
       "prompt": "apocryphal",
       "options": [
         "真实性可疑的",
-        "不言自明的",
-        "无可辩驳的",
-        "谬误的"
+        "易怒的",
+        "反复无常的",
+        "易于处理的"
       ],
       "answer": "0",
       "meaning": "真实性可疑的",
@@ -10603,12 +10603,12 @@
       "kind": "recognition",
       "prompt": "axiomatic",
       "options": [
-        "真实性可疑的",
         "不言自明的",
-        "无可辩驳的",
-        "谬误的"
+        "怯懦的",
+        "短暂易逝的",
+        "深奥冷僻的"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "不言自明的",
       "review_status": "authored",
       "calibrated": false
@@ -10622,12 +10622,12 @@
       "kind": "recognition",
       "prompt": "apodictic",
       "options": [
-        "真实性可疑的",
-        "不言自明的",
         "无可辩驳的",
-        "谬误的"
+        "无畏的",
+        "不可改变的",
+        "清晰易懂的"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "无可辩驳的",
       "review_status": "authored",
       "calibrated": false
@@ -10641,12 +10641,12 @@
       "kind": "recognition",
       "prompt": "fallacious",
       "options": [
-        "真实性可疑的",
-        "不言自明的",
-        "无可辩驳的",
-        "谬误的"
+        "谬误的",
+        "好斗的",
+        "不可阻挡的",
+        "难以理解的"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "谬误的",
       "review_status": "authored",
       "calibrated": false
@@ -10661,9 +10661,9 @@
       "prompt": "ebullient",
       "options": [
         "热情洋溢的",
-        "郁郁不乐的",
-        "沉着冷静的",
-        "易怒的"
+        "缺乏自信的",
+        "间歇性的",
+        "神秘少有人知的"
       ],
       "answer": "0",
       "meaning": "热情洋溢的",
@@ -10679,12 +10679,12 @@
       "kind": "recognition",
       "prompt": "morose",
       "options": [
-        "热情洋溢的",
         "郁郁不乐的",
-        "沉着冷静的",
-        "易怒的"
+        "使含混难懂",
+        "尚未成形的",
+        "正式废除"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "郁郁不乐的",
       "review_status": "authored",
       "calibrated": false
@@ -10698,12 +10698,12 @@
       "kind": "recognition",
       "prompt": "phlegmatic",
       "options": [
-        "热情洋溢的",
-        "郁郁不乐的",
         "沉着冷静的",
-        "易怒的"
+        "阐明",
+        "初现的",
+        "颁布法规"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "沉着冷静的",
       "review_status": "authored",
       "calibrated": false
@@ -10717,12 +10717,12 @@
       "kind": "recognition",
       "prompt": "irascible",
       "options": [
-        "热情洋溢的",
-        "郁郁不乐的",
-        "沉着冷静的",
-        "易怒的"
+        "易怒的",
+        "含糊其辞",
+        "残留退化的",
+        "正式批准"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "易怒的",
       "review_status": "authored",
       "calibrated": false
@@ -10737,9 +10737,9 @@
       "prompt": "pusillanimous",
       "options": [
         "怯懦的",
-        "无畏的",
-        "好斗的",
-        "缺乏自信的"
+        "搪塞说谎",
+        "返祖的",
+        "撤销决定"
       ],
       "answer": "0",
       "meaning": "怯懦的",
@@ -10755,12 +10755,12 @@
       "kind": "recognition",
       "prompt": "intrepid",
       "options": [
-        "怯懦的",
         "无畏的",
-        "好斗的",
-        "缺乏自信的"
+        "不肯妥协的",
+        "洞察力敏锐的",
+        "改善不良状况"
       ],
-      "answer": "1",
+      "answer": "0",
       "meaning": "无畏的",
       "review_status": "authored",
       "calibrated": false
@@ -10774,12 +10774,12 @@
       "kind": "recognition",
       "prompt": "pugnacious",
       "options": [
-        "怯懦的",
-        "无畏的",
         "好斗的",
-        "缺乏自信的"
+        "愿意接受建议的",
+        "迟钝难理解的",
+        "损害效力"
       ],
-      "answer": "2",
+      "answer": "0",
       "meaning": "好斗的",
       "review_status": "authored",
       "calibrated": false
@@ -10793,12 +10793,12 @@
       "kind": "recognition",
       "prompt": "diffident",
       "options": [
-        "怯懦的",
-        "无畏的",
-        "好斗的",
-        "缺乏自信的"
+        "缺乏自信的",
+        "桀骜不驯的",
+        "博学的",
+        "使减弱稀薄"
       ],
-      "answer": "3",
+      "answer": "0",
       "meaning": "缺乏自信的",
       "review_status": "authored",
       "calibrated": false

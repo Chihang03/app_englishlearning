@@ -40,6 +40,9 @@ pub fn install(database: &Path, backup: &Path) -> Result<Value> {
         tx.execute("INSERT OR IGNORE INTO assessment_items(id,version,word,family,kind,band,difficulty,payload) VALUES(?,?,?,?,?,?,?,?)",
             rusqlite::params![id,bank["version"].as_str(),item["word"].as_str(),item["family"].as_str(),item["kind"].as_str(),item["band"].as_i64(),item["difficulty"].as_f64(),payload])?;
     }
+    // Bind only exact authored meanings. Other senses at the same spelling
+    // retain an unverified frequency prior instead of inheriting a level.
+    tx.execute_batch("INSERT OR IGNORE INTO learning_unit_difficulty(learning_unit_id,difficulty,source,verified) SELECT u.id,i.difficulty,'authored-exact-meaning',0 FROM learning_units u JOIN words w ON w.id=u.word_id JOIN assessment_items i ON i.word=lower(trim(w.word)) AND i.kind='recognition' WHERE u.active=1 AND trim(u.display_definition_cn)=json_extract(i.payload,'$.meaning')")?;
     tx.commit()?;
     Ok(
         json!({"extension":1,"items":bank["items"].as_array().unwrap().len(),"backup":backup,"main_schema":22}),

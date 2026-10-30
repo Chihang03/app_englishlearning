@@ -104,11 +104,23 @@ pub fn observe(c: &Connection, config: &Config, uid: i64, aid: &str) -> Result<(
     }
     let events = rows(
         c,
-        "SELECT id,word,payload,substr(created_at,1,10) AS day FROM proficiency_events WHERE user_id=? AND kind='first_answer' ORDER BY id DESC LIMIT 50",
+        "SELECT id,word,payload,created_at FROM proficiency_events WHERE user_id=? AND kind='first_answer' ORDER BY id DESC LIMIT 50",
         &[json!(uid)],
     )?;
     let unique: std::collections::BTreeSet<_> = events.iter().map(|e| s(e, "word")).collect();
-    let days: std::collections::BTreeSet<_> = events.iter().map(|e| s(e, "day")).collect();
+    let zone = scalar(c, "SELECT timezone FROM users WHERE id=?", &[json!(uid)])?
+        .as_str()
+        .unwrap_or("UTC")
+        .parse::<chrono_tz::Tz>()
+        .unwrap_or(chrono_tz::UTC);
+    let days: std::collections::BTreeSet<_> = events
+        .iter()
+        .filter_map(|e| {
+            chrono::DateTime::parse_from_rfc3339(s(e, "created_at"))
+                .ok()
+                .map(|d| d.with_timezone(&zone).date_naive())
+        })
+        .collect();
     if events.len() < 50 || unique.len() < 30 || days.len() < 3 {
         return Ok(());
     }

@@ -735,7 +735,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       setWriteEpoch((value) => value + 1);
       // Speech changes also save settings outside this component. Revalidate
       // the invalidated snapshot without trusting an out-of-order PATCH body.
-      if (write.path === "/api/settings") void loadSettings().catch((error) => {
+      if (write.path === "/api/settings" || write.path === "/api/proficiency/mode" || /^\/api\/assessments\/[^/]+\/apply$/.test(write.path)) void loadSettings().catch((error) => {
         if (isUnauthorized(error)) onSignedOut();
       });
     });
@@ -881,7 +881,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : page === "muted-words" ? "is-managing-words" : ""}`}>
       {page === "home" ? (
         <Home user={user} stats={stats} ready={statsReady} refreshing={refreshing}
-          onOpenCalendar={() => navigate("learning-calendar")}
+          onOpenCalendar={() => navigate("learning-calendar")} onOpenAssessment={() => navigate("assessment")}
           onRefresh={() => { void guarded(() => refreshData(true)); }} />
       ) : null}
 
@@ -1004,10 +1004,10 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   );
 }
 
-function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar }: {
+function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar, onOpenAssessment }: {
   user: User; stats: Stats; ready: boolean; refreshing: boolean;
   onRefresh: () => void;
-  onOpenCalendar: () => void;
+  onOpenCalendar: () => void; onOpenAssessment: () => void;
 }) {
   const value = (count: number) => ready ? count.toLocaleString() : "—";
   return (
@@ -1016,6 +1016,7 @@ function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar }: {
         <div><span className="eyebrow">CONTEXT · 语境学词</span><h1>你好，{user.username}</h1></div>
       </header>
       <div className="home-intro"><span className="streak-badge"><Icon name="spark" /> 连续学习 {value(stats.streak_days)} 天</span></div>
+      {ready && stats.total_learned === 0 && stats.total_study_time_ms === 0 ? <button type="button" className="calendar-entry panel" onClick={onOpenAssessment}><Icon name="book" /><strong>测一测词汇水平</strong><Icon name="chevron" /></button> : null}
       <section className="today-panel panel">
         <div className="section-heading"><h2>今日学习</h2></div>
         <div className="today-metrics">

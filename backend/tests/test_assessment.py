@@ -5,6 +5,14 @@ ROOT=Path(__file__).resolve().parents[2]
 CTL=ROOT/'rust/target/debug/englishctl'
 SERVER=ROOT/'rust/target/debug/english-server'
 import socket,time,httpx
+from contextlib import contextmanager
+@contextmanager
+def connect(path):
+    c=sqlite3.connect(path)
+    try:
+        with c:yield c
+    finally:c.close()
+
 
 class AssessmentTests(unittest.TestCase):
     @classmethod
@@ -28,7 +36,7 @@ class AssessmentTests(unittest.TestCase):
     def setUp(self):
         # Independent account/session without testing password hash on each case.
         self.token=os.urandom(24).hex()
-        with sqlite3.connect(self.db) as c:
+        with connect(self.db) as c:
             self.uid=c.execute("INSERT INTO users(username,password_hash,timezone,created_at) VALUES(?,'unused','Asia/Shanghai','2026-10-01')",('assessment-'+self.token,)).lastrowid
             c.execute("INSERT INTO sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,'2026-10-01','2027-01-01')",(hashlib.sha256(self.token.encode()).hexdigest(),self.uid))
         self.client.cookies.set('cvt_session',self.token)
@@ -40,7 +48,7 @@ class AssessmentTests(unittest.TestCase):
     def start(self):return self.call('POST','/api/assessments',{})
     def answer(self,sess,correct=True):
         q=sess['question'];self.assertNotIn('answer',q);self.assertNotIn('item_id',q)
-        with sqlite3.connect(self.db) as c:
+        with connect(self.db) as c:
             payload,order=c.execute('SELECT i.payload,r.option_order FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND sequence=?',(sess['id'],q['sequence'])).fetchone()
         item=json.loads(payload)
         answer=str(json.loads(order).index(int(item['answer']))) if q['kind']=='recognition' else item['answer']
@@ -60,7 +68,7 @@ class AssessmentTests(unittest.TestCase):
         sess=self.complete()
         self.assertTrue(sess['result']['sufficient']);self.assertEqual(sess['result']['recall']['answered'],4)
         self.assertGreaterEqual(sess['answered'],28);self.assertLessEqual(sess['answered'],40)
-        with sqlite3.connect(self.db) as c:
+        with connect(self.db) as c:
             self.assertEqual(c.execute('SELECT COUNT(DISTINCT i.family),COUNT(*) FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE session_id=?',(sess['id'],)).fetchone(),(sess['answered'],sess['answered']))
             self.assertEqual(c.execute('SELECT COUNT(*) FROM review_history WHERE user_id=?',(self.uid,)).fetchone()[0],0)
             self.assertEqual(c.execute('SELECT COUNT(*) FROM sense_srs_state WHERE user_id=?',(self.uid,)).fetchone()[0],0)
@@ -69,14 +77,16 @@ class AssessmentTests(unittest.TestCase):
         self.assertTrue(applied['applied'])
         self.assertEqual(self.call('GET','/api/proficiency')['mode'],'adaptive')
         self.call('PATCH','/api/proficiency/mode',{'mode':'frequency'})
-        with sqlite3.connect(self.db) as c:self.assertEqual(c.execute("SELECT value FROM settings WHERE user_id=? AND key='skip_basic_600'",(self.uid,)).fetchone()[0],'true')
+        with connect(self.db) as c:self.assertEqual(c.execute("SELECT value FROM settings WHERE user_id=? AND key='skip_basic_600'",(self.uid,)).fetchone()[0],'true')
     def test_resume_conflict_ownership_and_answers_hidden(self):
         sess=self.start();self.assertEqual(self.start(),sess)
         self.assertEqual(self.call('GET',f"/api/assessments/{sess['id']}"),sess)
         next_=self.answer(sess)
         self.call('POST',f"/api/assessments/{sess['id']}/answers",{'sequence':1,'answer':''},status=409)
         self.call('POST',f"/api/assessments/{sess['id']}/answers",{'sequence':999,'answer':''},status=409)
-        with sqlite3.connect(self.db) as c:c.execute('UPDATE assessment_sessions SET user_id=? WHERE id=?',(self.uid+100,sess['id']))
+        with connect(self.db) as c:
+            other=c.execute("INSERT INTO users(username,password_hash,timezone,created_at) VALUES(?,'unused','UTC','2026-10-01')",('other-'+self.token,)).lastrowid
+            c.execute('UPDATE assessment_sessions SET user_id=? WHERE id=?',(other,sess['id']))
         self.call('GET',f"/api/assessments/{sess['id']}",status=404)
     def test_all_wrong_and_abandon(self):
         sess=self.complete(False);self.assertTrue(sess['result']['boundary'])
@@ -85,7 +95,32 @@ class AssessmentTests(unittest.TestCase):
         abandoned=self.call('POST',f"/api/assessments/{new['id']}/abandon",{})
         self.assertIsNone(abandoned['question'])
     def test_mutes_and_pool_exhaustion(self):
-        with sqlite3.connect(self.db) as c:
+        with connect(self.db) as c:
             c.execute("INSERT INTO user_muted_words SELECT ?,word,'2026-10-01' FROM assessment_items GROUP BY word",(self.uid,))
         sess=self.start();self.assertEqual(sess['state'],'completed');self.assertFalse(sess['result']['sufficient'])
         self.call('POST',f"/api/assessments/{sess['id']}/apply",{},status=409)
+
+    def test_adaptive_ranking_uses_unit_difficulty_and_respects_mutes(self):
+        sess=self.start()
+        with connect(self.db) as c:
+            c.execute("INSERT INTO user_proficiency_profiles(user_id,session_id,mode,mean,sd,initial_mean,model_version,updated_at) VALUES(?,?,'adaptive',0,.5,0,'vocab-grid-v1','2026-10-30')",(self.uid,sess['id']))
+            for word,difficulty in [('easytest',-2),('middletest',0),('hardtest',2)]:
+                wid=c.execute("INSERT INTO words(owner_id,word,part_of_speech,definition_cn,example_sentence) VALUES(?,?,'名词','测试',?)",(self.uid,word,'This is '+word+'.')).lastrowid
+                lid=c.execute("INSERT INTO lexical_units(owner_id,word_id,unit_key,headword,normalized_headword,pos_group,identity_status) VALUES(?,?,?,?,?,'noun','verified')",(self.uid,wid,word,word,word)).lastrowid
+                sid=c.execute("INSERT INTO word_senses(word_id,sense_key,part_of_speech,definition_cn,source,lexical_unit_id) VALUES(?,'test','名词','测试','test',?)",(wid,lid)).lastrowid
+                c.execute("INSERT INTO sense_examples(sense_id,sentence,target_form,source) VALUES(?,?,?,'test')",(sid,'This is '+word+'.',word))
+                unit=c.execute("INSERT INTO learning_units(lexical_unit_id,word_id,unit_key,representative_sense_id,display_definition_cn,verification) VALUES(?,?,'test',?,'测试','reviewed')",(lid,wid,sid)).lastrowid
+                c.execute("INSERT INTO learning_unit_senses(sense_id,learning_unit_id) VALUES(?,?)",(sid,unit))
+                c.execute("INSERT INTO learning_unit_difficulty(learning_unit_id,difficulty,source,verified) VALUES(?,?,'test',0)",(unit,difficulty))
+        card=self.call('GET','/api/next')['card'];self.assertEqual(card['word'],'middletest')
+        self.call('POST',f"/api/words/{card['id']}/mute",{})
+        self.assertNotEqual(self.call('GET','/api/next')['card']['word'],'middletest')
+        self.assertFalse(self.call('GET','/api/proficiency')['automatic_deferral'])
+
+    def test_install_is_additive_and_backup_refuses_overwrite(self):
+        path=self.directory/(self.token+'.backup')
+        proc=subprocess.run([str(CTL),'assessment-install','--database',str(self.db),'--backup',str(path)],capture_output=True)
+        self.assertEqual(proc.returncode,0,proc.stderr)
+        with connect(path) as c:self.assertEqual(c.execute('PRAGMA user_version').fetchone()[0],22)
+        repeat=subprocess.run([str(CTL),'assessment-install','--database',str(self.db),'--backup',str(path)],capture_output=True)
+        self.assertNotEqual(repeat.returncode,0)
