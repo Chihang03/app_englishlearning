@@ -116,6 +116,16 @@ class AssessmentTests(unittest.TestCase):
         self.call('POST',f"/api/words/{card['id']}/mute",{})
         self.assertNotEqual(self.call('GET','/api/next')['card']['word'],'middletest')
         self.assertFalse(self.call('GET','/api/proficiency')['automatic_deferral'])
+        next_card=self.call('GET','/api/next')['card']
+        def review(card):
+            return self.call('POST','/api/review',{'attempt_id':card['attempt_id'],'word_id':card['id'],'sense_id':card['sense_id'],'example_id':card['example_id'],'learning_unit_id':card['learning_unit_id'],'user_answer':card['answer_form'],'active_response_ms':1200})
+        self.assertTrue(review(next_card)['is_correct'])
+        with connect(self.db) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM proficiency_events WHERE user_id=? AND kind='first_answer'",(self.uid,)).fetchone()[0],1)
+        hinted=self.call('GET','/api/next')['card']
+        self.call('POST','/api/study/hint',{'attempt_id':hinted['attempt_id'],'kind':'pronunciation'})
+        review(hinted)
+        with connect(self.db) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM proficiency_events WHERE user_id=? AND kind='first_answer'",(self.uid,)).fetchone()[0],1)
+
 
     def test_install_is_additive_and_backup_refuses_overwrite(self):
         path=self.directory/(self.token+'.backup')

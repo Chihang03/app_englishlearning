@@ -55,6 +55,9 @@ systemctl stop englishlearning.service
 "$RELEASE/bin/englishctl" backup --database "$DATA" --output "$SAVED/vocabulary.db" >/dev/null
 chown root:root "$SAVED/vocabulary.db"
 chmod 600 "$SAVED/vocabulary.db"
+"$RELEASE/bin/englishctl" assessment-install --database "$DATA" --backup "$SAVED/before-assessment.db" > "$SAVED/assessment-install.json"
+chown root:root "$SAVED/before-assessment.db"
+chmod 600 "$SAVED/before-assessment.db"
 "$RELEASE/bin/englishctl" fix-study-examples --database "$DATA" > "$SAVED/fixed-example-repair.json"
 cp "$RELEASE/deploy/englishlearning-rust.service" "$UNIT"
 cp "$RELEASE/deploy/learning-reminders-rust.service" "$REMINDER"

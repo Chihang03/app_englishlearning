@@ -73,6 +73,8 @@ python3 backend/scripts/assessment/analyze.py --database /data/vocabulary.db --o
 englishctl assessment-calibrate --database /data/vocabulary.db --input /data/reference-report.json --dry-run
 ```
 
+正式启用还必须传入 `--backup /backup/before-calibration.db`；备份拒绝覆盖。
+
 报告包含 model、version、independent_reference、training_participants、units、validation。units 每条包含 unit_id、difficulty、reviewed_common_sense、training_responses；validation 每条包含 participant、unit_id、mean、sd、known。输入参与者使用稳定的脱敏标识。
 
 启用要求：至少 50 个训练参与者；训练和验证人员不重叠；至少 30 个验证参与者和 200 个预测暂缓判断；每个义项至少 100 个训练响应、100 个独立验证暂缓判断；总体及每个义项的误暂缓率 Wilson 95% 上界均不超过 5%。义项必须是审核后的常用含义，不能按词头批量授权全部含义。生产当前没有此类独立证据，保持关闭。
