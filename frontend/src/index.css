@@ -440,3 +440,19 @@ h1, h2, p { margin: 0; }
 .theme-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; }
 .theme-options button { padding: 9px 4px; }
 .theme-options button[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); color: var(--accent); font-weight: 600; }
+
+.assessment-page { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+.assessment-intro, .assessment-card, .assessment-result { padding: 24px; display: grid; gap: 20px; }
+.assessment-page h2 { font-size: 20px; font-weight: 650; }
+.assessment-prompt { font-size: clamp(24px, 6vw, 34px); line-height: 1.45; overflow-wrap: anywhere; }
+.assessment-progress { color: var(--muted); }
+.assessment-options { display: grid; gap: 12px; }
+.assessment-options button { text-align: left; padding: 16px; border: 1px solid var(--line); border-radius: 12px; min-height: 52px; background: var(--surface); }
+.assessment-page button:disabled { opacity: .5; }
+.assessment-skip, .assessment-exit, .assessment-result > button { min-height: 48px; }
+.assessment-page form { display: grid; gap: 16px; }
+.assessment-page input { width: 100%; min-height: 52px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 20px; background: var(--surface); }
+.assessment-bands { display: grid; gap: 12px; }
+.assessment-bands > div { display: flex; justify-content: space-between; gap: 16px; }
+.assessment-result p { line-height: 1.6; }
+.settings-group select { max-width: 50%; min-height: 44px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; }

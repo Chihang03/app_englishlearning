@@ -1,9 +1,11 @@
 //! Native API use cases. A call owns one transaction and cannot partially commit on a domain error.
 pub mod accounts;
 pub mod admin;
+pub mod assessment;
 pub mod forms;
 pub mod lexicon;
 pub mod passkeys;
+pub mod proficiency;
 pub mod push;
 mod query_cache;
 pub mod study;
@@ -237,8 +239,14 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
     reset_budget();
     static ROUTES: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
     let routes = ROUTES.get_or_init(|| {
-        serde_json::from_str(include_str!("../../../../fixtures/routes.json"))
-            .expect("frozen routes")
+        let mut routes: Value =
+            serde_json::from_str(include_str!("../../../../fixtures/routes.json"))
+                .expect("frozen routes");
+        let extension: Vec<Value> =
+            serde_json::from_str(include_str!("../../../../fixtures/assessment-routes.json"))
+                .expect("assessment routes");
+        routes.as_array_mut().unwrap().extend(extension);
+        routes
     });
     let matches = routes
         .as_array()
@@ -313,6 +321,11 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             return accounts::handle(c, config, request);
         }
         let user = accounts::authenticate(c, config, request)?;
+        if request.path.starts_with("/api/assessments")
+            || request.path.starts_with("/api/proficiency")
+        {
+            return assessment::handle(c, config, request, &user).map(Into::into);
+        }
         if request.path.starts_with("/api/admin/") {
             return admin::handle(c, config, request, &user).map(Into::into);
         }
@@ -333,7 +346,11 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
                 | "/api/stats"
                 | "/api/learning-calendar"
         ) {
-            return study::handle(c, config, request, &user).map(Into::into);
+            let result = study::handle(c, config, request, &user)?;
+            if request.path == "/api/review" && request.method == "POST" {
+                proficiency::observe(c, config, n(&user, "id"), s(&request.body, "attempt_id"))?;
+            }
+            return Ok(result.into());
         }
         if request.path.starts_with("/api/push/") {
             return push::handle(c, config, request, &user).map(Into::into);
