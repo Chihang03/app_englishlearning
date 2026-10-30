@@ -39,7 +39,7 @@ BASIC_WORD_FORMS = frozenset(
 )
 _BASIC_FORMS_SQL = ",".join("'" + form + "'" for form in sorted(BASIC_WORD_FORMS))
 _GRAMMATICAL_POS_SQL = ",".join("'" + pos + "'" for pos in (
-    "代词", "限定词", "pronoun", "personal pronoun", "possessive pronoun",
+    "代词", "限定词", "冠词", "article", "pronoun", "personal pronoun", "possessive pronoun",
     "reflexive pronoun", "relative pronoun", "demonstrative pronoun",
     "determiner", "possessive determiner", "demonstrative determiner",
 ))

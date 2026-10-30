@@ -1,3 +1,4 @@
+pub mod assessment;
 pub mod fsrs_compat;
 
 pub const SCHEMA_VERSION: i64 = 22;

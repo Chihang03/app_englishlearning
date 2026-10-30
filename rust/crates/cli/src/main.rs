@@ -15,6 +15,13 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Install the vocabulary assessment extension after a consistent backup.
+    AssessmentInstall {
+        #[arg(long)]
+        database: PathBuf,
+        #[arg(long)]
+        backup: PathBuf,
+    },
     /// Create an empty v22 database; refuses every existing path.
     Init {
         #[arg(long)]
@@ -177,6 +184,10 @@ fn main() -> Result<()> {
         Command::Inspect { database } => {
             println!("{}", english_storage::operations::inspect(&database)?)
         }
+        Command::AssessmentInstall { database, backup } => println!(
+            "{}",
+            english_storage::assessment_install::install(&database, &backup)?
+        ),
         Command::FixStudyExamples { database, dry_run } => println!(
             "{}",
             english_storage::operations::fix_study_examples(&database, dry_run)?
