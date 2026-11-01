@@ -1,0 +1,12 @@
+{
+  "native_assessment_readiness_tests": 17,
+  "rust_unit_tests": 13,
+  "existing_compatibility_tests": 48,
+  "mobile_browser": {
+    "widths": [320,390,430],
+    "checked": ["resume", "lost-response retry", "IME", "scope confirmation", "deferred content restoration", "basic filter visible in adaptive mode"]
+  },
+  "real_iphone_safari": false,
+  "personal_readiness_enabled": true,
+  "global_probability_calibration": false
+}
