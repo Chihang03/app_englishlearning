@@ -1,0 +1,59 @@
+{
+  "version": "26.11.1.115",
+  "verified_at_utc": "2026-11-01T14:36:54.262230+00:00",
+  "source_commit": "f69ea297224dae9472c94c2a663bd285080b2c24",
+  "binary_sha256": "2b4753710a6a89dc42bb158f34e90cc19d9838b9a23ae2b62d93cf3ed4b860d2",
+  "release": "/opt/englishlearning/releases/english-readiness-26.11.1.115",
+  "live_checks": {
+    "https_version_status": 200,
+    "https_health": 200,
+    "unauthenticated_proficiency": 401,
+    "public_internal_ready": 404,
+    "service": "active",
+    "restarts": 0,
+    "memory_current_bytes": 39231488,
+    "running_binary": "/opt/englishlearning/releases/english-readiness-26.11.1.115/bin/english-server",
+    "main_schema": 22,
+    "assessment_extension": 1,
+    "readiness_extension": 2,
+    "bank_items": 600,
+    "active_calibrations": 0
+  },
+  "real_user_calibration": false,
+  "automatic_deferral": true,
+  "real_iphone_validation": false,
+  "backup": "/var/backups/englishlearning-rust-20261101T143608Z",
+  "migration": {
+    "extension": 2,
+    "items": 600,
+    "backup": "/var/backups/englishlearning-rust-20261101T143608Z/before-assessment.db",
+    "main_schema": 22
+  },
+  "example_repair": {
+    "units_fixed": 0,
+    "cards_checked": 0,
+    "cards_changed": 0,
+    "dry_run": false
+  },
+  "server_local_preflight": {
+    "passed": true,
+    "original_tables_unchanged": 50,
+    "legacy_v22_cli_compatible": true,
+    "bank_items": 600,
+    "assessment_questions": 39,
+    "checks": 115,
+    "maximum_request_ms": 1744.63,
+    "slowest_check": "POST apply",
+    "production_mutated": false,
+    "real_user_calibration": false,
+    "automatic_deferral": true,
+    "scope_deferred_units": 30,
+    "scope_new_before": 19198,
+    "scope_new_after": 19175,
+    "repaired_legacy_preferences": 0,
+    "mode_switch_exclusion_regression_passed": true
+  },
+  "public_https_verified_from_build_host": true,
+  "validation_scope": "Authentication and learning acceptance used a server-local production snapshot; live account inspection was read-only.",
+  "private_account_data_included": false
+}
