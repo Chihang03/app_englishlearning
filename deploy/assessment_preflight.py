@@ -99,7 +99,7 @@ try:
   assert call('/api/settings')['skip_basic_600'] is True
   assert adaptive['due_words']<=baseline['due_words'] and adaptive['new_senses']<=baseline['new_senses']
   comparison={'baseline_due':baseline['due_words'],'adaptive_due':adaptive['due_words'],'baseline_new_units':baseline['new_senses'],'adaptive_new_units':adaptive['new_senses']}
- result={'passed':True,'original_tables_unchanged':len(before),'legacy_v22_cli_compatible':True,'bank_items':install['items'],'assessment_questions':sess['answered'],'checks':len(checks),'maximum_request_ms':max(timings),'production_mutated':False,'real_user_calibration':False,'automatic_deferral':True,'scope_deferred_units':deferred,'scope_new_before':before_scope['new_senses'],'scope_new_after':after_scope['new_senses'],'account_comparison':comparison,'repaired_legacy_preferences':len(repaired)}
+ result={'passed':True,'original_tables_unchanged':len(before),'legacy_v22_cli_compatible':True,'bank_items':install['items'],'assessment_questions':sess['answered'],'checks':len(checks),'maximum_request_ms':max(timings),'slowest_check':checks[timings.index(max(timings))],'production_mutated':False,'real_user_calibration':False,'automatic_deferral':True,'scope_deferred_units':deferred,'scope_new_before':before_scope['new_senses'],'scope_new_after':after_scope['new_senses'],'account_comparison':comparison,'repaired_legacy_preferences':len(repaired)}
  print(json.dumps(result));(directory/'result.json').write_text(json.dumps(result,indent=2)+'\n')
 finally:
  proc.terminate();proc.wait(timeout=15);log.close()

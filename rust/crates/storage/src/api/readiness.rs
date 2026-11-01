@@ -23,7 +23,7 @@ pub fn prepare(c: &Connection, config: &Config, uid: i64) -> Result<()> {
             c.prepare_cached(&query)?
                 .execute(rusqlite::named_params! {":uid":uid,":stamp":config.stamp()})?;
         }
-        c.execute_batch("INSERT INTO temp.policy_excluded_words SELECT DISTINCT u.word_id AS id FROM main.learning_units u JOIN temp.policy_excluded e ON e.id=u.id WHERE NOT EXISTS(SELECT 1 FROM main.learning_units other WHERE other.word_id=u.word_id AND other.active=1 AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded x WHERE x.id=other.id) AND EXISTS(SELECT 1 FROM main.learning_unit_senses b JOIN main.word_senses s ON s.id=b.sense_id JOIN main.sense_examples ex ON ex.sense_id=s.id WHERE b.learning_unit_id=other.id AND s.active=1 AND s.learning_enabled=1 AND ex.active=1));")?;
+        c.execute_batch("INSERT INTO temp.policy_excluded_words SELECT DISTINCT u.word_id AS id FROM temp.policy_excluded e CROSS JOIN main.learning_units u ON u.id=e.id WHERE NOT EXISTS(SELECT 1 FROM main.learning_units other WHERE other.word_id=u.word_id AND other.active=1 AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded x WHERE x.id=other.id) AND EXISTS(SELECT 1 FROM main.learning_unit_senses b JOIN main.word_senses s ON s.id=b.sense_id JOIN main.sense_examples ex ON ex.sense_id=s.id WHERE b.learning_unit_id=other.id AND s.active=1 AND s.learning_enabled=1 AND ex.active=1));")?;
         Ok(())
     })();
     if result.is_ok()
@@ -279,4 +279,36 @@ pub fn assessment_failure(c: &Connection, uid: i64, session: &str, sequence: i64
         &[json!(uid), json!(session), json!(sequence)],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn empty_exclusions_do_not_scan_the_whole_catalogue() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let c = Connection::open_in_memory().unwrap();
+        let schema: Vec<String> =
+            serde_json::from_str(include_str!("../../../../fixtures/schema-v22.json")).unwrap();
+        for statement in schema {
+            c.execute_batch(&statement).unwrap();
+        }
+        // Only the catalogue cardinality matters here; there are no eligible units.
+        c.pragma_update(None, "foreign_keys", false).unwrap();
+        c.execute_batch("WITH RECURSIVE seq(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM seq WHERE n<20000) INSERT INTO learning_units(id,lexical_unit_id,word_id,unit_key,representative_sense_id,display_definition_cn,verification) SELECT n,1,1,'unit-'||n,1,'test','legacy' FROM seq").unwrap();
+        let operations = Arc::new(AtomicUsize::new(0));
+        let counter = operations.clone();
+        c.progress_handler(
+            1000,
+            Some(move || counter.fetch_add(1, Ordering::Relaxed) > 20),
+        );
+        assert!(
+            prepare(&c, &Config::from_env(None), 1).is_ok(),
+            "Empty eligibility must not traverse 20,000 units"
+        );
+        assert!(operations.load(Ordering::Relaxed) < 20);
+    }
 }
