@@ -15,28 +15,15 @@ pub fn prepare(c: &Connection, config: &Config, uid: i64) -> Result<()> {
     let only: bool = c.pragma_query_value(None, "query_only", |r| r.get(0))?;
     c.pragma_update(None, "query_only", false)?;
     let result = (|| -> Result<()> {
-        c.execute_batch("CREATE TEMP TABLE IF NOT EXISTS policy_context(user_id INTEGER,stamp TEXT); DELETE FROM temp.policy_context;")?;
-        c.execute(
-            "INSERT INTO temp.policy_context VALUES(?,?)",
-            (uid, config.stamp()),
-        )?;
-        let present: bool = c.query_row(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_temp_master WHERE name='policy_excluded')",
-            [],
-            |r| r.get(0),
-        )?;
-        if present {
-            return Ok(());
-        }
+        c.execute_batch("CREATE TEMP TABLE IF NOT EXISTS policy_excluded(id INTEGER PRIMARY KEY); CREATE TEMP TABLE IF NOT EXISTS policy_excluded_words(id INTEGER PRIMARY KEY); DELETE FROM temp.policy_excluded_words; DELETE FROM temp.policy_excluded;")?;
         if installed(c) {
             let basic =
                 super::lexicon::sql("basic_unit").replace("=binding.learning_unit_id", "=u.id");
-            let query = "CREATE TEMP VIEW policy_excluded AS SELECT r.learning_unit_id AS id FROM main.user_unit_readiness r JOIN main.readiness_details d USING(user_id,learning_unit_id) JOIN main.user_proficiency_profiles p USING(user_id) JOIN main.learning_units u ON u.id=r.learning_unit_id JOIN main.words w ON w.id=u.word_id JOIN temp.policy_context ctx ON ctx.user_id=r.user_id WHERE p.mode='adaptive' AND r.state='deferred' AND d.valid_until>ctx.stamp AND u.active=1 AND (w.owner_id IS NULL OR w.owner_id=ctx.user_id) AND d.definition_cn=u.display_definition_cn AND d.lexical_unit_id=u.lexical_unit_id AND NOT EXISTS(SELECT 1 FROM main.readiness_overrides o WHERE o.user_id=r.user_id AND o.learning_unit_id=r.learning_unit_id) AND NOT EXISTS(SELECT 1 FROM main.review_history h WHERE h.user_id=r.user_id AND h.learning_unit_id=r.learning_unit_id AND h.is_first_attempt=1 AND h.is_correct=0 AND h.review_time>=CASE WHEN d.source='personal_confirmation' THEN d.source_id ELSE r.updated_at END) AND NOT EXISTS(SELECT 1 FROM main.user_muted_words muted WHERE muted.user_id=ctx.user_id AND muted.word=lower(trim(w.word))) AND NOT (EXISTS(SELECT 1 FROM main.settings bs WHERE bs.user_id=ctx.user_id AND bs.key='skip_basic_600' AND bs.value='true') AND __BASIC__);";
-            c.execute_batch(&query.replace("__BASIC__", &basic))?;
-        } else {
-            c.execute_batch("CREATE TEMP VIEW policy_excluded AS SELECT NULL AS id WHERE 0;")?;
+            let query="INSERT INTO temp.policy_excluded SELECT r.learning_unit_id AS id FROM main.user_unit_readiness r JOIN main.readiness_details d USING(user_id,learning_unit_id) JOIN main.user_proficiency_profiles p USING(user_id) JOIN main.learning_units u ON u.id=r.learning_unit_id JOIN main.words w ON w.id=u.word_id WHERE r.user_id=:uid AND p.mode='adaptive' AND r.state='deferred' AND d.valid_until>:stamp AND u.active=1 AND (w.owner_id IS NULL OR w.owner_id=:uid) AND d.definition_cn=u.display_definition_cn AND d.lexical_unit_id=u.lexical_unit_id AND NOT EXISTS(SELECT 1 FROM main.readiness_overrides o WHERE o.user_id=r.user_id AND o.learning_unit_id=r.learning_unit_id) AND NOT EXISTS(SELECT 1 FROM main.review_history h WHERE h.user_id=r.user_id AND h.learning_unit_id=r.learning_unit_id AND h.is_first_attempt=1 AND h.is_correct=0 AND h.review_time>=CASE WHEN d.source='personal_confirmation' THEN d.source_id ELSE r.updated_at END) AND NOT EXISTS(SELECT 1 FROM main.user_muted_words muted WHERE muted.user_id=:uid AND muted.word=lower(trim(w.word))) AND NOT (EXISTS(SELECT 1 FROM main.settings bs WHERE bs.user_id=:uid AND bs.key='skip_basic_600' AND bs.value='true') AND __BASIC__);".replace("__BASIC__",&basic);
+            c.prepare_cached(&query)?
+                .execute(rusqlite::named_params! {":uid":uid,":stamp":config.stamp()})?;
         }
-        c.execute_batch("CREATE TEMP VIEW policy_excluded_words AS SELECT DISTINCT u.word_id AS id FROM main.learning_units u JOIN temp.policy_excluded e ON e.id=u.id WHERE NOT EXISTS(SELECT 1 FROM main.learning_units other WHERE other.word_id=u.word_id AND other.active=1 AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded x WHERE x.id=other.id) AND EXISTS(SELECT 1 FROM main.learning_unit_senses b JOIN main.word_senses s ON s.id=b.sense_id JOIN main.sense_examples ex ON ex.sense_id=s.id WHERE b.learning_unit_id=other.id AND s.active=1 AND s.learning_enabled=1 AND ex.active=1));")?;
+        c.execute_batch("INSERT INTO temp.policy_excluded_words SELECT DISTINCT u.word_id AS id FROM main.learning_units u JOIN temp.policy_excluded e ON e.id=u.id WHERE NOT EXISTS(SELECT 1 FROM main.learning_units other WHERE other.word_id=u.word_id AND other.active=1 AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded x WHERE x.id=other.id) AND EXISTS(SELECT 1 FROM main.learning_unit_senses b JOIN main.word_senses s ON s.id=b.sense_id JOIN main.sense_examples ex ON ex.sense_id=s.id WHERE b.learning_unit_id=other.id AND s.active=1 AND s.learning_enabled=1 AND ex.active=1));")?;
         Ok(())
     })();
     if result.is_ok()
@@ -54,6 +41,7 @@ pub fn prepare(c: &Connection, config: &Config, uid: i64) -> Result<()> {
     c.pragma_update(None, "query_only", only)?;
     result
 }
+
 fn defer(
     c: &Connection,
     config: &Config,
