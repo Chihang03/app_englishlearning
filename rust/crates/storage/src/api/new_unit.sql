@@ -12,5 +12,6 @@ LEFT JOIN word_frequencies f ON f.headword=w.normalized
 WHERE u.usable=1 AND (w.owner_id=:user OR (w.owner_id IS NULL AND u.id IN (SELECT learning_unit_id FROM selected)))
 AND NOT EXISTS(SELECT 1 FROM sense_srs_state p WHERE p.user_id=:user AND p.learning_unit_id=u.id AND p.retired_at IS NULL)
 AND NOT (:skip AND u.basic)
+AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded WHERE id=u.id)
 AND NOT EXISTS(SELECT 1 FROM user_muted_words t WHERE t.user_id=:user AND t.word=w.normalized)
 ORDER BY u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,w.id,u.id LIMIT 1

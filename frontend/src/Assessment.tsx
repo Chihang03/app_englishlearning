@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { request, isUnauthorized } from "./api";
 
 type Result = { label: string; range: string[]; bands: { band: number; answered: number; correct: number }[];
-  recall: { answered: number; correct: number }; sufficient: boolean; boundary: boolean };
+  recall: { answered: number; correct: number }; sufficient: boolean; boundary: boolean; confirmation_band?: number; passed?: boolean };
 type Session = { id: string; state: "active" | "completed" | "abandoned"; answered: number; maximum: number;
   question: { sequence: number; kind: "recognition" | "recall"; prompt: string; options: string[] } | null;
-  result: Result | null; applied: boolean };
+  result: Result | null; applied: boolean; kind?: string; preview?:{eligible_scope_units:number}; readiness?: { deferred_units: number } };
 type Profile = { enabled: boolean; mode: string; profile: unknown; session: { id: string; state: string } | null; labels: string[] };
 export function ProficiencySettings({ onOpen, onSignedOut, children }: {
   onOpen: () => void; onSignedOut: () => void; children: ReactNode;
@@ -26,7 +26,7 @@ export function ProficiencySettings({ onOpen, onSignedOut, children }: {
       <select aria-label="学习方式" value={profile.mode} disabled={busy} onChange={e => void change(e.target.value)}>
         <option value="adaptive">按水平调整</option><option value="frequency">按词频学习</option>
       </select></label> : null}
-    {profile?.mode !== "adaptive" ? children : null}
+    {children}
     {error ? <p role="alert" className="error-notice">{error}</p> : null}
   </>;
 }
@@ -36,6 +36,9 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
   const [session, setSession] = useState<Session | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
   const [busy, setBusy] = useState(true); const [error, setError] = useState("");
+  const [hasProfile, setHasProfile] = useState(false);
+  const [scope, setScope] = useState<number | null>(null);
+  const [deferred, setDeferred] = useState<{ id:number; word:string; meaning:string; valid_until:string }[]>([]);
   const [answer, setAnswer] = useState("");
   const pending = useRef(false); const live = useRef(true);
   // Persist the submitted request until acknowledgement. A lost response can
@@ -44,7 +47,8 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
   useEffect(() => {
     live.current = true;
     void request<Profile>("/api/proficiency").then(async p => {
-      if (!live.current) return; setLabels(p.labels);
+      if (!live.current) return; setLabels(p.labels);setHasProfile(!!p.profile);
+      void request<{units:typeof deferred}>("/api/proficiency/readiness").then(r=>{if(live.current)setDeferred(r.units??[]);}).catch(()=>{});
       if (p.session && p.session.state !== "abandoned") {
         const existing = await request<Session>(`/api/assessments/${p.session.id}`);
         if (live.current) setSession(existing);
@@ -56,11 +60,11 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
   async function perform(action: string, body?: unknown) {
     if (pending.current) return; pending.current = true; setBusy(true); setError("");
     try {
-      const path = action === "start" ? "/api/assessments" : `/api/assessments/${session!.id}/${action}`;
+      const path = action === "confirm" ? "/api/proficiency/confirmations" : action === "start" ? "/api/assessments" : `/api/assessments/${session!.id}/${action}`;
       const next = await request<Session>(path, { method: "POST", body: JSON.stringify(body ?? {}) });
       if (!live.current) return;
       setSession(next); setAnswer(""); retry.current = null;
-      if (action === "apply") onApplied();
+      if (action === "apply") { setHasProfile(true);onApplied(); const r=await request<{units:typeof deferred}>("/api/proficiency/readiness");if(live.current)setDeferred(r.units); }
     } catch (e) {
       if (isUnauthorized(e)) onSignedOut(); else if (live.current) setError(e instanceof Error ? e.message : "请求失败");
     } finally { pending.current = false; if (live.current) setBusy(false); }
@@ -94,18 +98,31 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
         </form>}
       <button type="button" className="assessment-skip" disabled={busy || !!retry.current} onClick={() => submit("")}>不认识</button>
       <button type="button" className="assessment-exit" disabled={busy} onClick={onBack}>退出并保留进度</button>
+      <button type="button" className="assessment-exit" disabled={busy} onClick={() => void perform("abandon")}>放弃本次测验</button>
     </div> : null}
     {session?.state === "completed" && result ? <div className="panel assessment-result">
       <h2>{result.sufficient ? result.label : "暂未取得足够证据"}</h2>
-      <p>词汇理解范围：{result.range[0]}{result.range[0] !== result.range[1] ? ` — ${result.range[1]}` : ""}</p>
+      {result.confirmation_band !== undefined ? <p>{labels[result.confirmation_band]}：{result.passed ? "已通过确认" : "继续学习"}</p> : <p>词汇理解范围：{result.range[0]}{result.range[0] !== result.range[1] ? ` — ${result.range[1]}` : ""}</p>}
       <dl className="assessment-bands">{result.bands.map(b => <div key={b.band}><dt>{labels[b.band] ?? `层级 ${b.band + 1}`}</dt>
         <dd>{b.correct} / {b.answered}</dd></div>)}</dl>
       <p>线索提取：{result.recall.correct} / {result.recall.answered}</p>
       {result.boundary ? <p>表现接近本次题库的能力边界，结果范围将保守保留。</p> : null}
-      {result.sufficient ? <button type="button" className="primary-button" disabled={busy || session.applied}
+      {result.passed && !session.applied && session.preview ? <p>本组可暂缓 {session.preview.eligible_scope_units} 个学习单元</p> : null}
+      {result.sufficient && result.passed !== false ? <button type="button" className="primary-button" disabled={busy || session.applied}
         onClick={() => void perform("apply")}>{session.applied ? "已应用到学习" : "按此水平开始"}</button> : null}
+      {session.readiness ? <p>按水平暂缓 {session.readiness.deferred_units} 个学习单元</p> : null}
       <button type="button" disabled={busy} onClick={() => void perform("start")}>重新测验</button>
+
     </div> : null}
+      {hasProfile && !q ? <div>
+        <label htmlFor="confirmation-band">确认可跳过的范围</label>
+        <select id="confirmation-band" value={scope??0} onChange={e=>setScope(Number(e.target.value))}>{labels.map((label,i)=><option key={i} value={i}>{label}</option>)}</select>
+        <button type="button" disabled={busy} onClick={()=>void perform("confirm",{band:scope??0})}>开始短确认</button>
+      </div> : null}
+    {deferred.length ? <details className="panel assessment-result"><summary>按水平暂缓的内容</summary>
+      {deferred.map(unit=><div key={unit.id}><strong>{unit.word}</strong><p>{unit.meaning}</p>
+        <button type="button" disabled={busy} onClick={()=>{if(pending.current)return;pending.current=true;setBusy(true);void request<{units:typeof deferred;summary?:{deferred_units:number}}>("/api/proficiency/readiness",{method:"POST",body:JSON.stringify({learning_unit_id:unit.id})}).then(r=>{if(live.current){setDeferred(r.units);if(r.summary)setSession(old=>old?{...old,readiness:r.summary}:old);onApplied();}}).catch(e=>{if(isUnauthorized(e))onSignedOut();else setError(e.message);}).finally(()=>{pending.current=false;if(live.current)setBusy(false);});}}>继续学习</button></div>)}
+    </details> : null}
     {error ? <div role="alert" className="error-notice"><p>{error}</p>
       {retry.current ? <button type="button" disabled={busy} onClick={() => void perform("answers", retry.current)}>重试提交</button> : null}
     </div> : null}

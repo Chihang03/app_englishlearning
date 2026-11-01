@@ -7,7 +7,25 @@ use std::{
 pub fn sql(name: &str) -> &'static str {
     static SQL: OnceLock<Value> = OnceLock::new();
     SQL.get_or_init(|| {
-        serde_json::from_str(include_str!("../../../../fixtures/sql.json")).expect("frozen SQL")
+        let mut queries: Value =
+            serde_json::from_str(include_str!("../../../../fixtures/sql.json"))
+                .expect("frozen SQL");
+        let unit = regex::Regex::new(r"/\* LEVEL_UNIT (.*?) \*/").unwrap();
+        let word = regex::Regex::new(r"/\* LEVEL_WORD (.*?) \*/").unwrap();
+        for value in queries.as_object_mut().unwrap().values_mut() {
+            let expanded = unit.replace_all(
+                value.as_str().unwrap(),
+                "AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded WHERE id=$1)",
+            );
+            *value = json!(
+                word.replace_all(
+                    &expanded,
+                    "AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded_words WHERE id=$1)"
+                )
+                .to_string()
+            );
+        }
+        queries
     })[name]
         .as_str()
         .expect("known SQL")

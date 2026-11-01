@@ -61,5 +61,32 @@
     "dependencies": [
       "learner"
     ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/proficiency/readiness",
+    "writes": false,
+    "source": "rust/crates/storage/src/api/readiness.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/proficiency/readiness",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/readiness.rs",
+    "dependencies": [
+      "learner"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/proficiency/confirmations",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/readiness.rs",
+    "dependencies": [
+      "learner"
+    ]
   }
 ]

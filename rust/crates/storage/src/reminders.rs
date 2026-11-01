@@ -183,6 +183,14 @@ pub fn run_with(
                 {
                     return Ok(false);
                 }
+                if api::readiness::installed(c) {
+                    api::prepare_content(c)?;
+                    let config = api::Config::from_env(Some(now));
+                    api::readiness::prepare(c, &config, n(&subscription, "user_id"))?;
+                    if !api::has_learning_work(c, n(&subscription, "user_id"), &day, &stamp)? {
+                        return Ok(false);
+                    }
+                }
                 counts.eligible += 1;
                 if !dry {
                     exec(

@@ -30,42 +30,19 @@ pub fn new_unit(c: &Connection, uid: i64) -> Result<Option<Value>> {
     let mean = p["mean"].as_f64().unwrap_or(0.0);
     // Frequency is an unverified prior: usable for ranking, never for deferral.
     let difficulty = "COALESCE(d.difficulty,CASE WHEN f.zipf_cent IS NULL THEN 0.0 ELSE max(-2.5,min(2.5,(470.0-f.zipf_cent)/65.0)) END)";
+    let skip:bool=c.query_row("SELECT EXISTS(SELECT 1 FROM settings WHERE user_id=? AND key='skip_basic_600' AND value='true')",[uid],|r|r.get(0))?;
     let source=include_str!("new_unit.sql").split("ORDER BY").next().unwrap()
-        .replace("SELECT u.id AS learning_unit_id", &format!("SELECT u.id AS learning_unit_id,{difficulty} AS difficulty,COALESCE(d.verified,0) AS verified,d.calibration_version"))
         .replace("LEFT JOIN word_frequencies f ON f.headword=w.normalized", "LEFT JOIN word_frequencies f ON f.headword=w.normalized LEFT JOIN learning_unit_difficulty d ON d.learning_unit_id=u.id AND d.retired=0");
     let query = format!(
-        "{source} ORDER BY abs(({difficulty})-:target),u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,u.id LIMIT 512"
+        "{source} ORDER BY abs(({difficulty})-:target),u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,u.id LIMIT 1"
     );
-    let mut statement = c.prepare_cached(&query)?;
-    let mapped=statement.query_map(rusqlite::named_params!{":user":uid,":skip":false,":target":mean+offset},|r|Ok(json!({"learning_unit_id":r.get::<_,i64>(0)?,"difficulty":r.get::<_,f64>(1)?,"verified":r.get::<_,i64>(2)?,"calibration_version":r.get::<_,Option<String>>(3)?})))?;
-    for candidate in mapped {
-        let candidate = candidate?;
-        if !deferred(c, &p, &candidate)? {
-            return Ok(Some(candidate));
-        }
-    }
-    // All candidates temporarily deferred: use the original pool as fallback.
     use rusqlite::OptionalExtension;
-    Ok(c.prepare_cached(include_str!("new_unit.sql"))?
-        .query_row(rusqlite::named_params! {":user":uid,":skip":false}, |r| {
-            Ok(json!({"learning_unit_id":r.get::<_,i64>(0)?}))
-        })
+    Ok(c.prepare_cached(&query)?
+        .query_row(
+            rusqlite::named_params! {":user":uid,":skip":skip,":target":mean+offset},
+            |r| Ok(json!({"learning_unit_id":r.get::<_,i64>(0)?})),
+        )
         .optional()?)
-}
-fn deferred(c: &Connection, p: &Value, item: &Value) -> Result<bool> {
-    if !b(item, "verified") {
-        return Ok(false);
-    }
-    let gate = scalar(
-        c,
-        "SELECT EXISTS(SELECT 1 FROM assessment_calibrations WHERE active=1 AND version=?)",
-        &[item["calibration_version"].clone()],
-    )? == json!(1);
-    let lower = p["mean"].as_f64().unwrap() - 1.645 * p["sd"].as_f64().unwrap();
-    let known =
-        (english_core::assessment::probability(lower, item["difficulty"].as_f64().unwrap()) - 0.25)
-            / 0.75;
-    Ok(gate && known >= 0.95)
 }
 pub fn observe(c: &Connection, config: &Config, uid: i64, aid: &str) -> Result<()> {
     if adaptive_profile(c, uid)?.is_none() {

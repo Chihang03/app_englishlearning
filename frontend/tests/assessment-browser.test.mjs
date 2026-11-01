@@ -8,13 +8,17 @@ assert.ok(['localhost','127.0.0.1'].includes(new URL(origin).hostname));
 const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_PATH});
 try {
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:'dark',serviceWorkers:'block'});
- let sess=null,mode='frequency',applied=false,answerCalls=0,lose=true;
+ let sess=null,mode='frequency',applied=false,answerCalls=0,lose=true,units=[];
  const profile=()=>({enabled:true,mode,profile:applied?{}:null,session:sess?{id:sess.id,state:sess.state}:null,labels:['基础词汇','日常词汇','常用进阶','广泛阅读','高阶词汇','专业与低频词汇']});
  const result={label:'常用进阶',range:['日常词汇','广泛阅读'],sufficient:true,boundary:false,bands:[{band:0,answered:4,correct:4},{band:2,answered:10,correct:7}],recall:{answered:4,correct:3}};
  await context.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;let json={};
   if(path==='/api/auth/me')json={user:{id:1,username:'assessment-ui',role:'learner',timezone:'Asia/Shanghai'}};
   else if(path==='/api/proficiency')json=profile();
+  else if(path==='/api/proficiency/readiness'){if(route.request().method()==='POST')units=[];json={units,summary:{deferred_units:units.length}};}
+  else if(path==='/api/proficiency/confirmations'){sess={id:'scope',kind:'confirmation',state:'active',answered:0,maximum:12,question:{sequence:1,kind:'recognition',prompt:'airport',options:['机场','车站','桥梁','工厂']},result:null,applied:false};json=sess;}
+  else if(path==='/api/assessments/scope/answers'){sess={...sess,state:'completed',answered:12,question:null,result:{...result,confirmation_band:1,passed:true},preview:{eligible_scope_units:1}};json=sess;}
+  else if(path==='/api/assessments/scope/apply'){units=[{id:7,word:'airport',meaning:'机场',valid_until:'2026-11-15'}];sess={...sess,applied:true,readiness:{deferred_units:1}};json=sess;}
   else if(path==='/api/assessments'&&route.request().method()==='POST') {
    sess??={id:'mobile',state:'active',answered:0,maximum:40,question:{sequence:1,kind:'recognition',prompt:'opportunity',options:['机会','风险','优势','劣势']},result:null,applied:false};json=sess;
   }else if(path==='/api/assessments/mobile/answers'){
@@ -52,9 +56,18 @@ try {
  await page.getByRole('button',{name:'按此水平开始',exact:true}).click();
  await page.getByRole('button',{name:'已应用到学习',exact:true}).waitFor();
  await page.screenshot({path:'/tmp/english-assessment-mobile-result.png',fullPage:true});
+ await page.getByLabel('确认可跳过的范围',{exact:true}).selectOption('1');
+ await page.getByRole('button',{name:'开始短确认',exact:true}).click();
+ await page.getByRole('button',{name:'机场',exact:true}).click();
+ await page.getByText('本组可暂缓 1 个学习单元',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'按此水平开始',exact:true}).click();
+ await page.getByText('按水平暂缓的内容',{exact:true}).click();
+ await page.getByRole('button',{name:'继续学习',exact:true}).click();
+ assert.equal(units.length,0);
  await page.getByRole('button',{name:'返回设置',exact:true}).click();
  await page.getByRole('combobox',{name:'学习方式',exact:true}).waitFor();
- assert.equal(await page.getByText('跳过基础 800 词',{exact:true}).count(),0);
+ await page.getByText('跳过基础 800 词',{exact:true}).waitFor();
+ assert.equal(await page.locator('.setting-switch').first().isChecked(),true);
  await page.getByRole('combobox',{name:'学习方式',exact:true}).selectOption('frequency');
  await page.getByText('跳过基础 800 词',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);console.log('PASS mobile assessment: resume, lost-response retry, IME, application, mode and 320/390/430px layouts');

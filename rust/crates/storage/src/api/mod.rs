@@ -8,6 +8,7 @@ pub mod passkeys;
 pub mod proficiency;
 pub mod push;
 mod query_cache;
+pub mod readiness;
 pub mod study;
 pub mod validation;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -321,6 +322,13 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             return accounts::handle(c, config, request);
         }
         let user = accounts::authenticate(c, config, request)?;
+        readiness::prepare(c, config, n(&user, "id"))?;
+        if writes {
+            readiness::retire(c, config, n(&user, "id"))?;
+        }
+        if request.path.starts_with("/api/proficiency/readiness") {
+            return readiness::handle(c, config, request, n(&user, "id")).map(Into::into);
+        }
         if request.path.starts_with("/api/assessments")
             || request.path.starts_with("/api/proficiency")
         {
@@ -349,6 +357,7 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             let result = study::handle(c, config, request, &user)?;
             if request.path == "/api/review" && request.method == "POST" {
                 proficiency::observe(c, config, n(&user, "id"), s(&request.body, "attempt_id"))?;
+                readiness::refresh_personal(c, config, n(&user, "id"))?;
             }
             return Ok(result.into());
         }
@@ -372,4 +381,10 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             Err(error)
         }
     }
+}
+
+/// Shared reminder eligibility; never notify solely about deferred tasks.
+pub fn has_learning_work(c: &Connection, user: i64, today: &str, now: &str) -> Result<bool> {
+    let metrics = query_cache::metrics(c, user, today, now)?;
+    Ok(n(&metrics, "due_senses") > 0 || n(&metrics, "new_senses") > 0)
 }

@@ -73,8 +73,9 @@ def basic_word_sql(*, unit_expression: str | None = None) -> str:
 def learnable_word_sql(user_expression: str, *, unit_expression: str | None = None) -> str:
     """Only internal SQL expressions are accepted; callers use words alias w."""
     # Keep the original preference key for saved settings and open older clients.
+    marker = f"/* LEVEL_UNIT {unit_expression} */" if unit_expression else "/* LEVEL_WORD w.id */"
     return f"""({unmuted_sql(user_expression)} AND NOT (
         EXISTS(SELECT 1 FROM settings basic_setting
             WHERE basic_setting.user_id={user_expression}
               AND basic_setting.key='skip_basic_600' AND basic_setting.value='true')
-        AND {basic_word_sql(unit_expression=unit_expression)}))"""
+        AND {basic_word_sql(unit_expression=unit_expression)}) {marker})"""

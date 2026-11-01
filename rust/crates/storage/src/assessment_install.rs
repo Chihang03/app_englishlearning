@@ -21,6 +21,25 @@ pub fn install(database: &Path, backup: &Path) -> Result<Value> {
     ensure!(version == 22, "Expected v22 database");
     let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     tx.execute_batch(include_str!("assessment_schema.sql"))?;
+    if !tx
+        .prepare("PRAGMA table_info(assessment_sessions)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .contains(&"kind".into())
+    {
+        tx.execute_batch("ALTER TABLE assessment_sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'cat'; ALTER TABLE assessment_sessions ADD COLUMN target_band INTEGER;")?;
+    }
+    let first_readiness: bool = !tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='readiness_schema')",
+        [],
+        |r| r.get::<_, bool>(0),
+    )?;
+    tx.execute_batch(include_str!("readiness_schema.sql"))?;
+    // Only repair the legacy adaptive transition, whose hidden switch was
+    // forcibly cleared. Frequency-mode choices are never changed.
+    if first_readiness {
+        tx.execute("UPDATE settings SET value='true' WHERE key='skip_basic_600' AND value='false' AND user_id IN (SELECT p.user_id FROM user_proficiency_profiles p JOIN settings saved ON saved.user_id=p.user_id AND saved.key='frequency_skip_basic_600' AND saved.value='true' WHERE p.mode='adaptive')",[])?;
+    }
     let bank: Value = serde_json::from_str(include_str!("../../../fixtures/assessment-bank.json"))?;
     for item in bank["items"].as_array().unwrap() {
         let id = item["id"].as_str().unwrap();
@@ -45,7 +64,7 @@ pub fn install(database: &Path, backup: &Path) -> Result<Value> {
     tx.execute_batch("INSERT OR IGNORE INTO learning_unit_difficulty(learning_unit_id,difficulty,source,verified) SELECT u.id,i.difficulty,'authored-exact-meaning',0 FROM learning_units u JOIN words w ON w.id=u.word_id JOIN assessment_items i ON i.word=lower(trim(w.word)) AND i.kind='recognition' WHERE u.active=1 AND trim(u.display_definition_cn)=json_extract(i.payload,'$.meaning')")?;
     tx.commit()?;
     Ok(
-        json!({"extension":1,"items":bank["items"].as_array().unwrap().len(),"backup":backup,"main_schema":22}),
+        json!({"extension":2,"items":bank["items"].as_array().unwrap().len(),"backup":backup,"main_schema":22}),
     )
 }
 use rusqlite::OptionalExtension;

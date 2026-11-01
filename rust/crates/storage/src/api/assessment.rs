@@ -22,6 +22,11 @@ fn evidence(c: &Connection, id: &str) -> Result<Vec<Evidence>> {
 fn result(c: &Connection, id: &str) -> Result<Value> {
     let es = evidence(c, id)?;
     let estimate = model::estimate(&es);
+    let confirmation = one(
+        c,
+        "SELECT target_band FROM assessment_sessions WHERE id=? AND kind='confirmation'",
+        &[json!(id)],
+    )?;
     let bands = rows(
         c,
         "SELECT i.band,COUNT(*) AS answered,SUM(r.correct) AS correct FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND r.answered_at IS NOT NULL AND i.kind='recognition' GROUP BY i.band ORDER BY i.band",
@@ -29,6 +34,12 @@ fn result(c: &Connection, id: &str) -> Result<Value> {
     )?;
     let recall=one(c,"SELECT COUNT(*) AS answered,COALESCE(SUM(r.correct),0) AS correct FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND r.answered_at IS NOT NULL AND i.kind='recall'",&[json!(id)])?.unwrap();
     let label = |v: f64| model::LABELS[((v + 2.5).round() as isize).clamp(0, 5) as usize];
+    if let Some(scope) = confirmation {
+        let correct = es.iter().filter(|e| e.correct).count();
+        return Ok(
+            json!({"confirmation_band":scope["target_band"],"label":"分层确认","range":[],"bands":bands,"recall":recall,"sufficient":es.len()==8 && n(&recall,"answered")==4,"passed":correct>=7 && n(&recall,"correct")==4,"calibrated":false,"boundary":false}),
+        );
+    }
     Ok(
         json!({"estimate":estimate,"label":model::LABELS[estimate.stage],"range":[label(estimate.low),label(estimate.high)],"bands":bands,"recall":recall,"model_version":model::MODEL,"calibrated":false,"sufficient":es.len()>=24 && bands.len()==6 && n(&recall,"answered")>=4,"boundary":es.iter().all(|e|e.correct)||es.iter().all(|e|!e.correct)}),
     )
@@ -65,8 +76,23 @@ fn public_state(c: &Connection, sess: &Value) -> Result<Value> {
     } else {
         Value::Null
     };
+    let potential = if s(sess, "kind") == "confirmation" && res["passed"] == true {
+        {
+            let skip = scalar(
+                c,
+                "SELECT EXISTS(SELECT 1 FROM settings WHERE user_id=? AND key='skip_basic_600' AND value='true')",
+                &[sess["user_id"].clone()],
+            )? == json!(1);
+            super::readiness::group_units(c, n(sess, "user_id"), n(sess, "target_band"), id)?
+                .iter()
+                .filter(|u| !skip || !b(u, "basic"))
+                .count()
+        }
+    } else {
+        0
+    };
     Ok(
-        json!({"id":id,"state":sess["state"],"answered":count,"maximum":40,"question":question,"result":res,"applied":!sess["applied_at"].is_null()}),
+        json!({"preview":{"eligible_scope_units":potential},"id":id,"state":sess["state"],"answered":count,"maximum":if s(sess,"kind")=="confirmation" {12} else {40},"question":question,"result":res,"applied":!sess["applied_at"].is_null(),"kind":sess["kind"],"target_band":sess["target_band"],"readiness":super::readiness::summary(c)?}),
     )
 }
 fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
@@ -89,7 +115,16 @@ fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
             recall += 1;
         }
     }
-    let done = es.len() >= 36 || (es.len() >= 24 && bands.iter().all(|n| *n >= 2) && est.sd <= 0.6);
+    let scope = one(
+        c,
+        "SELECT target_band FROM assessment_sessions WHERE id=? AND kind='confirmation'",
+        &[json!(id)],
+    )?;
+    let done = if scope.is_some() {
+        es.len() >= 8
+    } else {
+        es.len() >= 36 || (es.len() >= 24 && bands.iter().all(|n| *n >= 2) && est.sd <= 0.6)
+    };
     if done && recall >= 4 {
         let res = result(c, id)?;
         exec(
@@ -126,6 +161,7 @@ fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
     };
     let mut eligible: Vec<_> = candidates
         .iter()
+        .filter(|r| scope.as_ref().is_none_or(|b| r["band"] == b["target_band"]))
         .filter(|r| !seen.contains(s(r, "family")))
         .collect();
     eligible.shuffle(&mut rand::thread_rng());
@@ -187,39 +223,8 @@ pub fn profile(c: &Connection, uid: i64) -> Result<Value> {
         &[],
     )? == json!(1);
     Ok(
-        json!({"enabled":true,"mode":p.as_ref().map_or("frequency",|p|s(p,"mode")),"profile":p,"session":last,"labels":model::LABELS,"automatic_deferral":gate}),
+        json!({"enabled":true,"mode":p.as_ref().map_or("frequency",|p|s(p,"mode")),"profile":p,"session":last,"labels":model::LABELS,"automatic_deferral":super::readiness::installed(c),"calibrated_parameters_available":gate,"readiness":super::readiness::summary(c)?}),
     )
-}
-fn switch_filters(c: &Connection, uid: i64, mode: &str) -> Result<()> {
-    let previous = one(
-        c,
-        "SELECT mode FROM user_proficiency_profiles WHERE user_id=?",
-        &[json!(uid)],
-    )?;
-    let was_adaptive = previous
-        .as_ref()
-        .is_some_and(|p| s(p, "mode") == "adaptive");
-    if mode == "adaptive" && !was_adaptive {
-        exec(
-            c,
-            "INSERT INTO settings(user_id,key,value) SELECT user_id,'frequency_skip_basic_600',value FROM settings WHERE user_id=? AND key='skip_basic_600' ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value",
-            &[json!(uid)],
-        )?;
-    }
-    if mode == "adaptive" {
-        exec(
-            c,
-            "INSERT INTO settings(user_id,key,value) VALUES(?,'skip_basic_600','false') ON CONFLICT(user_id,key) DO UPDATE SET value='false'",
-            &[json!(uid)],
-        )?;
-    } else if was_adaptive {
-        exec(
-            c,
-            "INSERT INTO settings(user_id,key,value) SELECT user_id,'skip_basic_600',value FROM settings WHERE user_id=? AND key='frequency_skip_basic_600' ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value",
-            &[json!(uid)],
-        )?;
-    }
-    Ok(())
 }
 pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Result<Value> {
     let uid = n(user, "id");
@@ -234,7 +239,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
         if !["frequency", "adaptive"].contains(&mode) {
             return Err(fault(422, "未知学习方式"));
         }
-        switch_filters(c, uid, mode)?;
+
         if exec(
             c,
             "UPDATE user_proficiency_profiles SET mode=?,revision=revision+1,updated_at=? WHERE user_id=?",
@@ -243,6 +248,8 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
         {
             return Err(fault(409, "请先完成并应用词汇测验"));
         }
+        super::readiness::refresh_personal(c, config, uid)?;
+        super::readiness::prepare(c, config, uid)?;
         return profile(c, uid);
     }
     if r.path == "/api/assessments" && r.method == "POST" {
@@ -271,6 +278,54 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
                 version,
                 json!(model::MODEL),
                 json!(config.stamp()),
+            ],
+        )?;
+        issue(c, config, uid, &id)?;
+        return public_state(c, &session(c, uid, &id)?);
+    }
+    if r.path == "/api/proficiency/confirmations" && r.method == "POST" {
+        if !super::readiness::installed(c) {
+            return Err(fault(503, "请先升级学习策略"));
+        }
+        let band = integer(&r.body, "band")?;
+        if !(0..=5).contains(&band) {
+            return Err(fault(422, "未知层级"));
+        }
+        if one(
+            c,
+            "SELECT user_id FROM user_proficiency_profiles WHERE user_id=?",
+            &[json!(uid)],
+        )?
+        .is_none()
+        {
+            return Err(fault(409, "请先应用水平测验"));
+        }
+        if let Some(active) = one(
+            c,
+            "SELECT * FROM assessment_sessions WHERE user_id=? AND state='active'",
+            &[json!(uid)],
+        )? {
+            if s(&active, "kind") != "confirmation" || n(&active, "target_band") != band {
+                return Err(fault(409, "请先完成或放弃当前测验"));
+            }
+            return public_state(c, &active);
+        }
+        let version = scalar(
+            c,
+            "SELECT version FROM assessment_items WHERE active=1 ORDER BY rowid DESC LIMIT 1",
+            &[],
+        )?;
+        let id = accounts::random_token(24);
+        exec(
+            c,
+            "INSERT INTO assessment_sessions(id,user_id,state,bank_version,model_version,created_at,kind,target_band) VALUES(?,?,'active',?,?,?,'confirmation',?)",
+            &[
+                json!(id),
+                json!(uid),
+                version,
+                json!(model::MODEL),
+                json!(config.stamp()),
+                json!(band),
             ],
         )?;
         issue(c, config, uid, &id)?;
@@ -341,6 +396,9 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
                     json!(seq),
                 ],
             )?;
+            if answer != expected {
+                super::readiness::assessment_failure(c, uid, id, seq)?;
+            }
             issue(c, config, uid, id)?;
         }
         "apply" => {
@@ -354,6 +412,31 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
             if !sess["applied_at"].is_null() {
                 return public_state(c, &sess);
             }
+            if s(&sess, "kind") == "confirmation" {
+                let completed = chrono::DateTime::parse_from_rfc3339(s(&sess, "completed_at"))
+                    .map_err(|_| fault(409, "确认结果已失效"))?;
+                if config.now() - completed.with_timezone(&Utc) > chrono::Duration::days(7) {
+                    return Err(fault(409, "确认结果已过期，请重新进行短确认"));
+                }
+                if !b(&res, "passed") {
+                    return Err(fault(409, "该层级仍需练习，暂不排除"));
+                }
+                exec(
+                    c,
+                    "UPDATE user_proficiency_profiles SET mode='adaptive',revision=revision+1,updated_at=? WHERE user_id=?",
+                    &[json!(config.stamp()), json!(uid)],
+                )?;
+                super::readiness::apply_group(c, config, uid, n(&sess, "target_band"), id)?;
+                exec(
+                    c,
+                    "UPDATE assessment_sessions SET applied_at=? WHERE id=?",
+                    &[json!(config.stamp()), json!(id)],
+                )?;
+                super::readiness::prepare(c, config, uid)?;
+                let mut out = public_state(c, &session(c, uid, id)?)?;
+                out["readiness"] = super::readiness::summary(c)?;
+                return Ok(out);
+            }
             let newer = scalar(
                 c,
                 "SELECT EXISTS(SELECT 1 FROM assessment_sessions WHERE user_id=? AND applied_at IS NOT NULL AND rowid>(SELECT rowid FROM assessment_sessions WHERE id=?))",
@@ -362,7 +445,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
             if newer == json!(1) {
                 return Err(fault(409, "已有更新的测验结果"));
             }
-            switch_filters(c, uid, "adaptive")?;
+
             let e = &res["estimate"];
             exec(
                 c,
@@ -395,5 +478,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
         }
         _ => return Err(fault(404, "Unknown endpoint")),
     }
+    super::readiness::refresh_personal(c, config, uid)?;
+    super::readiness::prepare(c, config, uid)?;
     public_state(c, &session(c, uid, id)?)
 }
