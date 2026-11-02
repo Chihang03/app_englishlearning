@@ -1,0 +1,17 @@
+name: Sensitive content
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check tracked files
+        run: python3 scripts/check_sensitive_content.py --tracked
+      - name: Check reachable history
+        run: python3 scripts/check_sensitive_content.py --history

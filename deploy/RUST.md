@@ -31,6 +31,8 @@ gzip -dc /release/content/public-seed.db.gz > /tmp/public-seed.db
 
 将发布目录安装到 `/opt/englishlearning/releases/<release>`，root 所有、目录可由服务及 Nginx 读取。先在隔离快照验证二进制、动态依赖、完整性与原生提醒 dry-run。
 
+发布前在 root 持有的 `/etc/englishlearning-deploy.env` 设置 `PUBLIC_ORIGIN`，权限为 `0600`。脚本也接受通过 `ENGLISH_DEPLOY_CONFIG` 指定的配置文件，字段模板见 [deploy.env.example](deploy.env.example)。
+
 以 root 运行：
 
 ```sh

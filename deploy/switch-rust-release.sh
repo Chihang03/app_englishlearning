@@ -31,6 +31,12 @@ restore() {
 }
 if [ "${1:-}" = --rollback ]; then restore "$2"; exit; fi
 : "${1:?Usage: switch-rust-release.sh /absolute/release OR --rollback /backup-directory}"
+# This root-owned file contains host-specific configuration outside releases.
+DEPLOY_CONFIG=${ENGLISH_DEPLOY_CONFIG:-/etc/englishlearning-deploy.env}
+if [ -r "$DEPLOY_CONFIG" ]; then . "$DEPLOY_CONFIG"; fi
+: "${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN in the external deployment configuration}"
+case "$PUBLIC_ORIGIN" in https://*) ;; *) printf '%s\n' 'PUBLIC_ORIGIN must use HTTPS' >&2; exit 1 ;; esac
+PUBLIC_ORIGIN=${PUBLIC_ORIGIN%/}
 RELEASE=$1
 test "$(id -u)" = 0
 test -L "$APP"
@@ -90,8 +96,8 @@ systemctl reload nginx
 # Reload returns before all new workers serve requests; wait for the exact release.
 public_ready=no
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS --max-time 5 https://english.192-0-2-10.sslip.io:8443/api/health >/dev/null 2>&1 &&
-       curl -fsS --max-time 5 https://english.192-0-2-10.sslip.io:8443/version.json > "$SAVED/public-version.json" 2>/dev/null &&
+    if curl -fsS --max-time 5 "$PUBLIC_ORIGIN/api/health" >/dev/null 2>&1 &&
+       curl -fsS --max-time 5 "$PUBLIC_ORIGIN/version.json" > "$SAVED/public-version.json" 2>/dev/null &&
        cmp -s "$SAVED/public-version.json" "$RELEASE/static/version.json"; then
         public_ready=yes
         break

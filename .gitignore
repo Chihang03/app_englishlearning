@@ -31,3 +31,13 @@ rust/target/
 .env
 .env.*
 !.env.example
+
+# Private operations and recovery artifacts
+.local/
+*.private.env
+*.private.md
+*.pem
+*.key
+*.p12
+*.pfx
+*.bundle
