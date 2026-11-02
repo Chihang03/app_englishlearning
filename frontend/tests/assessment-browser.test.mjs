@@ -66,10 +66,10 @@ try {
  await page.getByRole('button',{name:'继续学习',exact:true}).click();
  assert.equal(units.length,0);
  await page.getByRole('button',{name:'返回设置',exact:true}).click();
- await page.getByRole('combobox',{name:'学习方式',exact:true}).waitFor();
+ await page.getByRole('radio',{name:'按水平调整',exact:true}).waitFor();
  await page.getByText('跳过基础 800 词',{exact:true}).waitFor();
  assert.equal(await page.locator('.setting-switch').first().isChecked(),true);
- await page.getByRole('combobox',{name:'学习方式',exact:true}).selectOption('frequency');
+ await page.getByRole('radio',{name:'按词频学习',exact:true}).check();
  await page.getByText('跳过基础 800 词',{exact:true}).waitFor();
  // Existing v1 sessions retain their original recall card and IME protection.
  sess={id:'legacy',state:'active',answered:24,maximum:40,question:{sequence:25,kind:'recall',prompt:'阅读 · r 开头，4 个字母',options:[]},result:null,applied:false};

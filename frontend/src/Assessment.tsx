@@ -1,3 +1,4 @@
+import { Icon, SettingsPageHeader } from "./Navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { request, isUnauthorized } from "./api";
 
@@ -14,18 +15,22 @@ export function ProficiencySettings({ onOpen, onSignedOut, children }: {
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   useEffect(() => { let alive = true; void request<Profile>("/api/proficiency").then(p => { if (alive) setProfile(p); })
     .catch(e => { if (isUnauthorized(e)) onSignedOut(); }); return () => { alive = false; }; }, [onSignedOut]);
+  const [pendingMode, setPendingMode] = useState<string | null>(null);
   async function change(mode: string) {
+    setPendingMode(mode);
     setBusy(true); setError("");
     try { setProfile(await request<Profile>("/api/proficiency/mode", { method: "PATCH", body: JSON.stringify({ mode }) })); }
     catch (e) { if (isUnauthorized(e)) onSignedOut(); else setError(e instanceof Error ? e.message : "保存失败"); }
-    finally { setBusy(false); }
+    finally { setPendingMode(null); setBusy(false); }
   }
   return <>
-    <button type="button" className="word-list-option" onClick={onOpen}><strong>词汇水平测验</strong><span aria-hidden="true">›</span></button>
-    {profile?.profile ? <label className="setting-row"><strong>学习方式</strong>
-      <select aria-label="学习方式" value={profile.mode} disabled={busy} onChange={e => void change(e.target.value)}>
-        <option value="adaptive">按水平调整</option><option value="frequency">按词频学习</option>
-      </select></label> : null}
+    <button type="button" className="word-list-option" onClick={onOpen}><strong>词汇水平测验</strong><Icon name="chevron" /></button>
+    {profile?.profile ? <fieldset className="learning-mode" disabled={busy}>
+      <legend>学习方式</legend>
+      <div>{[["frequency", "按词频学习"], ["adaptive", "按水平调整"]].map(([value, label]) =>
+        <label key={value}><input type="radio" name="learning-mode" checked={(pendingMode ?? profile.mode) === value}
+          onChange={() => void change(value)} /><span>{label}</span></label>)}</div>
+    </fieldset> : null}
     {children}
     {error ? <p role="alert" className="error-notice">{error}</p> : null}
   </>;
@@ -77,8 +82,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
   const q = session?.state === "active" ? session.question : null;
   const result = session?.result;
   return <section className="settings-page page-container assessment-page" aria-label="词汇水平测验">
-    <header className="settings-header"><button type="button" className="icon-button" aria-label="返回设置" onClick={onBack}>‹</button>
-      <h1>词汇水平测验</h1><span className="header-spacer" /></header>
+    <SettingsPageHeader title="词汇水平测验" onBack={onBack} />
     {busy && !session ? <p role="status">正在加载…</p> : null}
     {!busy && !session || session?.state === "abandoned" ? <div className="panel assessment-intro">
       <h2>找到适合你的学习起点</h2><p>32–40 题 · 约 5–6 分钟</p>
@@ -96,7 +100,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
             spellCheck={false} autoComplete="off" disabled={busy || !!retry.current} onKeyDown={e => { if (e.key === "Enter" && (e.nativeEvent.isComposing || e.keyCode === 229)) e.preventDefault(); }} />
           <button type="submit" className="primary-button" disabled={busy || !!retry.current || !answer.trim()}>提交</button>
         </form>}
-      <button type="button" className="assessment-skip" disabled={busy || !!retry.current} onClick={() => submit("")}>不认识</button>
+      <button type="button" className="secondary-button assessment-skip" disabled={busy || !!retry.current} onClick={() => submit("")}>不认识</button>
       <button type="button" className="assessment-exit" disabled={busy} onClick={onBack}>退出并保留进度</button>
       <button type="button" className="assessment-exit" disabled={busy} onClick={() => void perform("abandon")}>放弃本次测验</button>
     </div> : null}
@@ -111,15 +115,15 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
       {result.sufficient && result.passed !== false ? <button type="button" className="primary-button" disabled={busy || session.applied}
         onClick={() => void perform("apply")}>{session.applied ? "已应用到学习" : "按此水平开始"}</button> : null}
       {session.readiness ? <p>按水平暂缓 {session.readiness.deferred_units} 个学习单元</p> : null}
-      <button type="button" disabled={busy} onClick={() => void perform("start")}>重新测验</button>
+      <button type="button" className="secondary-button" disabled={busy} onClick={() => void perform("start")}>重新测验</button>
 
     </div> : null}
-      {hasProfile && !q ? <div>
+      {hasProfile && !q ? <div className="panel assessment-scope">
         <label htmlFor="confirmation-band">确认可跳过的范围</label>
         <select id="confirmation-band" value={scope??0} onChange={e=>setScope(Number(e.target.value))}>{labels.map((label,i)=><option key={i} value={i}>{label}</option>)}</select>
-        <button type="button" disabled={busy} onClick={()=>void perform("confirm",{band:scope??0})}>开始短确认</button>
+        <button type="button" className="secondary-button" disabled={busy} onClick={()=>void perform("confirm",{band:scope??0})}>开始短确认</button>
       </div> : null}
-    {deferred.length ? <details className="panel assessment-result"><summary>按水平暂缓的内容</summary>
+    {deferred.length ? <details className="panel assessment-deferred"><summary>按水平暂缓的内容</summary>
       {deferred.map(unit=><div key={unit.id}><strong>{unit.word}</strong><p>{unit.meaning}</p>
         <button type="button" disabled={busy} onClick={()=>{if(pending.current)return;pending.current=true;setBusy(true);void request<{units:typeof deferred;summary?:{deferred_units:number}}>("/api/proficiency/readiness",{method:"POST",body:JSON.stringify({learning_unit_id:unit.id})}).then(r=>{if(live.current){setDeferred(r.units);if(r.summary)setSession(old=>old?{...old,readiness:r.summary}:old);onApplied();}}).catch(e=>{if(isUnauthorized(e))onSignedOut();else setError(e.message);}).finally(()=>{pending.current=false;if(live.current)setBusy(false);});}}>继续学习</button></div>)}
     </details> : null}
