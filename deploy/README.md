@@ -4,7 +4,7 @@
 
 ## 私有连接信息
 
-开发机在仓库外维护 `~/.config/app_englishlearning/deploy.env` 和 `operations.md`。连接参数包括 DEPLOY_HOST、DEPLOY_USER、DEPLOY_SSH_KEY 和 PUBLIC_ORIGIN，字段模板见 [deploy.env.example](deploy.env.example)。私有目录权限设为 0700，文件设为 0600。
+开发机在仓库外维护 `~/.config/app_englishlearning/deploy.env` 和 `operations.md`。连接参数包括 DEPLOY_HOST、DEPLOY_USER、DEPLOY_SSH_KEY 和 PUBLIC_ORIGIN，可选 DEPLOY_PROBE_ACCOUNT 用于服务器本地副本验收，字段模板见 [deploy.env.example](deploy.env.example)。私有目录权限设为 0700，文件设为 0600。
 
 服务器在 `/etc/englishlearning-deploy.env` 配置 PUBLIC_ORIGIN，文件由 root 持有并设为 0600。发布脚本在开始变更服务前加载该配置。需要另一路径时设置 ENGLISH_DEPLOY_CONFIG。回退入口使用保存的服务配置恢复。
 
@@ -16,7 +16,9 @@
 
 ## 检查与维护
 
-提交前运行 `python3 scripts/check_sensitive_content.py`，检查整个工作树的已跟踪文件使用 `--tracked`。首次设置 `git config core.hooksPath .githooks` 后，提交会自动执行检查。Git hook 为本地辅助检查，CI 同时扫描当前文件和推送涉及的历史。
+提交前运行 `python3 scripts/check_sensitive_content.py`，检查整个工作树的已跟踪文件使用 `--tracked`。首次设置 `git config core.hooksPath .githooks` 后，提交会自动执行检查。验收脚本可通过 `--account` 指定本地副本中的比较账号，省略时跳过个人账号比较。
+
+Git hook 为本地辅助检查，CI 同时扫描当前文件和推送涉及的历史。
 
 敏感标识检查读取本机私有配置以识别当前部署地址及密钥路径，同时识别私钥正文和公开 IPv4 地址。命中时仅打印文件与行号。占位地址使用文档保留网段或 example.com。
 

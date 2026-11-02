@@ -26,7 +26,7 @@ def private_identifiers():
     if config.is_file():
         for line in config.read_text().splitlines():
             key, separator, value = line.partition('=')
-            if separator and key.strip() in {'DEPLOY_HOST', 'DEPLOY_HOST_IPV6', 'DEPLOY_SSH_KEY', 'PUBLIC_ORIGIN'}:
+            if separator and key.strip() in {'DEPLOY_HOST', 'DEPLOY_HOST_IPV6', 'DEPLOY_SSH_KEY', 'PUBLIC_ORIGIN', 'DEPLOY_PROBE_ACCOUNT'}:
                 parts = shlex.split(value, comments=True)
                 if parts:
                     identifiers.append(parts[0].encode())

@@ -2,7 +2,7 @@
 import argparse,hashlib,http.cookiejar,json,os,sqlite3,subprocess,time,datetime,secrets
 from pathlib import Path
 from urllib.request import Request,build_opener,HTTPCookieProcessor
-p=argparse.ArgumentParser();p.add_argument('--release',required=True);p.add_argument('--directory',required=True);p.add_argument('--source',default='/var/lib/englishlearning/vocabulary.db');p.add_argument('--port',type=int,default=18089);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--release',required=True);p.add_argument('--directory',required=True);p.add_argument('--source',default='/var/lib/englishlearning/vocabulary.db');p.add_argument('--port',type=int,default=18089);p.add_argument('--account',help='Optional account to compare in the isolated snapshot');a=p.parse_args()
 release=Path(a.release);directory=Path(a.directory);directory.mkdir(mode=0o700)
 ctl=release/'bin/englishctl';db=directory/'copy.db'
 def cli(*args):return json.loads(subprocess.check_output([str(ctl),*map(str,args)]))
@@ -89,7 +89,7 @@ try:
  assert deferred>0 and after_scope['new_senses']<before_scope['new_senses'],'Scope confirmation did not actually remove tasks'
  # The production account is exercised ONLY in this isolated snapshot.
  with sqlite3.connect(db) as c:
-  owner=c.execute("SELECT id FROM users WHERE lower(username)=lower('example-learner')").fetchone()
+  owner=c.execute('SELECT id FROM users WHERE lower(username)=lower(?)',(a.account,)).fetchone() if a.account else None
   if owner:
    probe_token=secrets.token_hex(32)
    c.execute("INSERT INTO sessions VALUES(?,?,'2026-01-01','2027-12-31')",(hashlib.sha256(probe_token.encode()).hexdigest(),owner[0]))
