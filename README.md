@@ -2,10 +2,14 @@
 
 语境单词训练器。系统用英文例句挖空让用户根据上下文和当前义项的解释回忆单词，并用 SQLite 持久化保存学习记录与义项级 SRS 状态。支持多用户，每人有各自独立的学习进度。
 
+## 项目文档入口
+
+从[项目文档与路由总表](docs/项目文档路由表.md)阅读完整构想和模块说明。总表同时提供文档导航、前端页面路由和 API 路由，学习、复习、长期熟记与水平暂缓的职责在对应模块中集中维护。
+
 ## 技术栈
 
 - Frontend: React, TypeScript, TailwindCSS, Vite
-- Backend: Python FastAPI
+- Backend: Rust 原生 API；Python 保留为离线内容制作、测试及历史参考实现
 - Database: SQLite（WAL 模式）
 - Auth: 会话 Cookie + scrypt 口令散列 + WebAuthn 通行密钥（Passkey）
 - TTS: 浏览器 Web Speech API（`speechSynthesis`）
@@ -21,6 +25,13 @@
 ## 目录
 
 ```text
+rust/
+  crates/
+    core/           # 记忆与测验计算
+    storage/        # SQLite 与原生 API 用例
+    content/        # 原生内容管线
+    server/         # HTTP 服务
+    cli/            # 维护命令
 backend/
   app/
     main.py          # FastAPI API + 生产环境静态前端托管
@@ -55,7 +66,9 @@ frontend/
     index.css
 ```
 
-## 运行
+## 历史 Python 参考实现的本地运行
+
+当前原生开发与部署见[工程部署与验证](docs/project/07-工程部署与验证.md)。下列命令用于运行保留的 Python 参考实现。
 
 安装后端依赖：
 
@@ -79,14 +92,13 @@ npm run dev
 
 ## 生产环境运行
 
-生产环境下前端与后端同源：先构建前端，后端会自动把 `frontend/dist` 挂载到 `/`，只需要跑一个进程。
+生产环境由 Nginx 提供静态前端，将 `/api/` 转发给 Rust `english-server`，SQLite 数据位于独立持久化目录。前端在构建机使用 `npm run build` 生成，二进制在构建机编译后随 release 发布。
 
 ```bash
-cd frontend && npm ci && npm run build
-cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
+english-server --database /data/vocabulary.db --listen 127.0.0.1:8000 --enable-api
 ```
 
-打开 `http://<host>:8000` 即可，API 仍在 `/api` 下。因为同源，默认不需要任何 CORS 配置。
+数据库初始化、内容导入及扩展安装通过维护 CLI 显式执行。正式服务的构建、校验、备份、systemd 与 Nginx 配置、切换及恢复使用[原生发布手册](deploy/RUST.md)。
 
 ## 环境变量
 
@@ -108,7 +120,7 @@ cd ../backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## 数据
 
-首次启动后端时会自动创建 `$DATA_DIR/vocabulary.db`（默认 `backend/data/vocabulary.db`），并导入 `seed_words.json` 与本地化的 `vocabulary_catalog.json`。没有合格例句的源词不会导入为可学记录。后续学习记录、SRS 状态、词库选择和显示设置写入同一个 SQLite 数据库。
+历史 Python 参考实现首次启动时会自动创建 `$DATA_DIR/vocabulary.db`（默认 `backend/data/vocabulary.db`），并导入 `seed_words.json` 与本地化的 `vocabulary_catalog.json`。没有合格例句的源词不会导入为可学记录。后续学习记录、SRS 状态、词库选择和显示设置写入同一个 SQLite 数据库。
 
 ## API 摘要
 
@@ -254,7 +266,7 @@ backend/.venv-vocab-export/bin/python backend/scripts/supplement_chinese_from_di
 
 ### 动态记忆与长期熟记
 
-复习以用户和义项为单位使用 `fsrs==6.3.0`。模型根据实际经过时间及独立作答结果更新记忆难度和稳定性，再计算约 80% 目标回忆概率对应的间隔；不再用固定阶梯决定后续日期。模型按 UTC 时间更新，复习日期仍按账号当地日历安排。原有到期日期在升级时保留，到下一次真实作答时才初始化记忆状态，旧间隔仅作为初始估计。
+复习以用户和学习单元为单位，生产使用与 FSRS 6.3.0 对照验证的 Rust 实现，历史 Python 参考实现依赖 `fsrs==6.3.0`。模型根据实际经过时间及独立作答结果更新记忆难度和稳定性，再计算约 80% 目标回忆概率对应的间隔；不再用固定阶梯决定后续日期。模型按 UTC 时间更新，复习日期仍按账号当地日历安排。原有到期日期在升级时保留，到下一次真实作答时才初始化记忆状态，旧间隔仅作为初始估计。
 
 首次独立答对与后续复习都直接使用 FSRS 更新稳定性和难度，不使用 30 天熟词先验、30/60 天间隔上限或三次熟词确认路径。已有记忆状态和到期日期保留，下一次真实作答开始按新规则计算；旧熟词标志不再参与出题、间隔和界面显示。模型版本为 `fsrs-6.3.0-retention80-v2`，不修改数据库结构或重写历史答案。
 
