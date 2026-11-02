@@ -61,13 +61,16 @@ class AssessmentTests(unittest.TestCase):
         sess=self.start()
         for _ in range(40):
             if sess['state']!='active':break
+            self.assertEqual(sess['question']['kind'],'recognition')
             sess=self.answer(sess,correct)
         self.assertEqual(sess['state'],'completed')
         return sess
     def test_full_test_apply_and_no_srs_mutation(self):
         sess=self.complete()
-        self.assertTrue(sess['result']['sufficient']);self.assertEqual(sess['result']['recall']['answered'],4)
-        self.assertGreaterEqual(sess['answered'],28);self.assertLessEqual(sess['answered'],40)
+        self.assertTrue(sess['result']['sufficient']);self.assertEqual(sess['result']['recall']['answered'],0)
+        self.assertTrue(sess['recognition_only'])
+        self.assertTrue(all(b['answered']>=4 for b in sess['result']['bands']))
+        self.assertGreaterEqual(sess['answered'],32);self.assertLessEqual(sess['answered'],40)
         with connect(self.db) as c:
             self.assertEqual(c.execute('SELECT COUNT(DISTINCT i.family),COUNT(*) FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE session_id=?',(sess['id'],)).fetchone(),(sess['answered'],sess['answered']))
             self.assertEqual(c.execute('SELECT COUNT(*) FROM review_history WHERE user_id=?',(self.uid,)).fetchone()[0],0)
@@ -76,8 +79,22 @@ class AssessmentTests(unittest.TestCase):
         applied=self.call('POST',f"/api/assessments/{sess['id']}/apply",{})
         self.assertTrue(applied['applied'])
         self.assertEqual(self.call('GET','/api/proficiency')['mode'],'adaptive')
+        self.assertEqual(self.call('GET','/api/proficiency')['profile']['model_version'],'vocab-recognition-v2')
         self.call('PATCH','/api/proficiency/mode',{'mode':'frequency'})
         with connect(self.db) as c:self.assertEqual(c.execute("SELECT value FROM settings WHERE user_id=? AND key='skip_basic_600'",(self.uid,)).fetchone()[0],'true')
+    def test_stable_estimate_still_needs_32_questions_and_four_per_band(self):
+        sess=self.start()
+        for index in range(32):
+            self.assertEqual(sess['state'],'active')
+            self.assertEqual(sess['question']['kind'],'recognition')
+            with connect(self.db) as c:
+                band=c.execute('SELECT i.band FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND r.sequence=?',(sess['id'],sess['question']['sequence'])).fetchone()[0]
+            sess=self.answer(sess,correct=band<3)
+        self.assertEqual(sess['state'],'completed')
+        self.assertEqual(sess['answered'],32)
+        self.assertTrue(all(b['answered']>=4 for b in sess['result']['bands']))
+        self.assertEqual(sess['result']['recall']['answered'],0)
+
     def test_resume_conflict_ownership_and_answers_hidden(self):
         sess=self.start();self.assertEqual(self.start(),sess)
         self.assertEqual(self.call('GET',f"/api/assessments/{sess['id']}"),sess)
@@ -260,16 +277,49 @@ class AssessmentTests(unittest.TestCase):
         subprocess.run([str(CTL),'assessment-install','--database',str(self.db),'--backup',str(self.directory/(self.token+'-new.db'))],check=True,capture_output=True)
         self.assertFalse(self.call('GET','/api/settings')['skip_basic_600'])
 
-    def test_recognition_success_alone_does_not_pass_scope(self):
+    def test_recognition_only_confirmation_passes_without_recall(self):
         self.profile_fixture();self.seed_unit()
         sess=self.call('POST','/api/proficiency/confirmations',{'band':1})
+        for index in range(12):
+            self.assertEqual(sess['question']['kind'],'recognition')
+            sess=self.answer(sess,correct=index!=0)
+        self.assertEqual(sum(x['correct'] for x in sess['result']['bands']),11)
+        self.assertEqual(sess['result']['recall']['answered'],0)
+        self.assertTrue(sess['result']['passed'])
+        self.call('POST',f"/api/assessments/{sess['id']}/apply",{})
+
+    def test_confirmation_ten_of_twelve_is_not_enough(self):
+        self.profile_fixture();self.seed_unit()
+        sess=self.call('POST','/api/proficiency/confirmations',{'band':1})
+        for index in range(12):sess=self.answer(sess,correct=index>=2)
+        self.assertFalse(sess['result']['passed'])
+        self.call('POST',f"/api/assessments/{sess['id']}/apply",{},status=409)
+        self.assertEqual(self.call('GET','/api/stats')['new_senses'],1)
+
+    def test_in_progress_legacy_test_retains_recall_and_profile_version(self):
+        sess=self.start()
+        with connect(self.db) as c:c.execute("UPDATE assessment_sessions SET model_version='vocab-grid-v1' WHERE id=?",(sess['id'],))
+        for _ in range(40):
+            if sess['state']!='active':break
+            sess=self.answer(sess)
+        self.assertEqual(sess['state'],'completed')
+        self.assertFalse(sess['recognition_only'])
+        self.assertEqual(sess['result']['recall']['answered'],4)
+        self.assertEqual(sess['result']['model_version'],'vocab-grid-v1')
+        self.call('POST',f"/api/assessments/{sess['id']}/apply",{})
+        self.assertEqual(self.call('GET','/api/proficiency')['profile']['model_version'],'vocab-grid-v1')
+
+    def test_in_progress_legacy_confirmation_keeps_recall_requirement(self):
+        self.profile_fixture()
+        sess=self.call('POST','/api/proficiency/confirmations',{'band':1})
+        with connect(self.db) as c:c.execute("UPDATE assessment_sessions SET model_version='vocab-grid-v1' WHERE id=?",(sess['id'],))
         for _ in range(12):
             if sess['state']!='active':break
             sess=self.answer(sess,correct=sess['question']['kind']=='recognition')
         self.assertEqual(sum(x['correct'] for x in sess['result']['bands']),8)
+        self.assertEqual(sess['result']['recall']['answered'],4)
         self.assertFalse(sess['result']['passed'])
         self.call('POST',f"/api/assessments/{sess['id']}/apply",{},status=409)
-        self.assertEqual(self.call('GET','/api/stats')['new_senses'],1)
 
     def test_known_assessment_gap_survives_later_group_pass(self):
         self.profile_fixture();self.seed_unit()

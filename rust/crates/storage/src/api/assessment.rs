@@ -5,6 +5,12 @@ use english_core::assessment::{self as model, Evidence};
 use rand::seq::SliceRandom;
 use std::collections::BTreeSet;
 
+// Session versioning keeps in-progress and completed v1 tests unchanged.
+const RECOGNITION_MODEL: &str = "vocab-recognition-v2";
+fn recognition_only(sess: &Value) -> bool {
+    s(sess, "model_version") == RECOGNITION_MODEL
+}
+
 fn decode(text: &str) -> Result<Value> {
     serde_json::from_str(text).map_err(|_| fault(500, "Invalid assessment data"))
 }
@@ -20,6 +26,13 @@ fn evidence(c: &Connection, id: &str) -> Result<Vec<Evidence>> {
     Ok(rows(c,"SELECT i.difficulty,r.correct FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND r.answered_at IS NOT NULL AND i.kind='recognition' ORDER BY r.sequence",&[json!(id)])?.iter().map(|r|Evidence{difficulty:r["difficulty"].as_f64().unwrap(),correct:b(r,"correct")}).collect())
 }
 fn result(c: &Connection, id: &str) -> Result<Value> {
+    let sess = one(
+        c,
+        "SELECT * FROM assessment_sessions WHERE id=?",
+        &[json!(id)],
+    )?
+    .ok_or_else(|| fault(404, "测验不存在"))?;
+    let only = recognition_only(&sess);
     let es = evidence(c, id)?;
     let estimate = model::estimate(&es);
     let confirmation = one(
@@ -36,12 +49,28 @@ fn result(c: &Connection, id: &str) -> Result<Value> {
     let label = |v: f64| model::LABELS[((v + 2.5).round() as isize).clamp(0, 5) as usize];
     if let Some(scope) = confirmation {
         let correct = es.iter().filter(|e| e.correct).count();
+        let sufficient = if only {
+            es.len() == 12
+        } else {
+            es.len() == 8 && n(&recall, "answered") == 4
+        };
+        let passed = sufficient
+            && if only {
+                correct >= 11
+            } else {
+                correct >= 7 && n(&recall, "correct") == 4
+            };
         return Ok(
-            json!({"confirmation_band":scope["target_band"],"label":"分层确认","range":[],"bands":bands,"recall":recall,"sufficient":es.len()==8 && n(&recall,"answered")==4,"passed":correct>=7 && n(&recall,"correct")==4,"calibrated":false,"boundary":false}),
+            json!({"confirmation_band":scope["target_band"],"label":"分层确认","range":[],"bands":bands,"recall":recall,"sufficient":sufficient,"passed":passed,"calibrated":false,"boundary":false,"model_version":sess["model_version"]}),
         );
     }
+    let sufficient = if only {
+        es.len() >= 32 && bands.len() == 6 && bands.iter().all(|b| n(b, "answered") >= 4)
+    } else {
+        es.len() >= 24 && bands.len() == 6 && n(&recall, "answered") >= 4
+    };
     Ok(
-        json!({"estimate":estimate,"label":model::LABELS[estimate.stage],"range":[label(estimate.low),label(estimate.high)],"bands":bands,"recall":recall,"model_version":model::MODEL,"calibrated":false,"sufficient":es.len()>=24 && bands.len()==6 && n(&recall,"answered")>=4,"boundary":es.iter().all(|e|e.correct)||es.iter().all(|e|!e.correct)}),
+        json!({"estimate":estimate,"label":model::LABELS[estimate.stage],"range":[label(estimate.low),label(estimate.high)],"bands":bands,"recall":recall,"model_version":sess["model_version"],"calibrated":false,"sufficient":sufficient,"boundary":es.iter().all(|e|e.correct)||es.iter().all(|e|!e.correct)}),
     )
 }
 fn current(c: &Connection, id: &str) -> Result<Option<Value>> {
@@ -92,7 +121,7 @@ fn public_state(c: &Connection, sess: &Value) -> Result<Value> {
         0
     };
     Ok(
-        json!({"preview":{"eligible_scope_units":potential},"id":id,"state":sess["state"],"answered":count,"maximum":if s(sess,"kind")=="confirmation" {12} else {40},"question":question,"result":res,"applied":!sess["applied_at"].is_null(),"kind":sess["kind"],"target_band":sess["target_band"],"readiness":super::readiness::summary(c)?}),
+        json!({"preview":{"eligible_scope_units":potential},"id":id,"state":sess["state"],"answered":count,"maximum":if s(sess,"kind")=="confirmation" {12} else {40},"question":question,"result":res,"applied":!sess["applied_at"].is_null(),"kind":sess["kind"],"target_band":sess["target_band"],"recognition_only":recognition_only(sess),"readiness":super::readiness::summary(c)?}),
     )
 }
 fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
@@ -101,6 +130,9 @@ fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
     }
     let es = evidence(c, id)?;
     let est = model::estimate(&es);
+    let sess = session(c, uid, id)?;
+    let only = recognition_only(&sess);
+    let minimum_per_band = if only { 4 } else { 2 };
     let used = rows(
         c,
         "SELECT i.family,i.kind,i.band FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? ORDER BY r.sequence",
@@ -121,11 +153,14 @@ fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
         &[json!(id)],
     )?;
     let done = if scope.is_some() {
-        es.len() >= 8
+        es.len() >= if only { 12 } else { 8 }
+    } else if only {
+        es.len() >= 40
+            || (es.len() >= 32 && bands.iter().all(|n| *n >= minimum_per_band) && est.sd <= 0.6)
     } else {
         es.len() >= 36 || (es.len() >= 24 && bands.iter().all(|n| *n >= 2) && est.sd <= 0.6)
     };
-    if done && recall >= 4 {
+    if done && (only || recall >= 4) {
         let res = result(c, id)?;
         exec(
             c,
@@ -155,7 +190,7 @@ fn issue(c: &Connection, config: &Config, uid: i64, id: &str) -> Result<()> {
     let target = if es.len() < route.len() {
         Some(route[es.len()])
     } else if !done {
-        bands.iter().position(|n| *n < 2)
+        bands.iter().position(|n| *n < minimum_per_band)
     } else {
         None
     };
@@ -276,7 +311,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
                 json!(id),
                 json!(uid),
                 version,
-                json!(model::MODEL),
+                json!(RECOGNITION_MODEL),
                 json!(config.stamp()),
             ],
         )?;
@@ -323,7 +358,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
                 json!(id),
                 json!(uid),
                 version,
-                json!(model::MODEL),
+                json!(RECOGNITION_MODEL),
                 json!(config.stamp()),
                 json!(band),
             ],
@@ -456,7 +491,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
                     e["mean"].clone(),
                     e["sd"].clone(),
                     e["mean"].clone(),
-                    json!(model::MODEL),
+                    res["model_version"].clone(),
                     json!(config.stamp()),
                 ],
             )?;

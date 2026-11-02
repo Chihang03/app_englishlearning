@@ -58,14 +58,15 @@ try:
  assert sess==call('/api/assessments','POST',{}),'Active session was not resumed'
  for _ in range(40):
   if sess['state']!='active':break
-  q=sess['question'];assert 'answer' not in q and 'item_id' not in q
+  q=sess['question'];assert q['kind']=='recognition' and 'answer' not in q and 'item_id' not in q
   with sqlite3.connect(db) as c:payload,order=c.execute('SELECT i.payload,r.option_order FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND sequence=?',(sess['id'],q['sequence'])).fetchone()
   item=json.loads(payload)
   answer=str(json.loads(order).index(int(item['answer']))) if q['kind']=='recognition' else item['answer']
   body={'sequence':q['sequence'],'answer':answer}
   sess=call('/api/assessments/'+sess['id']+'/answers','POST',body)
   assert sess==call('/api/assessments/'+sess['id']+'/answers','POST',body),'Retry not idempotent'
- assert sess['state']=='completed' and sess['result']['sufficient']
+ assert sess['state']=='completed' and sess['result']['sufficient'] and 32<=sess['answered']<=40
+ assert sess['result']['recall']['answered']==0 and all(b['answered']>=4 for b in sess['result']['bands'])
  call('/api/assessments/'+sess['id']+'/apply','POST',{})
  profile=call('/api/proficiency');assert profile['mode']=='adaptive' and profile['automatic_deferral']
  card=call('/api/next')['card'];assert card
@@ -78,11 +79,11 @@ try:
  scope=call('/api/proficiency/confirmations','POST',{'band':1})
  for _ in range(12):
   if scope['state']!='active':break
-  q=scope['question']
+  q=scope['question'];assert q['kind']=='recognition'
   with sqlite3.connect(db) as c:payload,order=c.execute('SELECT i.payload,r.option_order FROM assessment_responses r JOIN assessment_items i ON i.id=r.item_id WHERE r.session_id=? AND sequence=?',(scope['id'],q['sequence'])).fetchone()
   item=json.loads(payload);answer=str(json.loads(order).index(int(item['answer']))) if q['kind']=='recognition' else item['answer']
   scope=call('/api/assessments/'+scope['id']+'/answers','POST',{'sequence':q['sequence'],'answer':answer})
- assert scope['result']['passed']
+ assert scope['result']['passed'] and scope['result']['recall']['answered']==0
  call('/api/assessments/'+scope['id']+'/apply','POST',{})
  after_scope=call('/api/stats');deferred=call('/api/proficiency/readiness')['summary']['deferred_units']
  assert deferred>0 and after_scope['new_senses']<before_scope['new_senses'],'Scope confirmation did not actually remove tasks'

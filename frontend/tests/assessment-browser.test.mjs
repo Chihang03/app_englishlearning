@@ -10,7 +10,7 @@ try {
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:'dark',serviceWorkers:'block'});
  let sess=null,mode='frequency',applied=false,answerCalls=0,lose=true,units=[];
  const profile=()=>({enabled:true,mode,profile:applied?{}:null,session:sess?{id:sess.id,state:sess.state}:null,labels:['基础词汇','日常词汇','常用进阶','广泛阅读','高阶词汇','专业与低频词汇']});
- const result={label:'常用进阶',range:['日常词汇','广泛阅读'],sufficient:true,boundary:false,bands:[{band:0,answered:4,correct:4},{band:2,answered:10,correct:7}],recall:{answered:4,correct:3}};
+ const result={label:'常用进阶',range:['日常词汇','广泛阅读'],sufficient:true,boundary:false,bands:[{band:0,answered:4,correct:4},{band:2,answered:10,correct:7}],recall:{answered:0,correct:0}};
  await context.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;let json={};
   if(path==='/api/auth/me')json={user:{id:1,username:'assessment-ui',role:'learner',timezone:'Asia/Shanghai'}};
@@ -25,12 +25,13 @@ try {
    answerCalls++;
    const body=route.request().postDataJSON();
    if(body.sequence===1){
-    sess={...sess,answered:1,question:{sequence:2,kind:'recall',prompt:'阅读 · r 开头，4 个字母',options:[]}};
+    sess={...sess,answered:1,question:{sequence:2,kind:'recognition',prompt:'read',options:['阅读','跑步','唱歌','画画']}};
     if(lose){lose=false;return route.abort('failed');}
-   }else sess={...sess,state:'completed',answered:28,question:null,result};
+   }else sess={...sess,state:'completed',answered:32,question:null,result};
    json=sess;
   }else if(path==='/api/assessments/mobile/apply'){applied=true;mode='adaptive';sess={...sess,applied:true};json=sess;}
-  else if(path==='/api/assessments/mobile')json=sess;
+  else if(path==='/api/assessments/mobile'||path==='/api/assessments/legacy')json=sess;
+  else if(path==='/api/assessments/legacy/answers'){answerCalls++;sess={...sess,state:'completed',answered:28,question:null,result:{...result,recall:{answered:4,correct:3}}};json=sess;}
   else if(path==='/api/proficiency/mode'){mode=route.request().postDataJSON().mode;json=profile();}
   else if(path==='/api/settings')json={show_sentence_translation:false,skip_basic_600:true,selected_word_list_ids:[]};
   else if(path==='/api/word-lists')json={lists:[]};
@@ -44,15 +45,15 @@ try {
  await enter();await page.getByRole('button',{name:'开始测验',exact:true}).click();
  await page.getByRole('button',{name:'机会',exact:true}).click();
  await page.getByRole('button',{name:'重试提交',exact:true}).click();
- await page.getByLabel('英文答案',{exact:true}).waitFor();assert.equal(answerCalls,2);
+ await page.getByRole('button',{name:'阅读',exact:true}).waitFor();assert.equal(answerCalls,2);
+ assert.equal(await page.locator('.assessment-page input,.assessment-page textarea').count(),0);
  await page.getByRole('button',{name:'退出并保留进度',exact:true}).click();
  await page.getByRole('button',{name:'词汇水平测验',exact:true}).click();
- const input=page.getByLabel('英文答案',{exact:true});await input.fill('read');
- await input.dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true});
- assert.equal(answerCalls,2);
+ await page.getByRole('button',{name:'阅读',exact:true}).waitFor();
  for(const width of [320,390,430]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
  await page.screenshot({path:'/tmp/english-assessment-mobile-question.png',fullPage:true});
- await page.getByRole('button',{name:'提交',exact:true}).click();
+ await page.getByRole('button',{name:'阅读',exact:true}).click();
+ assert.equal(await page.getByText(/线索提取/).count(),0);
  await page.getByRole('button',{name:'按此水平开始',exact:true}).click();
  await page.getByRole('button',{name:'已应用到学习',exact:true}).waitFor();
  await page.screenshot({path:'/tmp/english-assessment-mobile-result.png',fullPage:true});
@@ -70,6 +71,15 @@ try {
  assert.equal(await page.locator('.setting-switch').first().isChecked(),true);
  await page.getByRole('combobox',{name:'学习方式',exact:true}).selectOption('frequency');
  await page.getByText('跳过基础 800 词',{exact:true}).waitFor();
- assert.deepEqual(errors,[]);console.log('PASS mobile assessment: resume, lost-response retry, IME, application, mode and 320/390/430px layouts');
+ // Existing v1 sessions retain their original recall card and IME protection.
+ sess={id:'legacy',state:'active',answered:24,maximum:40,question:{sequence:25,kind:'recall',prompt:'阅读 · r 开头，4 个字母',options:[]},result:null,applied:false};
+ await page.getByRole('button',{name:'词汇水平测验',exact:true}).click();
+ const input=page.getByLabel('英文答案',{exact:true});await input.fill('read');
+ await input.dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true});
+ assert.equal(answerCalls,3);
+ await page.getByRole('button',{name:'提交',exact:true}).click();
+ await page.getByText('线索提取：3 / 4',{exact:true}).waitFor();
+ assert.equal(answerCalls,4);
+ assert.deepEqual(errors,[]);console.log('PASS mobile assessment: recognition only, resume, lost-response retry, legacy recall IME, scope, restoration, mode and 320/390/430px layouts');
  await context.close();
 }finally{await browser.close();}

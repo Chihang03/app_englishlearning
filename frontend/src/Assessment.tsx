@@ -81,7 +81,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
       <h1>词汇水平测验</h1><span className="header-spacer" /></header>
     {busy && !session ? <p role="status">正在加载…</p> : null}
     {!busy && !session || session?.state === "abandoned" ? <div className="panel assessment-intro">
-      <h2>找到适合你的学习起点</h2><p>28–40 题 · 约 6–10 分钟</p>
+      <h2>找到适合你的学习起点</h2><p>32–40 题 · 约 5–6 分钟</p>
       <button type="button" className="primary-button" disabled={busy} onClick={() => void perform("start")}>开始测验</button>
     </div> : null}
     {q ? <div className="panel assessment-card" aria-busy={busy}>
@@ -105,7 +105,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
       {result.confirmation_band !== undefined ? <p>{labels[result.confirmation_band]}：{result.passed ? "已通过确认" : "继续学习"}</p> : <p>词汇理解范围：{result.range[0]}{result.range[0] !== result.range[1] ? ` — ${result.range[1]}` : ""}</p>}
       <dl className="assessment-bands">{result.bands.map(b => <div key={b.band}><dt>{labels[b.band] ?? `层级 ${b.band + 1}`}</dt>
         <dd>{b.correct} / {b.answered}</dd></div>)}</dl>
-      <p>线索提取：{result.recall.correct} / {result.recall.answered}</p>
+      {result.recall.answered > 0 ? <p>线索提取：{result.recall.correct} / {result.recall.answered}</p> : null}
       {result.boundary ? <p>表现接近本次题库的能力边界，结果范围将保守保留。</p> : null}
       {result.passed && !session.applied && session.preview ? <p>本组可暂缓 {session.preview.eligible_scope_units} 个学习单元</p> : null}
       {result.sufficient && result.passed !== false ? <button type="button" className="primary-button" disabled={busy || session.applied}

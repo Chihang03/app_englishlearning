@@ -1,0 +1,46 @@
+{
+  "version": "26.11.2.117",
+  "protocol": "vocab-recognition-v2",
+  "formal_recognition_items": {
+    "minimum": 32,
+    "maximum": 40,
+    "minimum_per_band": 4
+  },
+  "scope_confirmation": {
+    "recognition_items": 12,
+    "minimum_correct": 11
+  },
+  "new_recall_items": 0,
+  "estimated_completion_minutes": [
+    5,
+    6
+  ],
+  "forced_time_limit": false,
+  "human_timing_validated": false,
+  "native_integration_tests": 21,
+  "rust_unit_tests": 14,
+  "frontend_production_build": true,
+  "fmt_and_clippy": true,
+  "immutable_bank_check": true,
+  "mobile_browser": {
+    "widths": [
+      320,
+      390,
+      430
+    ],
+    "checked": [
+      "recognition only",
+      "no zero recall score shown",
+      "resume",
+      "lost-response retry",
+      "application",
+      "scope confirmation",
+      "restoration",
+      "basic filter retained",
+      "legacy recall IME"
+    ]
+  },
+  "legacy_sessions_and_results_preserved": true,
+  "real_iphone_validation": false,
+  "private_account_data_included": false
+}
