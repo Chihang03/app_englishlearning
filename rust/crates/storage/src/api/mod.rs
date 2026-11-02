@@ -357,7 +357,6 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             let result = study::handle(c, config, request, &user)?;
             if request.path == "/api/review" && request.method == "POST" {
                 proficiency::observe(c, config, n(&user, "id"), s(&request.body, "attempt_id"))?;
-                readiness::refresh_personal(c, config, n(&user, "id"))?;
             }
             return Ok(result.into());
         }

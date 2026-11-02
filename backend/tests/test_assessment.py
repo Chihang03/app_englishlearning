@@ -172,7 +172,7 @@ class AssessmentTests(unittest.TestCase):
     def defer_fixture(self,unit,lid,meaning='机场'):
         with connect(self.db) as c:
             c.execute("INSERT INTO user_unit_readiness VALUES(?,?,'deferred','{}',1,'2026-10-29T10:00:00+00:00')",(self.uid,unit))
-            c.execute("INSERT INTO readiness_details VALUES(?,?,'personal_confirmation','fixture','2026-11-30T10:00:00+00:00',?,?)",(self.uid,unit,meaning,lid))
+            c.execute("INSERT INTO readiness_details VALUES(?,?,'scope_confirmation','fixture','2026-11-30T10:00:00+00:00',?,?)",(self.uid,unit,meaning,lid))
 
     def test_mode_preserves_baseline_and_no_fallback(self):
         self.profile_fixture();self.seed_unit('about','关于')
@@ -184,21 +184,24 @@ class AssessmentTests(unittest.TestCase):
             self.assertEqual(self.call('GET','/api/stats')['new_senses'],before['new_senses'])
             self.assertIsNone(self.call('GET','/api/next')['card'])
 
-    def test_deferred_due_queue_stats_restore_and_account_isolation(self):
+    def test_scope_deferral_never_overrides_scheduled_review(self):
         self.profile_fixture();wid,lid,sid,ex,unit=self.seed_unit()
         card=self.call('GET','/api/next')['card']
         self.call('POST','/api/review',{'attempt_id':card['attempt_id'],'word_id':wid,'sense_id':sid,'example_id':ex,'learning_unit_id':unit,'user_answer':'airport'})
-        with connect(self.db) as c:c.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=?",(self.uid,))
-        self.assertEqual(self.call('GET','/api/stats')['due_words'],1)
+        with connect(self.db) as c:
+            c.execute("UPDATE sense_srs_state SET next_review_date='2000-01-01' WHERE user_id=?",(self.uid,))
+            before=c.execute('SELECT * FROM sense_srs_state WHERE user_id=?',(self.uid,)).fetchall()
         self.defer_fixture(unit,lid)
-        self.assertEqual(self.call('GET','/api/stats')['due_words'],0)
-        self.assertEqual(self.call('GET','/api/proficiency/readiness')['summary']['deferred_units'],1)
-        self.assertIsNone(self.call('GET','/api/next')['card'])
-        self.call('POST','/api/review',{'attempt_id':card['attempt_id'],'word_id':wid,'sense_id':sid,'example_id':ex,'learning_unit_id':unit,'user_answer':'airport'},status=409)
-        self.call('POST','/api/proficiency/readiness',{'learning_unit_id':unit+999},status=404)
-        self.call('POST','/api/proficiency/readiness',{'learning_unit_id':unit})
         self.assertEqual(self.call('GET','/api/stats')['due_words'],1)
-        with connect(self.db) as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM review_history WHERE user_id=?',(self.uid,)).fetchone()[0],1)
+        self.assertEqual(self.call('GET','/api/proficiency/readiness')['summary']['deferred_units'],0)
+        self.assertEqual(self.call('GET','/api/next')['card']['learning_unit_id'],unit)
+        with connect(self.db) as c:self.assertEqual(before,c.execute('SELECT * FROM sense_srs_state WHERE user_id=?',(self.uid,)).fetchall())
+        sess=self.call('POST','/api/proficiency/confirmations',{'band':1})
+        for _ in range(12):sess=self.answer(sess)
+        self.assertEqual(sess['preview']['eligible_scope_units'],0)
+        self.call('POST',f"/api/assessments/{sess['id']}/apply",{})
+        self.assertEqual(self.call('GET','/api/stats')['due_words'],1)
+
 
     def test_scope_confirmation_really_excludes_without_calibration(self):
         self.profile_fixture();self.seed_unit()
@@ -228,17 +231,17 @@ class AssessmentTests(unittest.TestCase):
         with connect(self.db) as c:c.execute("UPDATE readiness_details SET valid_until='2026-10-29' WHERE user_id=?",(self.uid,))
         self.assertEqual(self.call('GET','/api/stats')['new_senses'],1)
 
-    def test_personal_proof_across_days_and_contexts(self):
+    def test_personal_history_and_legacy_deferral_do_not_exclude_content(self):
         self.profile_fixture();wid,lid,sense,ex,unit=self.seed_unit()
         with connect(self.db) as c:
             ex2=c.execute("INSERT INTO sense_examples(sense_id,sentence,target_form,source) VALUES(?,'We left the airport.','airport','test')",(sense,)).lastrowid
             for day,example in [('2026-10-25',ex),('2026-10-27',ex2)]:
                 c.execute("INSERT INTO review_history(user_id,word_id,review_time,user_answer,is_correct,sense_id,example_id,is_independent,is_first_attempt,learning_unit_id) VALUES(?,?,?,'airport',1,?,?,1,1,?)",(self.uid,wid,day+'T09:00:00+00:00',sense,example,unit))
         self.call('PATCH','/api/proficiency/mode',{'mode':'adaptive'})
-        self.assertEqual(self.call('GET','/api/stats')['new_senses'],0)
-        self.assertEqual(self.call('GET','/api/proficiency/readiness')['summary']['deferred_units'],1)
-        with connect(self.db) as c:
-            c.execute("INSERT INTO review_history(user_id,word_id,review_time,user_answer,is_correct,sense_id,example_id,is_independent,is_first_attempt,learning_unit_id) VALUES(?,?,?,'wrong',0,?,?,0,1,?)",(self.uid,wid,'2026-10-30T09:00:00+00:00',sense,ex,unit))
+        self.assertEqual(self.call('GET','/api/proficiency/readiness')['summary']['deferred_units'],0)
+        self.defer_fixture(unit,lid)
+        with connect(self.db) as c:c.execute("UPDATE readiness_details SET source='personal_confirmation' WHERE user_id=?",(self.uid,))
+        self.assertEqual(self.call('GET','/api/proficiency/readiness')['summary']['deferred_units'],0)
         self.assertEqual(self.call('GET','/api/stats')['new_senses'],1)
 
     def test_partial_word_deferral_does_not_inflate_mastery(self):

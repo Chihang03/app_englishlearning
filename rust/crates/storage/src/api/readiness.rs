@@ -19,7 +19,7 @@ pub fn prepare(c: &Connection, config: &Config, uid: i64) -> Result<()> {
         if installed(c) {
             let basic =
                 super::lexicon::sql("basic_unit").replace("=binding.learning_unit_id", "=u.id");
-            let query="INSERT INTO temp.policy_excluded SELECT r.learning_unit_id AS id FROM main.user_unit_readiness r JOIN main.readiness_details d USING(user_id,learning_unit_id) JOIN main.user_proficiency_profiles p USING(user_id) JOIN main.learning_units u ON u.id=r.learning_unit_id JOIN main.words w ON w.id=u.word_id WHERE r.user_id=:uid AND p.mode='adaptive' AND r.state='deferred' AND d.valid_until>:stamp AND u.active=1 AND (w.owner_id IS NULL OR w.owner_id=:uid) AND d.definition_cn=u.display_definition_cn AND d.lexical_unit_id=u.lexical_unit_id AND NOT EXISTS(SELECT 1 FROM main.readiness_overrides o WHERE o.user_id=r.user_id AND o.learning_unit_id=r.learning_unit_id) AND NOT EXISTS(SELECT 1 FROM main.review_history h WHERE h.user_id=r.user_id AND h.learning_unit_id=r.learning_unit_id AND h.is_first_attempt=1 AND h.is_correct=0 AND h.review_time>=CASE WHEN d.source='personal_confirmation' THEN d.source_id ELSE r.updated_at END) AND NOT EXISTS(SELECT 1 FROM main.user_muted_words muted WHERE muted.user_id=:uid AND muted.word=lower(trim(w.word))) AND NOT (EXISTS(SELECT 1 FROM main.settings bs WHERE bs.user_id=:uid AND bs.key='skip_basic_600' AND bs.value='true') AND __BASIC__);".replace("__BASIC__",&basic);
+            let query="INSERT INTO temp.policy_excluded SELECT r.learning_unit_id AS id FROM main.user_unit_readiness r JOIN main.readiness_details d USING(user_id,learning_unit_id) JOIN main.user_proficiency_profiles p USING(user_id) JOIN main.learning_units u ON u.id=r.learning_unit_id JOIN main.words w ON w.id=u.word_id WHERE r.user_id=:uid AND p.mode='adaptive' AND r.state='deferred' AND d.source='scope_confirmation' AND NOT EXISTS(SELECT 1 FROM main.sense_srs_state scheduled WHERE scheduled.user_id=r.user_id AND scheduled.learning_unit_id=u.id AND scheduled.retired_at IS NULL) AND d.valid_until>:stamp AND u.active=1 AND (w.owner_id IS NULL OR w.owner_id=:uid) AND d.definition_cn=u.display_definition_cn AND d.lexical_unit_id=u.lexical_unit_id AND NOT EXISTS(SELECT 1 FROM main.readiness_overrides o WHERE o.user_id=r.user_id AND o.learning_unit_id=r.learning_unit_id) AND NOT EXISTS(SELECT 1 FROM main.review_history h WHERE h.user_id=r.user_id AND h.learning_unit_id=r.learning_unit_id AND h.is_first_attempt=1 AND h.is_correct=0 AND h.review_time>=CASE WHEN d.source='personal_confirmation' THEN d.source_id ELSE r.updated_at END) AND NOT EXISTS(SELECT 1 FROM main.user_muted_words muted WHERE muted.user_id=:uid AND muted.word=lower(trim(w.word))) AND NOT (EXISTS(SELECT 1 FROM main.settings bs WHERE bs.user_id=:uid AND bs.key='skip_basic_600' AND bs.value='true') AND __BASIC__);".replace("__BASIC__",&basic);
             c.prepare_cached(&query)?
                 .execute(rusqlite::named_params! {":uid":uid,":stamp":config.stamp()})?;
         }
@@ -85,7 +85,7 @@ fn defer(
         "SELECT revision FROM user_proficiency_profiles WHERE user_id=?",
         &[json!(uid)],
     )?;
-    let evidence = json!({"policy":"personal-readiness-v2","source":source,"source_id":source_id});
+    let evidence = json!({"policy":"scope-readiness-v3","source":source,"source_id":source_id});
     exec(
         c,
         "INSERT INTO user_unit_readiness(user_id,learning_unit_id,state,evidence,profile_revision,updated_at) VALUES(?,?,'deferred',?,?,?) ON CONFLICT(user_id,learning_unit_id) DO UPDATE SET state='deferred',evidence=excluded.evidence,profile_revision=excluded.profile_revision,updated_at=excluded.updated_at",
@@ -113,7 +113,7 @@ fn defer(
 }
 pub fn group_units(c: &Connection, uid: i64, band: i64, session: &str) -> Result<Vec<Value>> {
     let basic = super::lexicon::sql("basic_unit").replace("=binding.learning_unit_id", "=u.id");
-    let query="SELECT DISTINCT u.id FROM learning_units u JOIN words w ON w.id=u.word_id JOIN assessment_items i ON i.word=lower(trim(w.word)) AND i.kind='recognition' AND i.band=? WHERE u.active=1 AND (w.owner_id IS NULL OR w.owner_id=?) AND trim(u.display_definition_cn)=json_extract(i.payload,'$.meaning') AND NOT EXISTS(SELECT 1 FROM readiness_overrides o WHERE o.user_id=? AND o.learning_unit_id=u.id) AND NOT EXISTS(SELECT 1 FROM review_history bad WHERE bad.user_id=? AND bad.learning_unit_id=u.id AND bad.is_first_attempt=1 AND bad.is_correct=0 AND NOT EXISTS(SELECT 1 FROM review_history good WHERE good.user_id=bad.user_id AND good.learning_unit_id=u.id AND good.is_independent=1 AND good.review_time>bad.review_time)) AND NOT EXISTS(SELECT 1 FROM assessment_responses ar JOIN assessment_items ai ON ai.id=ar.item_id WHERE ar.session_id=? AND ar.correct=0 AND ai.word=lower(trim(w.word)) AND json_extract(ai.payload,'$.meaning')=u.display_definition_cn) AND NOT EXISTS(SELECT 1 FROM user_muted_words muted WHERE muted.user_id=? AND muted.word=lower(trim(w.word))) AND NOT EXISTS(SELECT 1 FROM assessment_responses bad JOIN assessment_sessions bs ON bs.id=bad.session_id JOIN assessment_items bi ON bi.id=bad.item_id WHERE bs.user_id=__USER__ AND bad.correct=0 AND bi.word=lower(trim(w.word)) AND json_extract(bi.payload,'$.meaning')=u.display_definition_cn AND NOT EXISTS(SELECT 1 FROM review_history good WHERE good.user_id=bs.user_id AND good.learning_unit_id=u.id AND good.is_independent=1 AND good.review_time>bad.answered_at) AND NOT EXISTS(SELECT 1 FROM assessment_responses good JOIN assessment_sessions gs ON gs.id=good.session_id JOIN assessment_items gi ON gi.id=good.item_id WHERE gs.user_id=bs.user_id AND good.correct=1 AND gi.kind='recall' AND gi.word=bi.word AND json_extract(gi.payload,'$.meaning')=json_extract(bi.payload,'$.meaning') AND good.answered_at>bad.answered_at))".replace("__USER__",&uid.to_string()).replace("SELECT DISTINCT u.id FROM",&format!("SELECT DISTINCT u.id,({basic}) AS basic FROM"));
+    let query="SELECT DISTINCT u.id FROM learning_units u JOIN words w ON w.id=u.word_id JOIN assessment_items i ON i.word=lower(trim(w.word)) AND i.kind='recognition' AND i.band=? WHERE u.active=1 AND NOT EXISTS(SELECT 1 FROM sense_srs_state scheduled WHERE scheduled.user_id=__USER__ AND scheduled.learning_unit_id=u.id AND scheduled.retired_at IS NULL) AND (w.owner_id IS NULL OR w.owner_id=?) AND trim(u.display_definition_cn)=json_extract(i.payload,'$.meaning') AND NOT EXISTS(SELECT 1 FROM readiness_overrides o WHERE o.user_id=? AND o.learning_unit_id=u.id) AND NOT EXISTS(SELECT 1 FROM review_history bad WHERE bad.user_id=? AND bad.learning_unit_id=u.id AND bad.is_first_attempt=1 AND bad.is_correct=0 AND NOT EXISTS(SELECT 1 FROM review_history good WHERE good.user_id=bad.user_id AND good.learning_unit_id=u.id AND good.is_independent=1 AND good.review_time>bad.review_time)) AND NOT EXISTS(SELECT 1 FROM assessment_responses ar JOIN assessment_items ai ON ai.id=ar.item_id WHERE ar.session_id=? AND ar.correct=0 AND ai.word=lower(trim(w.word)) AND json_extract(ai.payload,'$.meaning')=u.display_definition_cn) AND NOT EXISTS(SELECT 1 FROM user_muted_words muted WHERE muted.user_id=? AND muted.word=lower(trim(w.word))) AND NOT EXISTS(SELECT 1 FROM assessment_responses bad JOIN assessment_sessions bs ON bs.id=bad.session_id JOIN assessment_items bi ON bi.id=bad.item_id WHERE bs.user_id=__USER__ AND bad.correct=0 AND bi.word=lower(trim(w.word)) AND json_extract(bi.payload,'$.meaning')=u.display_definition_cn AND NOT EXISTS(SELECT 1 FROM review_history good WHERE good.user_id=bs.user_id AND good.learning_unit_id=u.id AND good.is_independent=1 AND good.review_time>bad.answered_at) AND NOT EXISTS(SELECT 1 FROM assessment_responses good JOIN assessment_sessions gs ON gs.id=good.session_id JOIN assessment_items gi ON gi.id=good.item_id WHERE gs.user_id=bs.user_id AND good.correct=1 AND gi.kind='recall' AND gi.word=bi.word AND json_extract(gi.payload,'$.meaning')=json_extract(bi.payload,'$.meaning') AND good.answered_at>bad.answered_at))".replace("__USER__",&uid.to_string()).replace("SELECT DISTINCT u.id FROM",&format!("SELECT DISTINCT u.id,({basic}) AS basic FROM"));
     rows(
         c,
         &query,
@@ -148,78 +148,6 @@ pub fn apply_group(
     }
     Ok(units.len())
 }
-pub fn refresh_personal(c: &Connection, config: &Config, uid: i64) -> Result<()> {
-    if !installed(c) || super::proficiency::adaptive_profile(c, uid)?.is_none() {
-        return Ok(());
-    }
-    // Distinct contexts and local dates. A repeated fixed sentence is not enough.
-    let units = rows(
-        c,
-        "WITH proof AS (SELECT h.learning_unit_id AS unit,h.review_time AS at,'example:'||h.example_id AS context FROM review_history h WHERE h.user_id=? AND h.is_independent=1 AND h.is_first_attempt=1 AND julianday(h.review_time)>=julianday(?)-30 UNION ALL SELECT u.id,r.answered_at,'assessment:'||i.id FROM assessment_responses r JOIN assessment_sessions ss ON ss.id=r.session_id JOIN assessment_items i ON i.id=r.item_id JOIN words w ON lower(trim(w.word))=i.word JOIN learning_units u ON u.word_id=w.id AND trim(u.display_definition_cn)=json_extract(i.payload,'$.meaning') WHERE ss.user_id=? AND r.correct=1 AND i.kind='recall' AND ss.state='completed' AND (w.owner_id IS NULL OR w.owner_id=ss.user_id) AND julianday(r.answered_at)>=julianday(?)-30) SELECT unit,at,context FROM proof ORDER BY unit,at",
-        &[
-            json!(uid),
-            json!(config.stamp()),
-            json!(uid),
-            json!(config.stamp()),
-        ],
-    )?;
-    let zone = scalar(c, "SELECT timezone FROM users WHERE id=?", &[json!(uid)])?
-        .as_str()
-        .unwrap_or("UTC")
-        .parse::<chrono_tz::Tz>()
-        .unwrap_or(chrono_tz::UTC);
-    let mut groups = std::collections::BTreeMap::<i64, Vec<&Value>>::new();
-    for row in &units {
-        groups.entry(n(row, "unit")).or_default().push(row);
-    }
-    for (unit, proof) in groups {
-        let dates: std::collections::BTreeSet<_> = proof
-            .iter()
-            .filter_map(|r| {
-                chrono::DateTime::parse_from_rfc3339(s(r, "at"))
-                    .ok()
-                    .map(|d| d.with_timezone(&zone).date_naive())
-            })
-            .collect();
-        let contexts: std::collections::BTreeSet<_> =
-            proof.iter().map(|r| s(r, "context")).collect();
-        if dates.len() < 2 || contexts.len() < 2 {
-            continue;
-        }
-        let last = s(proof.last().unwrap(), "at");
-        let reject = scalar(
-            c,
-            "SELECT EXISTS(SELECT 1 FROM readiness_overrides WHERE user_id=? AND learning_unit_id=?) OR EXISTS(SELECT 1 FROM review_history WHERE user_id=? AND learning_unit_id=? AND is_first_attempt=1 AND is_correct=0 AND review_time>=?) OR EXISTS(SELECT 1 FROM readiness_details WHERE user_id=? AND learning_unit_id=? AND source='personal_confirmation' AND source_id=?)",
-            &[
-                json!(uid),
-                json!(unit),
-                json!(uid),
-                json!(unit),
-                json!(last),
-                json!(uid),
-                json!(unit),
-                json!(last),
-            ],
-        )?;
-        let failed = scalar(
-            c,
-            "SELECT EXISTS(SELECT 1 FROM assessment_responses ar JOIN assessment_sessions ss ON ss.id=ar.session_id JOIN assessment_items i ON i.id=ar.item_id JOIN learning_units u ON u.id=? JOIN words w ON w.id=u.word_id WHERE ss.user_id=? AND ar.correct=0 AND ar.answered_at>=? AND i.word=lower(trim(w.word)) AND json_extract(i.payload,'$.meaning')=u.display_definition_cn)",
-            &[json!(unit), json!(uid), json!(last)],
-        )?;
-        if reject == json!(0) && failed == json!(0) {
-            defer(
-                c,
-                config,
-                uid,
-                unit,
-                "personal_confirmation",
-                last,
-                14 + unit % 15,
-            )?;
-        }
-    }
-    Ok(())
-}
 pub fn retire(c: &Connection, config: &Config, uid: i64) -> Result<()> {
     exec(
         c,
@@ -230,7 +158,7 @@ pub fn retire(c: &Connection, config: &Config, uid: i64) -> Result<()> {
 }
 pub fn summary(c: &Connection) -> Result<Value> {
     let count = scalar(c, "SELECT COUNT(*) FROM temp.policy_excluded", &[])?;
-    Ok(json!({"deferred_units":count,"policy_version":"personal-readiness-v2"}))
+    Ok(json!({"deferred_units":count,"policy_version":"scope-readiness-v3"}))
 }
 pub fn handle(c: &Connection, config: &Config, r: &Request, uid: i64) -> Result<Value> {
     if !installed(c) {

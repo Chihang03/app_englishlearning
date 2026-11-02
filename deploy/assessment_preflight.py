@@ -98,6 +98,12 @@ try:
   call('/api/proficiency/mode','PATCH',{'mode':'frequency'});call('/api/settings','PATCH',{'skip_basic_600':True})
   baseline=call('/api/stats');call('/api/proficiency/mode','PATCH',{'mode':'adaptive'});adaptive=call('/api/stats')
   assert call('/api/settings')['skip_basic_600'] is True
+  effective=call('/api/proficiency/readiness')['units']
+  assert all(u['source']=='scope_confirmation' for u in effective)
+  with sqlite3.connect(db) as c:
+   scheduled={r[0] for r in c.execute('SELECT learning_unit_id FROM sense_srs_state WHERE user_id=? AND retired_at IS NULL',(owner[0],))}
+  assert all(u['id'] not in scheduled for u in effective),'Level policy overrode scheduled reviews'
+
   assert adaptive['due_words']<=baseline['due_words'] and adaptive['new_senses']<=baseline['new_senses']
   comparison={'baseline_due':baseline['due_words'],'adaptive_due':adaptive['due_words'],'baseline_new_units':baseline['new_senses'],'adaptive_new_units':adaptive['new_senses']}
  result={'passed':True,'original_tables_unchanged':len(before),'legacy_v22_cli_compatible':True,'bank_items':install['items'],'assessment_questions':sess['answered'],'checks':len(checks),'maximum_request_ms':max(timings),'slowest_check':checks[timings.index(max(timings))],'production_mutated':False,'real_user_calibration':False,'automatic_deferral':True,'scope_deferred_units':deferred,'scope_new_before':before_scope['new_senses'],'scope_new_after':after_scope['new_senses'],'account_comparison':comparison,'repaired_legacy_preferences':len(repaired)}

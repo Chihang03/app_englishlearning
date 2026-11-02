@@ -283,7 +283,6 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
         {
             return Err(fault(409, "请先完成并应用词汇测验"));
         }
-        super::readiness::refresh_personal(c, config, uid)?;
         super::readiness::prepare(c, config, uid)?;
         return profile(c, uid);
     }
@@ -513,7 +512,6 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
         }
         _ => return Err(fault(404, "Unknown endpoint")),
     }
-    super::readiness::refresh_personal(c, config, uid)?;
     super::readiness::prepare(c, config, uid)?;
     public_state(c, &session(c, uid, id)?)
 }
