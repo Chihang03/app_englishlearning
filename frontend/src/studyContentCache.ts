@@ -8,7 +8,10 @@ type Entry = {
   expires: number;
   accessedAt: number;
 };
-export type CatalogWord = { id: number; word: string; senses: StudyDetails["senses"] };
+export type CatalogWord = { id: number; word: string; senses: StudyDetails["senses"];
+  morphology_entries?: { lexical_unit_id: number; headword: string; pos_group: string; morphology: StudyDetails["morphology"] }[] };
+type Block = { hash: string; bytes: number; words: number };
+type Manifest = { format: number; words: number; blocks: Block[] };
 export type CatalogSummary = { id: number; word: string; definition_cn: string; search: string };
 type Catalog = { accountId: number; etag: string; checkedAt: number; appVersion: string; generation: string; wordCount: number };
 type LegacyCatalog = Omit<Catalog, "generation" | "wordCount"> & { words: CatalogWord[] };
@@ -19,6 +22,7 @@ const CATALOG_STORE = "catalog-meta";
 const WORD_STORE = "catalog-words";
 const INDEX_STORE = "catalog-index";
 const LEGACY_STORE = "catalog";
+const BLOCK_STORE = "catalog-blocks";
 const wordSizes = new WeakMap<CatalogWord, number>();
 let databasePromise: Promise<IDBDatabase | null> | undefined;
 let persistenceRequested = false;
@@ -27,8 +31,11 @@ function database(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
   if (!databasePromise) databasePromise = new Promise((resolve) => {
     try {
-      const request = indexedDB.open("cvt-study-content-v1", 3);
+      const request = indexedDB.open("cvt-study-content-v1", 4);
       request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(BLOCK_STORE)) {
+          request.result.createObjectStore(BLOCK_STORE, { keyPath: ["accountId", "hash"] });
+        }
         if (!request.result.objectStoreNames.contains(STORE)) {
           const store = request.result.createObjectStore(STORE, { keyPath: "key" });
           store.createIndex("by_account_access", ["accountId", "accessedAt"]);
@@ -143,6 +150,10 @@ export class StudyContentCache {
   private searchIndex?: { generation: string; words: CatalogSummary[] };
   private catalogLoaded?: Promise<void>;
   private catalogSync?: Promise<void>;
+  private syncError = "";
+  private listeners = new Set<() => void>();
+  subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
+  private notify() { for (const listener of this.listeners) listener(); }
 
   constructor(private accountId: number, private limit = 50, private ttl = 30 * 24 * 60 * 60000) {}
 
@@ -180,6 +191,28 @@ export class StudyContentCache {
       }
     })().catch((error) => { this.catalogLoaded = undefined; throw error; });
     return this.catalogLoaded;
+  }
+
+  private async reclaimDownloads(db: IDBDatabase) {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([BLOCK_STORE, STORE], "readwrite");
+      tx.objectStore(BLOCK_STORE).delete(IDBKeyRange.bound([this.accountId, ""], [this.accountId, "\uffff"]));
+      const request = tx.objectStore(STORE).index("by_account_access").openCursor(this.range());
+      request.onsuccess = () => { const cursor = request.result; if (cursor) { cursor.delete(); cursor.continue(); } };
+      tx.oncomplete = () => resolve();
+      tx.onerror = tx.onabort = () => reject(tx.error);
+    });
+    this.entries.clear();
+  }
+
+  private async quotaRetry(db: IDBDatabase, write: () => Promise<void>) {
+    try { await write(); }
+    catch (error) {
+      if ((error as DOMException)?.name !== "QuotaExceededError") throw error;
+      // Preserve the published dictionary, other accounts and pending uploads.
+      await this.reclaimDownloads(db);
+      await write();
+    }
   }
 
   private async removeGeneration(db: IDBDatabase, generation: string) {
@@ -224,17 +257,17 @@ export class StudyContentCache {
     let wordCount = 0, lastId = 0, batchChars = 0, batch: CatalogWord[] = [];
     const writeBatch = async () => {
       if (!db) { batch = []; batchChars = 0; return; }
-      await new Promise<void>((resolve, reject) => {
+      await this.quotaRetry(db, () => new Promise<void>((resolve, reject) => {
         const tx = db.transaction([WORD_STORE, INDEX_STORE], "readwrite");
         for (const word of batch) {
           tx.objectStore(WORD_STORE).put({ accountId: this.accountId, generation,
-            id: word.id, word: word.word, senses: word.senses });
+            id: word.id, word: word.word, senses: word.senses, morphology_entries: word.morphology_entries });
           tx.objectStore(INDEX_STORE).put({ accountId: this.accountId, generation, id: word.id,
             word: word.word, search: word.word.toLowerCase(), definition_cn: word.senses[0]?.definition_cn ?? "" });
         }
         tx.oncomplete = () => resolve();
         tx.onerror = tx.onabort = () => reject(tx.error ?? new Error("词义目录保存失败"));
-      });
+      }));
       batch = []; batchChars = 0;
     };
     try {
@@ -317,13 +350,15 @@ export class StudyContentCache {
   // staged in bounded batches and published after its complete JSON validates.
   syncCatalog(appVersion: string, force = false): Promise<void> {
     if (this.catalogSync) return this.catalogSync;
+    this.syncError = "";
     this.catalogSync = (async () => {
       await this.loadCatalog();
       const db = await database();
       if (db) this.catalog = await readRecord<Catalog>(db, CATALOG_STORE, this.accountId) ?? this.catalog;
+      if (db) await this.pruneInterruptedDownloads(db);
       if (!force && this.catalog?.appVersion === appVersion && Date.now() - this.catalog.checkedAt < 6 * 60 * 60000) return;
-      const response = await fetch("/api/study/meaning-catalog", {
-        credentials: "include", cache: "no-store",
+      const response = await fetch("/api/study/meaning-catalog?format=chunks", {
+        credentials: "include", cache: "no-store", signal: AbortSignal.timeout(60000),
         headers: this.catalog ? { "If-None-Match": this.catalog.etag } : {}
       });
       if (response.status === 304 && this.catalog) {
@@ -339,7 +374,8 @@ export class StudyContentCache {
           tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
         });
       } else if (response.ok) {
-        this.catalog = await this.storeCatalog(streamCatalogWords(response), {
+        this.catalog = await this.storeCatalog(response.headers.get("X-Catalog-Format") === "chunks"
+          ? this.blockWords(await response.json() as Manifest) : streamCatalogWords(response), {
           etag: response.headers.get("ETag") ?? "", checkedAt: Date.now(), appVersion
         });
       } else throw new ApiError(response.status, "词义目录核对失败");
@@ -348,8 +384,104 @@ export class StudyContentCache {
         persistenceRequested = true;
         if (typeof navigator !== "undefined") void navigator.storage?.persist?.().catch(() => {});
       }
-    })().finally(() => { this.catalogSync = undefined; });
+    })().catch((error) => {
+      this.syncError = (error as DOMException)?.name === "QuotaExceededError"
+        ? "手机空间不足，已保留原有离线内容" : "离线内容更新未完成，请重试";
+      throw error;
+    }).finally(() => { this.catalogSync = undefined; this.notify(); });
+    this.notify();
     return this.catalogSync;
+  }
+
+  private async *blockWords(manifest: Manifest): AsyncGenerator<CatalogWord> {
+    if (manifest.format !== 1 || !Array.isArray(manifest.blocks) || manifest.blocks.length > 20000 ||
+        !Number.isSafeInteger(manifest.words) || manifest.words < 0) throw new Error("离线目录格式错误");
+    let total = 0, count = 0;
+    const hashes = new Set<string>();
+    const db = await database();
+    for (const block of manifest.blocks) {
+      if (!/^[a-f0-9]{64}$/.test(block.hash) || hashes.has(block.hash) || !Number.isSafeInteger(block.bytes) ||
+          block.bytes <= 0 || block.bytes > 3 * 1024 * 1024 || !Number.isSafeInteger(block.words) || block.words <= 0) throw new Error("离线目录格式错误");
+      hashes.add(block.hash); total += block.bytes;
+      if (total > 256 * 1024 * 1024) throw new Error("离线目录过大");
+      let saved = db && await readRecord<{ bytes: ArrayBuffer }>(db, BLOCK_STORE, [this.accountId, block.hash]);
+      const digestOf = async (bytes: ArrayBuffer) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(v => v.toString(16).padStart(2, "0")).join("");
+      if (saved && (saved.bytes.byteLength !== block.bytes || await digestOf(saved.bytes) !== block.hash)) saved = undefined;
+      let bytes = saved?.bytes;
+      if (!bytes) {
+        const response = await fetch(`/api/study/meaning-catalog?chunk=${block.hash}`, { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(60000) });
+        if (!response.ok) throw new ApiError(response.status, "离线内容下载失败");
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("离线内容下载失败");
+        const buffer = new Uint8Array(block.bytes);
+        let offset = 0;
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (offset + value.length > buffer.length) throw new Error("离线内容大小不符");
+            buffer.set(value, offset); offset += value.length;
+          }
+        } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+        if (offset !== buffer.length) throw new Error("离线内容不完整");
+        bytes = buffer.buffer;
+      }
+      const digest = await digestOf(bytes);
+      if (digest !== block.hash) throw new Error("离线内容校验失败");
+      let words = 0;
+      for await (const word of streamCatalogWords(new Response(bytes))) { words++; count++; yield word; }
+      if (words !== block.words) throw new Error("离线内容词数不符");
+      if (db && !saved) await this.quotaRetry(db, () => new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(BLOCK_STORE, "readwrite");
+        tx.objectStore(BLOCK_STORE).put({ accountId: this.accountId, hash: block.hash, bytes, savedAt: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = tx.onabort = () => reject(tx.error ?? new Error("离线内容保存失败"));
+      })).catch((error) => {
+        // Raw blocks are a resume optimization; the published word store is essential.
+        if ((error as DOMException)?.name !== "QuotaExceededError") throw error;
+      });
+    }
+    if (count !== manifest.words) throw new Error("离线目录词数不符");
+    // Remove unreferenced blocks only after all replacement blocks validated.
+    // The published word generation remains intact if publication later fails.
+    if (db) await new Promise<void>((resolve) => {
+      const tx = db.transaction(BLOCK_STORE, "readwrite");
+      const request = tx.objectStore(BLOCK_STORE).openCursor(IDBKeyRange.bound([this.accountId, ""], [this.accountId, "\uffff"]));
+      request.onsuccess = () => { const cursor = request.result; if (cursor) { if (!hashes.has(cursor.value.hash) && cursor.value.savedAt < Date.now() - 86400000) cursor.delete(); cursor.continue(); } };
+      tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
+    });
+  }
+
+  async status() {
+    await this.loadCatalog();
+    const db = await database();
+    const catalog = db ? await readRecord<Catalog>(db, CATALOG_STORE, this.accountId) : undefined;
+    const estimate = await navigator.storage?.estimate?.().catch(() => undefined);
+    const persistent = await navigator.storage?.persisted?.().catch(() => false) ?? false;
+    return { words: catalog?.wordCount ?? 0, checkedAt: catalog?.checkedAt ?? 0,
+      usage: estimate?.usage, persistent, available: Boolean(db), syncing: Boolean(this.catalogSync), error: this.syncError };
+  }
+
+  async removeDownloads() {
+    await this.catalogSync?.catch(() => {});
+    const db = await database();
+    if (!db) throw new Error("无法访问本地存储");
+    await new Promise<void>((resolve, reject) => {
+      const stores = [CATALOG_STORE, WORD_STORE, INDEX_STORE, BLOCK_STORE, STORE];
+      if (db.objectStoreNames.contains(LEGACY_STORE)) stores.push(LEGACY_STORE);
+      const tx = db.transaction(stores, "readwrite");
+      // A tombstone prevents an older in-flight download in another window
+      // from republishing after the user's clear operation.
+      tx.objectStore(CATALOG_STORE).put({ accountId: this.accountId, generation: `${Date.now()}-cleared`,
+        etag: "", checkedAt: 0, appVersion: "", wordCount: 0 });
+      for (const name of [WORD_STORE, INDEX_STORE, BLOCK_STORE]) tx.objectStore(name).delete(IDBKeyRange.bound([this.accountId, ""], [this.accountId, "\uffff"]));
+      if (stores.includes(LEGACY_STORE)) tx.objectStore(LEGACY_STORE).delete(this.accountId);
+      const entries = tx.objectStore(STORE).index("by_account_access").openCursor(this.range());
+      entries.onsuccess = () => { const cursor = entries.result; if (cursor) { cursor.delete(); cursor.continue(); } };
+      tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error ?? new Error("清理失败"));
+    });
+    this.syncError = "";
+    this.catalog = null; this.catalogLoaded = undefined; this.searchIndex = undefined; this.entries.clear(); this.fallbackWords.clear(); this.notify();
   }
 
   async get(wordId: number, targetUnitId: number | null): Promise<CachedMeanings | undefined> {
@@ -392,7 +524,7 @@ export class StudyContentCache {
       word: word.word,
       senses: word.senses.map((sense) => ({ ...sense, status: "New", next_review_date: null })),
       entries: [],
-      morphology: { inflected_forms: [], derived_words: [], related_words: [] },
+      morphology: word.morphology_entries?.[0]?.morphology ?? { inflected_forms: [], derived_words: [], related_words: [] },
       exposed_sense_ids: []
     } };
   }

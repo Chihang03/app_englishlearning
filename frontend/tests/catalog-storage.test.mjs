@@ -38,7 +38,7 @@ try {
     const { StudyContentCache } = await import(`data:text/javascript;base64,${btoa(unescape(encodeURIComponent(source)))}`);
     const cache = new StudyContentCache(7);
     check((await cache.savedWord(100)).word === "word-100", "legacy migration lost content");
-    const db = await new Promise((resolve) => { const open = indexedDB.open("cvt-study-content-v1", 3); open.onsuccess = () => resolve(open.result); });
+    const db = await new Promise((resolve) => { const open = indexedDB.open("cvt-study-content-v1", 4); open.onsuccess = () => resolve(open.result); });
     const get = (store, key) => new Promise((resolve) => { const r = db.transaction(store).objectStore(store).get(key); r.onsuccess = () => resolve(r.result); });
     const count = (store) => new Promise((resolve) => { const r = db.transaction(store).objectStore(store).count(); r.onsuccess = () => resolve(r.result); });
     const meta = await get("catalog-meta", 7);

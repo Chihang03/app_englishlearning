@@ -4,7 +4,7 @@ import type { CatalogWord, CatalogSummary } from "./studyContentCache";
 import type { User } from "./types";
 import { chineseMeaning, learningMeanings } from "./learningMeanings";
 
-export function OfflineLibrary({ user, onRetry }: { user: User; onRetry: () => void }) {
+export function OfflineLibrary({ user, onRetry, connecting = false }: { user: User; onRetry: () => void; connecting?: boolean }) {
   const cache = useMemo(() => new StudyContentCache(user.id), [user.id]);
   const [words, setWords] = useState<CatalogSummary[]>([]);
   const [ready, setReady] = useState(false);
@@ -20,10 +20,16 @@ export function OfflineLibrary({ user, onRetry }: { user: User; onRetry: () => v
   return <main className="page-container offline-library">
     <header className="section-heading">
       <h1>{selected ? selected.word : "离线词义"}</h1>
-      <button type="button" className="text-button" onClick={onRetry}>重新连接</button>
+      <button type="button" className="text-button" onClick={onRetry} disabled={connecting}>{connecting ? "连接中…" : "重新连接"}</button>
     </header>
     {selected ? <>
       <button type="button" className="secondary-button" onClick={() => setSelected(null)}>返回词表</button>
+      {selected.morphology_entries?.filter(entry => entry.morphology.inflected_forms.length || entry.morphology.derived_words.length || entry.morphology.related_words.length).map(entry => <section className="panel offline-sense" key={entry.lexical_unit_id}>
+        <h2>{entry.headword} · {entry.pos_group}</h2>
+        {entry.morphology.inflected_forms.length ? <p>{entry.morphology.inflected_forms.map(form => `${form.spelling}（${form.label}）`).join("、")}</p> : null}
+        {entry.morphology.derived_words.length ? <p>派生词：{entry.morphology.derived_words.map(peer => peer.headword).join("、")}</p> : null}
+        {entry.morphology.related_words.length ? <p>相关词：{entry.morphology.related_words.map(peer => peer.headword).join("、")}</p> : null}
+      </section>)}
       {learningMeanings(selected.senses).map((sense) => <section key={sense.id} className="panel offline-sense">
         <h2>{sense.part_of_speech} · {chineseMeaning(sense.definition_cn)}</h2>
         {sense.definition_en ? <p>{sense.definition_en}</p> : null}

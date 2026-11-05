@@ -46,11 +46,11 @@ self.addEventListener("fetch", (event) => {
       url.pathname === "/api" || url.pathname.startsWith("/api/")) return;
   if (request.mode === "navigate" && (url.pathname === "/" || url.pathname === "/index.html")) {
     event.respondWith((async () => {
-      try {
-        const response = await fetch(request);
-        if (response.ok || response.status < 500) return response;
-      } catch { /* Use the complete local build when the connection fails. */ }
-      return await (await caches.open(SHELL_CACHE)).match("/index.html") ?? Response.error();
+      // A complete installed shell is independent of network latency. Updates
+      // still activate only at the existing safe Home boundary.
+      const cached = await (await caches.open(SHELL_CACHE)).match("/index.html");
+      if (cached) return cached;
+      return fetch(request);
     })());
   } else if (url.pathname.startsWith("/assets/") || SHELL_URLS.includes(url.pathname)) {
     event.respondWith((async () => {

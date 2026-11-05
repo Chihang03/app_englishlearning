@@ -41,7 +41,7 @@ try {
   await settings().waitFor();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.waitForFunction(async (id) => {
-    const db = await new Promise((resolve) => { const open = indexedDB.open("cvt-study-content-v1", 3); open.onsuccess = () => resolve(open.result); });
+    const db = await new Promise((resolve) => { const open = indexedDB.open("cvt-study-content-v1", 4); open.onsuccess = () => resolve(open.result); });
     const saved = await new Promise((resolve) => { const get = db.transaction("catalog-meta").objectStore("catalog-meta").get(id); get.onsuccess = () => resolve(get.result); });
     db.close(); return Boolean(saved);
   }, user.id);
@@ -73,6 +73,18 @@ try {
   console.log("PASS background validation updates both the UI and the persisted list");
   for (const path of paths) await context.unroute(`**/api/${path}`);
 
+  // A working network with a stalled session must not hide the local library.
+  const authGate = deferred();
+  await context.route("**/api/auth/me", async route => { await authGate.promise; await route.continue(); });
+  await page.reload();
+  await page.getByRole("heading", { name: "离线词义", exact: true }).waitFor({ timeout: 3000 });
+  assert.equal(await page.getByRole("button", { name: "开始学习", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "连接中…", exact: true }).waitFor();
+  authGate.resolve();
+  await page.getByRole("heading", { name: `你好，${user.username}`, exact: true }).waitFor();
+  await context.unroute("**/api/auth/me");
+  console.log("PASS a stalled session shows local read-only content before authentication completes");
+
   await page.close(); await context.setOffline(true);
   page = await context.newPage(); attach();
   await page.goto(origin);
@@ -101,7 +113,7 @@ try {
   console.log("PASS reconnecting verifies the session before restoring online learning");
 
   const second = await register("offline-other");
-  await context.route("**/api/study/meaning-catalog", (route) => route.abort());
+  await context.route("**/api/study/meaning-catalog*", (route) => route.abort());
   await page.reload();
   await page.getByRole("heading", { name: `你好，${second.username}`, exact: true }).waitFor();
   await context.setOffline(true); await page.reload();

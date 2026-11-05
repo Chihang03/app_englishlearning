@@ -287,6 +287,15 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
                 .find(|(k, _)| *k == "cvt_session")
                 .map(|(_, v)| v.to_owned())
         });
+    let query = request.uri().query().unwrap_or("");
+    let chunked = query == "format=chunks";
+    let block = query.strip_prefix("chunk=").map(str::to_owned);
+    if block
+        .as_ref()
+        .is_some_and(|hash| hash.len() != 64 || !hash.bytes().all(|c| c.is_ascii_hexdigit()))
+    {
+        return error(StatusCode::BAD_REQUEST, "Invalid block");
+    }
     let etag = request
         .headers()
         .get(header::IF_NONE_MATCH)
@@ -367,6 +376,54 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
             .truncate(false)
             .open(directory.join("build.lock"))?;
         lock.try_lock_exclusive()?;
+        if let Some(hash) = block {
+            let path = directory.join(format!("v3-block-{identity}-{user}-{hash}.json"));
+            return Ok((std::fs::File::open(path)?, format!("\"{hash}\"")));
+        }
+        if chunked {
+            use sha2::{Digest, Sha256};
+            let conn = english_storage::open_readonly(&database)?;
+            let deadline = std::time::Instant::now() + Duration::from_secs(30);
+            conn.progress_handler(1000, Some(move || std::time::Instant::now() >= deadline));
+            conn.execute_batch("BEGIN")?;
+            let fingerprint = english_content::chunks::morphology_fingerprint(&conn)?;
+            let path = directory.join(format!(
+                "v3-manifest-{identity}-{user}-{revision}-{fingerprint}.json"
+            ));
+            let saved = std::fs::read(&path).ok().and_then(|bytes| {
+                serde_json::from_slice::<english_content::chunks::Manifest>(&bytes).ok()
+            });
+            let manifest = match saved {
+                Some(saved)
+                    if saved.blocks.iter().all(|block| {
+                        directory
+                            .join(format!("v3-block-{identity}-{user}-{}.json", block.hash))
+                            .is_file()
+                    }) =>
+                {
+                    saved
+                }
+                _ => english_content::chunks::write_chunks(
+                    &database,
+                    user,
+                    &identity,
+                    revision,
+                    &directory,
+                    &fingerprint,
+                )?,
+            };
+            let bytes = serde_json::to_vec(&manifest)?;
+            let tag = format!("\"{:x}\"", Sha256::digest(&bytes));
+            if !path.is_file() {
+                let mut temp = tempfile::NamedTempFile::new_in(&directory)?;
+                temp.write_all(&bytes)?;
+                temp.as_file().sync_all()?;
+                temp.persist(&path)?;
+            }
+            // Keep blocks referenced by this manifest while pruning old builds.
+            prune_cache(&directory, &path, 512 * 1024 * 1024)?;
+            return Ok((std::fs::File::open(path)?, tag));
+        }
         // Public-only catalogues have identical bytes across learners. Keep
         // authentication per request, and share only this derived public file.
         let cache_owner = if private_content { user } else { 0 };
@@ -429,6 +486,12 @@ async fn catalogue(State(app): State<App>, request: axum::extract::Request) -> R
     };
     let body = axum::body::Body::from_stream(stream);
     let mut response = body.into_response();
+    if chunked {
+        response.headers_mut().insert(
+            "x-catalog-format",
+            header::HeaderValue::from_static("chunks"),
+        );
+    }
     response.headers_mut().insert(header::ETAG, tag_header);
     response.headers_mut().insert(
         header::CONTENT_TYPE,
@@ -447,6 +510,31 @@ fn prune_cache(
     keep: &std::path::Path,
     budget: u64,
 ) -> std::io::Result<()> {
+    let mut protected = std::collections::HashSet::new();
+    if let Some(bytes) = keep
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| n.starts_with("v3-manifest-"))
+        .and_then(|_| std::fs::read(keep).ok())
+    {
+        if let Ok(manifest) = serde_json::from_slice::<english_content::chunks::Manifest>(&bytes) {
+            if let Some(name) = keep.file_name().and_then(|n| n.to_str()) {
+                // v3-manifest-<database id>-<account>-<revision>-<fingerprint>
+                let parts: Vec<_> = name
+                    .trim_start_matches("v3-manifest-")
+                    .rsplitn(4, '-')
+                    .collect();
+                if parts.len() == 4 {
+                    for block in manifest.blocks {
+                        protected.insert(directory.join(format!(
+                            "v3-block-{}-{}-{}.json",
+                            parts[3], parts[2], block.hash
+                        )));
+                    }
+                }
+            }
+        }
+    }
     let mut files = Vec::new();
     let mut total = 0u64;
     for entry in std::fs::read_dir(directory)? {
@@ -454,7 +542,10 @@ fn prune_cache(
         let name = entry.file_name();
         let name = name.to_string_lossy();
         let meta = entry.metadata()?;
-        if name.starts_with("v1-") && name.ends_with(".json") && meta.is_file() {
+        if (name.starts_with("v1-") || name.starts_with("v2-") || name.starts_with("v3-"))
+            && name.ends_with(".json")
+            && meta.is_file()
+        {
             total = total.saturating_add(meta.len());
             files.push((meta.modified()?, meta.len(), entry.path()));
         } else if name.starts_with(".tmp")
@@ -472,7 +563,7 @@ fn prune_cache(
         if total <= budget {
             break;
         }
-        if path == keep {
+        if path == keep || protected.contains(&path) {
             continue;
         }
         std::fs::remove_file(&path)?;

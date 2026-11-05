@@ -1,4 +1,5 @@
 //! One-word-at-a-time catalogue serialization, compatible with meaning_catalog.py.
+pub mod chunks;
 pub mod fingerprint;
 pub mod pipeline;
 use anyhow::{Context, Result, bail};
@@ -92,6 +93,26 @@ pub fn write_catalog<W: Write>(
     writer: W,
     budget: Duration,
 ) -> Result<CatalogResult> {
+    write_catalog_inner(
+        database,
+        user_id,
+        expected_database_id,
+        expected_revision,
+        writer,
+        budget,
+        None,
+    )
+}
+
+fn write_catalog_inner<W: Write>(
+    database: &Path,
+    user_id: i64,
+    expected_database_id: &str,
+    expected_revision: i64,
+    writer: W,
+    budget: Duration,
+    mut chunks: Option<&mut chunks::ChunkWriter>,
+) -> Result<CatalogResult> {
     if user_id <= 0 {
         bail!("user id must be positive");
     }
@@ -117,6 +138,9 @@ pub fn write_catalog<W: Write>(
     )?;
     if db_id != expected_database_id || revision != expected_revision {
         bail!("catalogue revision changed");
+    }
+    if let Some(chunks) = chunks.as_deref() {
+        chunks.verify_snapshot(&conn)?;
     }
     let learner: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND role='learner')",
@@ -147,6 +171,9 @@ pub fn write_catalog<W: Write>(
             if let Some(word) = current.take() {
                 if count > 0 {
                     out.write_all(b",")?;
+                }
+                if let Some(chunks) = chunks.as_deref_mut() {
+                    chunks.push(&conn, user_id, &word)?;
                 }
                 serde_json::to_writer(&mut out, &word)?;
                 count += 1;
@@ -206,6 +233,9 @@ pub fn write_catalog<W: Write>(
     if let Some(word) = current {
         if count > 0 {
             out.write_all(b",")?;
+        }
+        if let Some(chunks) = chunks {
+            chunks.push(&conn, user_id, &word)?;
         }
         serde_json::to_writer(&mut out, &word)?;
         count += 1;

@@ -23,6 +23,7 @@ import { MeaningExposureQueue } from "./meaningExposure";
 import { formatStudyTime } from "./studyTime";
 import { activateAppUpdate } from "./appWorker";
 import { OfflineLibrary } from "./OfflineLibrary";
+import { OfflineContentSettings } from "./OfflineContentSettings";
 import { rememberLearner, savedLearner } from "./offlineSession";
 import { canReloadForUpdate, useForegroundRefresh, useVersionUpdate } from "./lifecycle";
 import type { Card, ReviewResult, Settings, SpeechSettings, Stats, User, WordList } from "./types";
@@ -83,6 +84,11 @@ function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [connectionError, setConnectionError] = useState(false);
   const authChecking = useRef(false);
+  const [localBrowse, setLocalBrowse] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setLocalBrowse(true), 800);
+    return () => window.clearTimeout(timer);
+  }, []);
   const signedOut = useCallback(() => { rememberLearner(null); setUser(null); }, []);
   const { available: updateAvailable, check: checkVersion } = useVersionUpdate();
 
@@ -119,8 +125,8 @@ function App() {
   }, [user]);
 
   if (user === undefined) {
-    const cached = connectionError ? savedLearner() : null;
-    if (cached) return <OfflineLibrary key={cached.id} user={cached} onRetry={() => { void checkSession(); }} />;
+    const cached = connectionError || localBrowse ? savedLearner() : null;
+    if (cached) return <OfflineLibrary key={cached.id} user={cached} onRetry={() => { void checkSession(); }} connecting={!connectionError} />;
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas">
         {connectionError ? <>
@@ -963,7 +969,7 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
 
       {page === "settings" ? (
         <SettingsPage user={user} settings={settings} wordLists={wordLists} speech={speech} voices={voices}
-          settingsSaving={settingsSaving}
+          settingsSaving={settingsSaving} contentCache={studyContentCache}
           speechSupported={speechSupported} onBack={() => navigate("home")}
           onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
           onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} onOpenAssessment={() => navigate("assessment")} />
@@ -1058,7 +1064,8 @@ function Metric({ icon, label, value }: { icon: IconName; label: string; value: 
   return <div className="metric-card panel"><span className="metric-icon"><Icon name={icon} /></span><strong>{value}</strong><span className="metric-label">{label}</span></div>;
 }
 
-function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired, onOpenMutedWords, onOpenAssessment }: {
+function SettingsPage({ contentCache, user, settings, wordLists, settingsSaving, speech, voices, speechSupported, onBack, onSetting, onOpenWordList, onSpeech, onSignOut, onSessionExpired, onOpenMutedWords, onOpenAssessment }: {
+  contentCache: StudyContentCache;
   user: User; settings: Settings; wordLists: WordList[]; speech: SpeechSettings; voices: SpeechSynthesisVoice[];
   settingsSaving: boolean;
   speechSupported: boolean; onBack: () => void; onSetting: (next: Partial<Settings>) => void;
@@ -1112,6 +1119,7 @@ function SettingsPage({ user, settings, wordLists, settingsSaving, speech, voice
           </div>
         )}
       </section>
+      <OfflineContentSettings cache={contentCache} onSignedOut={onSessionExpired} />
       <details className="learning-details panel admin-security">
         <summary><span><Icon name="user" /> 账号安全</span><Icon name="chevron" /></summary>
         <div className="pb-4"><PasskeySettings onSignedOut={onSessionExpired} /><PasswordForm /></div>

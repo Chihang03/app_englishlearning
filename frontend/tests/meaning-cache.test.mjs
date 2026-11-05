@@ -92,7 +92,7 @@ try {
 
   await page.getByRole("button", { name: "返回首页", exact: true }).click();
   const catalogGate = gate();
-  await page.route("**/api/study/meaning-catalog", async (route) => {
+  await page.route("**/api/study/meaning-catalog*", async (route) => {
     await catalogGate.promise;
     await route.continue();
   });
@@ -106,7 +106,7 @@ try {
   console.log("PASS overview refresh finishes while the full meaning catalog is still downloading");
   catalogGate.resolve();
   assert.equal((await catalogCheck).status(), 304);
-  await page.unroute("**/api/study/meaning-catalog");
+  await page.unroute("**/api/study/meaning-catalog*");
   await page.getByRole("button", { name: "继续学习", exact: true }).click();
   const before = calls.length;
   await openMeanings();
