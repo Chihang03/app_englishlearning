@@ -1,0 +1,17 @@
+[Unit]
+Description=Administrator server traffic dashboard
+After=network.target englishlearning.service
+[Service]
+ExecStart=/usr/bin/python3 /opt/server-traffic/monitor.py serve
+DynamicUser=yes
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+MemoryMax=96M
+TasksMax=32
+[Install]
+WantedBy=multi-user.target

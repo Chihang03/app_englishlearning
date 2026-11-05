@@ -1,0 +1,16 @@
+[Unit]
+Description=Collect host and service traffic counters
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/server-traffic/monitor.py collect
+User=root
+UMask=0077
+StateDirectory=server-traffic
+StateDirectoryMode=0755
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/server-traffic
