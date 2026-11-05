@@ -96,6 +96,10 @@ impl ChunkWriter {
             self.flush()?;
             self.bucket = Some(bucket);
         }
+        // This exporter streams one word at a time on its own blocking thread.
+        // API row budgets must bound each word, not accumulate across the full
+        // dictionary (or across separate exports reusing this worker thread).
+        english_storage::api::reset_budget();
         let mut value = serde_json::to_value(word)?;
         let mut statement = conn.prepare("SELECT id,headword,pos_group FROM lexical_units WHERE word_id=? AND active=1 AND (owner_id IS NULL OR owner_id=?) ORDER BY id")?;
         let mut rows = statement.query([word.id, user])?;

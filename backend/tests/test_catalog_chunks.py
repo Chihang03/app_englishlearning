@@ -1,5 +1,6 @@
 """Native chunk API on an isolated fixture; never opens production data."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import socket
@@ -55,3 +56,21 @@ class CatalogChunksTests(unittest.TestCase):
         self.assertNotEqual(forbidden.status_code,200)
         self.http.cookies.clear()
         self.assertEqual(self.http.get(url).status_code,401)
+
+    def test_streaming_export_resets_api_row_budget_per_word(self):
+        # These metadata fields are read by morphology but are not exported.
+        # Each word fits the API budget; the whole dictionary exceeds it.
+        with database.connect() as conn:
+            units = conn.execute("SELECT * FROM lexical_units WHERE id IN (SELECT MIN(id) FROM lexical_units GROUP BY word_id)").fetchall()
+            self.assertGreater(len(units), 1)
+            for unit in units:
+                for index in range(4):
+                    values = dict(unit)
+                    values.pop('id')
+                    values['unit_key'] += f':budget-{index}'
+                    columns = list(values)
+                    conn.execute(f"INSERT INTO lexical_units({','.join(columns)}) VALUES({','.join('?' for _ in columns)})", list(values.values()))
+            conn.execute("UPDATE lexical_units SET provenance_json=?", (json.dumps({"fixture": "x" * (1024 * 1024)}),))
+        response = self.http.get('/api/study/meaning-catalog?format=chunks', timeout=60)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['words'], 2)
