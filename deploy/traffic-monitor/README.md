@@ -26,3 +26,5 @@
 本地运行 `python3 -m unittest discover -s deploy/traffic-monitor -p 'test_*.py'` 和 `python3 scripts/check_sensitive_content.py`。服务器检查 timer、网页服务状态、快照更新时间与实际计数增长，并确认公网无会话访问被拒绝。
 
 卸载入口：删除 `/etc/nginx/snippets/englishlearning-extra-traffic.conf`，`nginx -t` 后 reload；停止并禁用 `server-traffic-web.service` 和 `server-traffic-collect.timer`。保留 `/var/lib/server-traffic/` 即保留全部历史。需要关闭计数时，对四个服务运行 `systemctl set-property <unit> IPAccounting=no`。安装输出的备份目录保存原 Nginx 配置。
+
+趋势图支持鼠标悬停、点击、触摸横向滑动和键盘左右键选择小时；详情显示北京时间区间、传入/传出/合计及精确字节数。当前小时注明采样截止时间，缺失时段显示未采集。选中结果在松手后保留，切换数据源或时间范围时重置。
