@@ -34,7 +34,7 @@ pub fn new_unit(c: &Connection, uid: i64) -> Result<Option<Value>> {
     let source=include_str!("new_unit.sql").split("ORDER BY").next().unwrap()
         .replace("LEFT JOIN word_frequencies f ON f.headword=w.normalized", "LEFT JOIN word_frequencies f ON f.headword=w.normalized LEFT JOIN learning_unit_difficulty d ON d.learning_unit_id=u.id AND d.retired=0");
     let query = format!(
-        "{source} ORDER BY abs(({difficulty})-:target),u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,u.id LIMIT 1"
+        "{source} ORDER BY u.core DESC,abs(({difficulty})-:target),u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,u.id LIMIT 1"
     );
     use rusqlite::OptionalExtension;
     Ok(c.prepare_cached(&query)?

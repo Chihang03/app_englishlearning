@@ -63,7 +63,7 @@ pub fn ensure_content(c: &Connection) -> Result<()> {
     let result = (|| -> rusqlite::Result<()> {
         c.execute_batch("SAVEPOINT content_index")?;
         if rebuild {
-            c.execute_batch("DROP TABLE IF EXISTS temp.perf_usable; DROP TABLE IF EXISTS temp.perf_units; DROP TABLE IF EXISTS temp.perf_words; DROP TABLE IF EXISTS temp.perf_revision; PRAGMA temp.cache_size=-2048;")?;
+            c.execute_batch("DROP TABLE IF EXISTS temp.perf_usable; DROP TABLE IF EXISTS temp.perf_core; DROP TABLE IF EXISTS temp.perf_units; DROP TABLE IF EXISTS temp.perf_words; DROP TABLE IF EXISTS temp.perf_revision; PRAGMA temp.cache_size=-2048;")?;
             c.execute_batch(include_str!("content_index.sql"))?;
         } else {
             c.execute("DELETE FROM temp.perf_revision", [])?;
@@ -130,4 +130,82 @@ pub fn new_unit(c: &Connection, user: i64) -> Result<Option<Value>> {
             Ok(json!({"learning_unit_id":r.get::<_,i64>(0)?}))
         })
         .optional()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn catalogue() -> Connection {
+        let c = Connection::open_in_memory().unwrap();
+        let schema: Vec<String> =
+            serde_json::from_str(include_str!("../../../../fixtures/schema-v22.json")).unwrap();
+        for statement in schema {
+            c.execute_batch(&statement).unwrap();
+        }
+        c.pragma_update(None, "foreign_keys", false).unwrap();
+        // "bank": two bilingual homograph entries plus a monolingual duplicate source.
+        c.execute_batch(
+            "INSERT INTO users(id,username,password_hash,timezone,created_at) VALUES(1,'u','x','UTC','2026-01-01');
+             INSERT INTO meaning_catalog_revision VALUES(1,'test',1);
+             INSERT INTO words(id,word,part_of_speech,definition_cn,example_sentence) VALUES(1,'bank','n','岸','x'),(2,'cat','n','猫','x');
+             INSERT INTO word_frequencies VALUES('bank',500,'a'),('cat',400,'b');
+             INSERT INTO lexical_units(id,word_id,unit_key,headword,normalized_headword,pos_group,identity_status) VALUES(1,1,'bank:n','bank','bank','noun','legacy'),(2,2,'cat:n','cat','cat','noun','legacy');
+             INSERT INTO word_senses(id,word_id,sense_key,part_of_speech,definition_cn,source,position,lexical_unit_id) VALUES
+              (1,1,'zh:e1.002','名词','岸','d',0,1),(2,1,'zh:e1.003','名词','堆','d',1,1),(3,1,'zh:e1.006','名词','大量','d',2,1),
+              (4,1,'zh:e2.002','名词','银行','d',3,1),(5,1,'en:x1.015','名词','倾斜','d',4,1),(6,2,'en:c1.001','名词','猫','d',0,2);
+             INSERT INTO sense_examples(id,sense_id,sentence,target_form,source) SELECT id,id,'s'||id,'t','d' FROM word_senses;
+             INSERT INTO learning_units(id,lexical_unit_id,word_id,unit_key,representative_sense_id,display_definition_cn,position,verification)
+              SELECT id,lexical_unit_id,word_id,'sense:'||id,id,definition_cn,position,'legacy' FROM word_senses;
+             INSERT INTO learning_unit_senses SELECT id,id FROM word_senses;
+             INSERT INTO vocabulary_lists(list_id,title,description,source_url) VALUES('l','L','','');
+             INSERT INTO word_list_learning_units(list_id,learning_unit_id,position,verification) SELECT 'l',id,0,'legacy' FROM learning_units;
+             INSERT INTO user_vocabulary_lists VALUES(1,'l',1);",
+        )
+        .unwrap();
+        super::super::readiness::prepare(&c, &Config::from_env(None), 1).unwrap();
+        ensure_content(&c).unwrap();
+        c
+    }
+
+    fn learn(c: &Connection) -> i64 {
+        let unit = new_unit(c, 1).unwrap().unwrap()["learning_unit_id"]
+            .as_i64()
+            .unwrap();
+        c.execute(
+            "INSERT INTO sense_srs_state(user_id,sense_id,next_review_date,status,learning_unit_id) VALUES(1,?1,'2099-01-01','Learning',?1)",
+            [unit],
+        )
+        .unwrap();
+        unit
+    }
+
+    fn new_senses(c: &Connection) -> i64 {
+        metrics(c, 1, "2026-01-01", "2026-01-01T00:00:00+00:00").unwrap()["new_senses"]
+            .as_i64()
+            .unwrap()
+    }
+
+    #[test]
+    fn core_senses_come_first_and_bound_the_new_scope() {
+        let c = catalogue();
+        let core: Vec<i64> = c
+            .prepare("SELECT id FROM temp.perf_units WHERE core ORDER BY id")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        // First two senses per entry of the primary source; the homograph keeps its own first sense.
+        assert_eq!(core, [1, 2, 4, 6]);
+        assert_eq!(new_senses(&c), 4);
+        // Untouched words first, then the remaining core senses before any extended sense.
+        assert_eq!([learn(&c), learn(&c), learn(&c)], [1, 6, 2]);
+        assert_eq!(new_senses(&c), 1);
+        assert_eq!(learn(&c), 4);
+        // Only once every core sense has been started do extended senses become new content.
+        assert_eq!(new_senses(&c), 2);
+        assert_eq!([learn(&c), learn(&c)], [3, 5]);
+        assert!(new_unit(&c, 1).unwrap().is_none());
+    }
 }

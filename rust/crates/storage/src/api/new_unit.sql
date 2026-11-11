@@ -14,4 +14,4 @@ AND NOT EXISTS(SELECT 1 FROM sense_srs_state p WHERE p.user_id=:user AND p.learn
 AND NOT (:skip AND u.basic)
 AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded WHERE id=u.id)
 AND NOT EXISTS(SELECT 1 FROM user_muted_words t WHERE t.user_id=:user AND t.word=w.normalized)
-ORDER BY u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,w.id,u.id LIMIT 1
+ORDER BY u.core DESC,u.word_id IN (SELECT word_id FROM touched),f.zipf_cent IS NULL,f.zipf_cent DESC,f.tie_break,original.position,w.id,u.id LIMIT 1

@@ -1,9 +1,20 @@
 -- :user, :today, :now, :skip. Content eligibility is computed once per revision.
-WITH eligible AS MATERIALIZED (
- SELECT u.id,u.word_id,w.owner_id FROM perf_units u JOIN perf_words w ON w.id=u.word_id
+WITH selected AS MATERIALIZED (
+ SELECT DISTINCT m.learning_unit_id FROM user_vocabulary_lists v JOIN word_list_learning_units m ON m.list_id=v.list_id
+ WHERE v.user_id=:user AND v.selected=1
+), candidates AS MATERIALIZED (
+ SELECT u.id,u.word_id,w.owner_id,u.core,
+ EXISTS(SELECT 1 FROM sense_srs_state p WHERE p.user_id=:user AND p.learning_unit_id=u.id AND p.retired_at IS NULL) AS learned
+ FROM perf_units u JOIN perf_words w ON w.id=u.word_id
  WHERE u.usable=1 AND NOT (:skip AND u.basic)
  AND NOT EXISTS(SELECT 1 FROM temp.policy_excluded WHERE id=u.id)
  AND NOT EXISTS(SELECT 1 FROM user_muted_words t WHERE t.user_id=:user AND t.word=w.normalized)
+), scope AS MATERIALIZED (
+ -- Extended senses join the scope only after every selectable core sense has been started.
+ SELECT NOT EXISTS(SELECT 1 FROM candidates c WHERE c.core AND NOT c.learned
+  AND (c.owner_id=:user OR (c.owner_id IS NULL AND c.id IN (SELECT learning_unit_id FROM selected)))) AS extended
+), eligible AS MATERIALIZED (
+ SELECT id,word_id,owner_id FROM candidates WHERE core OR learned OR (SELECT extended FROM scope)
 ), progress AS MATERIALIZED (
  SELECT p.*,e.word_id,e.owner_id FROM sense_srs_state p
  JOIN eligible e ON e.id=p.learning_unit_id WHERE p.user_id=:user AND p.retired_at IS NULL
@@ -13,9 +24,6 @@ WITH eligible AS MATERIALIZED (
  LEFT JOIN adaptive_memory m ON m.user_id=:user AND m.learning_unit_id=p.learning_unit_id AND m.retired_at IS NULL
  WHERE (p.owner_id IS NULL OR p.owner_id=:user) AND (p.status!='Mature' OR m.learning_unit_id IS NOT NULL)
  AND ((q.learning_unit_id IS NULL AND p.next_review_date<=:today) OR q.ready_at<=:now)
-), selected AS MATERIALIZED (
- SELECT DISTINCT m.learning_unit_id FROM user_vocabulary_lists v JOIN word_list_learning_units m ON m.list_id=v.list_id
- WHERE v.user_id=:user AND v.selected=1
 ), touched AS MATERIALIZED (
  SELECT word_id FROM srs_state WHERE user_id=:user
  UNION SELECT u.word_id FROM sense_srs_state p JOIN perf_units u ON u.id=p.learning_unit_id

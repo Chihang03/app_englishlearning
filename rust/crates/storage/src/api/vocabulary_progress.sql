@@ -9,7 +9,7 @@
                 FROM perf_units u
                 LEFT JOIN sense_srs_state p INDEXED BY idx_sense_srs_state_learning_unit
                 ON p.learning_unit_id=u.id AND p.user_id=? AND p.retired_at IS NULL
-                WHERE u.usable=1
+                WHERE u.usable=1 AND (u.core OR p.learning_unit_id IS NOT NULL)
             ), word_progress AS (
                 SELECT m.list_id,u.word_id,MIN(u.mastered) AS mastered
                 FROM word_list_learning_units m JOIN usable u ON u.id=m.learning_unit_id
