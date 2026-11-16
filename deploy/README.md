@@ -8,6 +8,8 @@
 
 服务器在 `/etc/englishlearning-deploy.env` 配置 PUBLIC_ORIGIN，文件由 root 持有并设为 0600。发布脚本在开始变更服务前加载该配置。需要另一路径时设置 ENGLISH_DEPLOY_CONFIG。回退入口使用保存的服务配置恢复。
 
+GitHub Actions 发布使用 `production` Environment 中的 DEPLOY_HOST、DEPLOY_USER、DEPLOY_SSH_KEY 等 Secrets，见 [Rust 发布手册](RUST.md#github-actions-自动发布)。
+
 ## HTTPS 与通行密钥
 
 `nginx-passkeys-test.conf`、`passkeys-test.env.example` 与 `push.env.example` 使用示例域名。安装时在服务器私有配置中设置真实域名、来源和证书，保持 WebAuthn RP ID、合法 Origin 与 HTTPS 入口一致。现有站点的 RP ID 和推送密钥应持续保留。

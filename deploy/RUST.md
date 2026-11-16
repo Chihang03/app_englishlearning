@@ -53,6 +53,22 @@ python3 performance_preflight.py --database /data/vocabulary.db \
   --directory /data/new-performance-check
 ```
 
+## GitHub Actions 自动发布
+
+`.github/workflows/deploy.yml` 在 main 上 `rust/`、`frontend/`、`deploy/` 变更后，以及手动 Run workflow 时执行。构建在 Ubuntu 22.04（glibc 2.35）上运行 Rust 测试、release 构建、`npm ci` 和 `build-rust-release.sh`，再通过 SSH 上传压缩包，由 `install-uploaded-release.sh` 以 root 解压到 `/opt/englishlearning/releases/<UTC>-<提交>`，核对 SHA256SUMS 后调用切换脚本。服务器仍需事先准备好 `/etc/englishlearning-deploy.env`。
+
+在 GitHub 仓库 Settings → Environments 新建 `production`，在其中添加 Secrets（也可放在仓库级 Actions secrets）：
+
+| Secret | 内容 |
+|---|---|
+| `DEPLOY_HOST` | 服务器主机名或地址 |
+| `DEPLOY_USER` | SSH 用户；非 root 时需能无密码执行 `sudo -n sh` |
+| `DEPLOY_SSH_KEY` | 私钥全文，建议为部署单独生成 |
+| `DEPLOY_KNOWN_HOSTS` | 可选，服务器 `ssh-keyscan` 结果；缺省时信任首次扫描到的主机密钥 |
+| `DEPLOY_PORT` | 可选，默认 22 |
+
+必需的 Secrets 缺失时只构建、不部署。可在 Environment 中开启 Required reviewers，让每次发布先经人工批准。
+
 ## 回退与排查
 
 切换脚本在一致性备份完成后、启动新服务前调用 `fix-study-examples`，结果保存在备份目录的 `fixed-example-repair.json`。正在显示的旧题继续按原题作答，之后使用整理后的固定句。回退程序时继续使用当前学习数据与固定句。

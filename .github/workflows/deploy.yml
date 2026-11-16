@@ -1,0 +1,123 @@
+name: Deploy production
+on:
+  push:
+    branches: [main]
+    paths: ["rust/**", "frontend/**", "deploy/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+jobs:
+  build:
+    # Ubuntu 22.04 matches the production glibc 2.35 target.
+    runs-on: ubuntu-22.04
+    outputs:
+      release: ${{ steps.name.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check sensitive content
+        run: python3 scripts/check_sensitive_content.py --tracked
+      - name: Name release
+        id: name
+        run: echo "release=$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - name: Install frozen Rust toolchain
+        run: rustup show
+        working-directory: rust
+      - name: Test Rust
+        run: cargo test --workspace --locked
+        working-directory: rust
+      - name: Build native binaries
+        run: cargo build --workspace --release --locked
+        working-directory: rust
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Package release
+        env:
+          RELEASE_OUTPUT: ${{ runner.temp }}/${{ steps.name.outputs.release }}
+          ENGLISH_BINARY_DIR: ${{ github.workspace }}/rust/target/release
+        run: |
+          deploy/build-rust-release.sh
+          tar -C "$RELEASE_OUTPUT" -czf "$RUNNER_TEMP/release.tar.gz" .
+          cp deploy/install-uploaded-release.sh "$RUNNER_TEMP/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            ${{ runner.temp }}/release.tar.gz
+            ${{ runner.temp }}/install-uploaded-release.sh
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RELEASE: ${{ needs.build.outputs.release }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+    steps:
+      - name: Check deployment secrets
+        id: secrets
+        env:
+          HAS_KEY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ "$HAS_KEY" != true ]; then
+            echo "::warning::DEPLOY_HOST, DEPLOY_USER or DEPLOY_SSH_KEY is not set; skipping deployment."
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.secrets.outputs.ready == 'yes'
+        with:
+          name: release
+          path: release
+      - name: Configure SSH
+        if: steps.secrets.outputs.ready == 'yes'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::DEPLOY_KNOWN_HOSTS is not set; trusting the host key reported by ssh-keyscan."
+            ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host production
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            Port ${DEPLOY_PORT:-22}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+      - name: Upload release
+        if: steps.secrets.outputs.ready == 'yes'
+        run: |
+          scp -q release/release.tar.gz "production:englishlearning-$RELEASE.tar.gz"
+          scp -q release/install-uploaded-release.sh "production:englishlearning-install-$RELEASE.sh"
+      - name: Install and switch release
+        if: steps.secrets.outputs.ready == 'yes'
+        run: |
+          if [ "$DEPLOY_USER" = root ]; then run_as_root=; else run_as_root="sudo -n"; fi
+          ssh production "set -eu; trap 'rm -f \"\$HOME/englishlearning-install-$RELEASE.sh\"' EXIT; $run_as_root sh \"\$HOME/englishlearning-install-$RELEASE.sh\" \"\$HOME/englishlearning-$RELEASE.tar.gz\" '$RELEASE'"
+      - name: Remove SSH material
+        if: always()
+        run: rm -rf ~/.ssh
