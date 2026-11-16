@@ -6,7 +6,7 @@
 
 ## Git 流程
 
-1. 相关代码修改完成后自动提交到 main、推送并连接服务器部署。
+1. 相关代码修改完成后自动提交到 main 并推送。`rust/`、`frontend/`、`deploy/` 的变更由 GitHub Actions `Deploy production` 自动构建并通过 SSH 发布，推送后查看该工作流结果，失败时按日志修复。
 2. 提交信息使用中文 Conventional Commits，一次提交围绕一个明确目的。
 3. 提交前运行 `python3 scripts/check_sensitive_content.py`。首次配置本地 Git hook 执行 `git config core.hooksPath .githooks`。
 4. 提交文档时检查相对链接。文档通过 Git 分发，运行时发布用于实际代码和资源变更。
@@ -36,7 +36,7 @@
 
 ## 本地运维配置
 
-真实连接信息保存在仓库外的 `~/.config/app_englishlearning/deploy.env`，运维说明位于同目录 `operations.md`。连接服务器前从该配置读取部署主机、用户和 SSH 密钥路径。配置缺失时向维护者获取，禁止将真实参数写回仓库。
+常规发布不需要本地连接服务器，GitHub 仓库 `production` Environment 的 Secrets 保存部署主机、用户和 SSH 私钥，字段见 [Rust 发布手册](deploy/RUST.md#github-actions-自动发布)。手动排查时，真实连接信息保存在仓库外的 `~/.config/app_englishlearning/deploy.env`，运维说明位于同目录 `operations.md`。配置缺失时向维护者获取，禁止将真实参数写回仓库。
 
 服务器发布脚本读取 `/etc/englishlearning-deploy.env` 中的 `PUBLIC_ORIGIN`，可通过 `ENGLISH_DEPLOY_CONFIG` 指定其他配置路径。通用字段见 `deploy/deploy.env.example`，发布过程见 `deploy/RUST.md`。
 
