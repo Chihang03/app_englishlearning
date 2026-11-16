@@ -633,6 +633,27 @@ pub fn handle(c: &Connection, config: &Config, r: &Request, user: &Value) -> Res
                 json!({"users":rows(c,sql("users/1"),&[json!(limit),json!(offset)])?,"total":scalar(c,sql("users/0"),&[])?,"offset":offset,"limit":limit}),
             )
         }
+        ("POST", p) if p.starts_with("users/") && p.ends_with("/password") => {
+            // Account recovery without e-mail: the administrator issues a one-off
+            // password, which also signs the learner out everywhere.
+            let id = p[6..p.len() - 9]
+                .parse::<i64>()
+                .map_err(|_| fault(422, "Invalid user ID"))?;
+            one(
+                c,
+                "SELECT id FROM users WHERE id=? AND role='learner'",
+                &[json!(id)],
+            )?
+            .ok_or_else(|| fault(404, "用户不存在"))?;
+            let password = accounts::random_token(9);
+            exec(
+                c,
+                "UPDATE users SET password_hash=? WHERE id=?",
+                &[json!(accounts::hash_password(&password)?), json!(id)],
+            )?;
+            exec(c, "DELETE FROM sessions WHERE user_id=?", &[json!(id)])?;
+            Ok(json!({"temporary_password":password}))
+        }
         ("GET", p) if p.starts_with("users/") => {
             let id = p[6..]
                 .parse::<i64>()

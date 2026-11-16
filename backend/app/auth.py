@@ -140,7 +140,7 @@ def register(payload: RegisterInput, response: Response) -> dict[str, Any]:
 
     with connect() as conn:
         existing = conn.execute(
-            "SELECT 1 FROM users WHERE username = ?", (payload.username,)
+            "SELECT 1 FROM users WHERE username = ? COLLATE NOCASE", (payload.username,)
         ).fetchone()
         if existing is not None:
             raise HTTPException(status_code=409, detail="Username already taken")
