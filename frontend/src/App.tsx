@@ -1106,7 +1106,7 @@ function SettingsPage({ contentCache, user, settings, wordLists, settingsSaving,
         <h2><Icon name="book" /> 智能复习</h2>
         <p className="settings-hint">根据你的作答表现自动安排复习。</p>
         <ProficiencySettings onOpen={onOpenAssessment} onSignedOut={onSessionExpired}>
-        <label className="setting-row"><span><strong>跳过基础 800 词</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.skip_basic_600} onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} /></label>
+        <label className="setting-row"><span><strong>跳过基础词</strong></span><input type="checkbox" className="setting-switch" disabled={settingsSaving} checked={settings.skip_basic_600} onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} /></label>
         </ProficiencySettings>
         <button type="button" className="word-list-option" onClick={onOpenMutedWords}>
           <strong>不再学习的单词</strong><Icon name="chevron" />

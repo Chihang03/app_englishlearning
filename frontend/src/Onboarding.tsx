@@ -80,7 +80,7 @@ export function Onboarding({ userId, wordLists, wordListsReady, settings, saving
         <h1>从哪里开始</h1>
         <div className="panel onboarding-lists">
           <label className="setting-row">
-            <span><strong>跳过基础 800 词</strong><small>the、of、and 这类最常见的词不再出题</small></span>
+            <span><strong>跳过基础词</strong><small>the、two、dog 这类最常见的词不再出题</small></span>
             <input type="checkbox" className="setting-switch" disabled={saving} checked={settings.skip_basic_600}
               onChange={(event) => onSetting({ skip_basic_600: event.target.checked })} />
           </label>
