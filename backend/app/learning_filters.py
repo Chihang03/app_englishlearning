@@ -14,7 +14,19 @@ BASIC_WORDS = frozenset(
     word.strip().lower()
     for word in next(item["words"] for item in _lists if item["id"] == "ngsl_core")[:800]
 )
-_BASIC_WORDS_SQL = ",".join("'" + word.replace("'", "''") + "'" for word in sorted(BASIC_WORDS))
+# Exam lists also carry spellings that NGSL folds into a basic headword or
+# omits as numerals. A learner who skips the basics should not meet them as
+# their first words either. Spellings with an independent meaning (being,
+# found, left, means) stay learnable.
+BASIC_SUPPLEMENT = frozenset((
+    "am", "is", "are", "was", "were", "been", "has", "had", "does", "did", "done",
+    "better", "best", "worse", "worst",
+    "zero", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "twenty", "thirty", "hundred", "thousand", "million", "billion",
+    "third", "fourth", "fifth",
+))
+_BASIC_WORDS_SQL = ",".join(
+    "'" + word.replace("'", "''") + "'" for word in sorted(BASIC_WORDS | BASIC_SUPPLEMENT))
 
 
 # NGSL lists these grammatical families under their headword. Exam lists can
