@@ -16,7 +16,7 @@ const reportTypes = [
   { value: "other", label: "其他问题" }
 ] as const;
 
-const posLabels: Record<string, string> = {
+export const posLabels: Record<string, string> = {
   verb: "动词", noun: "名词", adjective: "形容词", adverb: "副词"
 };
 

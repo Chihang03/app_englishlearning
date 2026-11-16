@@ -23,6 +23,7 @@ import { MeaningExposureQueue } from "./meaningExposure";
 import { formatStudyTime } from "./studyTime";
 import { activateAppUpdate } from "./appWorker";
 import { OfflineLibrary } from "./OfflineLibrary";
+import { Onboarding, onboardingPending } from "./Onboarding";
 import { OfflineContentSettings } from "./OfflineContentSettings";
 import { rememberLearner, savedLearner } from "./offlineSession";
 import { canReloadForUpdate, useForegroundRefresh, useVersionUpdate } from "./lifecycle";
@@ -202,6 +203,8 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
   const [message, setMessage] = useState("");
   const [queueMessage, setQueueMessage] = useState("");
   const [lastMutedWord, setLastMutedWord] = useState<string | null>(null);
+  const [onboarding, setOnboarding] = useState(() => onboardingPending(user.id));
+  const assessmentOrigin = useRef<Page>("settings");
   const [mutePending, setMutePending] = useState(false);
   const mutePendingRef = useRef(false);
   const [retryAt, setRetryAt] = useState<number | null>(null);
@@ -291,6 +294,13 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     }, Math.max(0, dueAt - Date.now()) + 250);
     return () => window.clearTimeout(timer);
   }, [stats.next_relearning_at, guarded]);
+
+  useEffect(() => {
+    if (!lastMutedWord) return;
+    // A brief confirmation with undo; it must not occupy the study page for good.
+    const timer = window.setTimeout(() => setLastMutedWord(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [lastMutedWord]);
 
   useEffect(() => {
     if (voices.length === 0 || voices.some((voice) => voice.voiceURI === speech.voiceURI)) return;
@@ -830,8 +840,9 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
       } else {
         focusAnswer();
       }
-    } else if (page === "home" && hasStarted) {
-      void guarded(loadStats);
+    } else if (page === "home") {
+      // Settings, word lists and an applied assessment all change these counts.
+      void guarded(async () => { await Promise.all([loadStats(), loadWordLists()]); });
     }
   }, [page]);
 
@@ -888,7 +899,9 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
     <main ref={shellRef} className={`trainer-shell ${page === "study" ? "is-studying" : page === "muted-words" ? "is-managing-words" : ""}`}>
       {page === "home" ? (
         <Home user={user} stats={stats} ready={statsReady} refreshing={refreshing}
-          onOpenCalendar={() => navigate("learning-calendar")} onOpenAssessment={() => navigate("assessment")}
+          wordLists={wordListsReady ? wordLists.filter((list) => settings.selected_word_list_ids.includes(list.list_id)) : null}
+          onOpenWordLists={() => navigate("settings")}
+          onOpenCalendar={() => navigate("learning-calendar")} onOpenAssessment={() => { assessmentOrigin.current = "home"; navigate("assessment"); }}
           onRefresh={() => { void guarded(() => refreshData(true)); }} />
       ) : null}
 
@@ -921,7 +934,6 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
         {lastMutedWord ? <div className="mute-notice" role="status">
           <span>已停止学习 {lastMutedWord}</span>
           <button type="button" disabled={loading || submitting || hintPending || mutePending} onClick={() => { void guarded(() => restoreMutedWord(lastMutedWord)); }}>撤销</button>
-          <button type="button" aria-label="关闭提示" onClick={() => setLastMutedWord(null)}>×</button>
         </div> : null}
 
         <StudyDeck currentId={card?.attempt_id ?? null} previous={previousQuestion} reviewing={reviewing}
@@ -972,10 +984,10 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           settingsSaving={settingsSaving} contentCache={studyContentCache}
           speechSupported={speechSupported} onBack={() => navigate("home")}
           onSetting={updateSetting} onOpenWordList={(listId) => navigate(`word-list/${encodeURIComponent(listId)}`)} onSpeech={updateSpeech}
-          onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} onOpenAssessment={() => navigate("assessment")} />
+          onSignOut={signOut} onSessionExpired={onSignedOut} onOpenMutedWords={() => navigate("muted-words")} onOpenAssessment={() => { assessmentOrigin.current = "settings"; navigate("assessment"); }} />
       ) : null}
 
-      {page === "assessment" ? <Assessment onBack={() => navigate("settings")} onSignedOut={onSignedOut}
+      {page === "assessment" ? <Assessment onBack={() => navigate(assessmentOrigin.current)} onSignedOut={onSignedOut}
         onApplied={() => { readCache.clear(); setWriteEpoch(v => v + 1); }} /> : null}
 
       {page === "muted-words" ? <section className="settings-page page-container muted-words-page" aria-label="不再学习的单词管理">
@@ -1004,13 +1016,21 @@ function Trainer({ user, onSignedOut, onSessionChanged, updateAvailable, checkVe
           </button>
         </nav>
       ) : null}
+      {onboarding ? <Onboarding userId={user.id} wordLists={wordLists} wordListsReady={wordListsReady}
+        settings={settings} saving={settingsSaving} onToggleList={toggleWordList} onSetting={updateSetting}
+        onFinish={(next) => {
+          setOnboarding(false);
+          if (next === "study") void enableLearningReminder();
+          if (next === "assessment") assessmentOrigin.current = "home";
+          if (next !== "home") navigate(next);
+        }} /> : null}
     </main>
   );
 }
 
-function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar, onOpenAssessment }: {
-  user: User; stats: Stats; ready: boolean; refreshing: boolean;
-  onRefresh: () => void;
+function Home({ user, stats, ready, refreshing, wordLists, onRefresh, onOpenWordLists, onOpenCalendar, onOpenAssessment }: {
+  user: User; stats: Stats; ready: boolean; refreshing: boolean; wordLists: WordList[] | null;
+  onRefresh: () => void; onOpenWordLists: () => void;
   onOpenCalendar: () => void; onOpenAssessment: () => void;
 }) {
   const value = (count: number) => ready ? count.toLocaleString() : "—";
@@ -1028,16 +1048,22 @@ function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar, onOpe
           <div><strong>{value(stats.due_words)}</strong><span>即刻复习</span></div>
         </div>
       </section>
+      <button type="button" className="calendar-entry panel" onClick={onOpenWordLists}>
+        <Icon name="book" />
+        <span className="entry-text"><strong>学习词库</strong>
+          {wordLists ? <small>{wordLists.length ? wordLists.map((list) => list.title).join("、") : "尚未选择"}</small> : null}</span>
+        <Icon name="chevron" />
+      </button>
       <button type="button" className="calendar-entry panel" onClick={onOpenCalendar}>
         <Icon name="calendar" /><strong>学习日历</strong><Icon name="chevron" />
       </button>
       <section className="overview-section">
         <div className="section-heading"><h2>学习概览</h2><button type="button" className="text-button" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing} aria-label="刷新学习数据"><Icon name="refresh" /> {refreshing ? "刷新中…" : "刷新"}</button></div>
         <div className="overview-grid">
-          <Metric icon="book" label="累计学过" value={value(stats.total_learned)} />
+          <Metric icon="book" label="已学单词" value={value(stats.total_learned)} />
           <Metric icon="refresh" label="学习中的单词" value={value(stats.learning)} />
           <Metric icon="spark" label="可学新词" value={value(stats.new_words)} />
-          <Metric icon="check" label="长期熟记" value={value(stats.mature)} />
+          <Metric icon="check" label="长期熟记单词" value={value(stats.mature)} />
         </div>
         <div className="study-time panel">
           <span><Icon name="clock" />总学习时长</span>
@@ -1047,12 +1073,11 @@ function Home({ user, stats, ready, refreshing, onRefresh, onOpenCalendar, onOpe
       <details className="learning-details panel">
         <summary><span><Icon name="chart" /> 更多学习数据</span><Icon name="chevron" /></summary>
         <dl className="detail-metrics">
-          <div><dt>独立作答正确率</dt><dd>{ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</dd></div>
-          <div><dt>有过错误的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
-          <div><dt>已进入间隔复习</dt><dd>{value(stats.mastered)}</dd></div>
+          <div><dt>今日首次作答正确率</dt><dd>{ready && stats.today_independent_accuracy !== null ? `${stats.today_independent_accuracy}%` : "—"}</dd></div>
+          <div><dt>答错过、尚未熟记的单词</dt><dd>{value(stats.lapse_words)}</dd></div>
           <div><dt>已学义项</dt><dd>{value(stats.learned_senses)}</dd></div>
-          <div><dt>尚未学习的义项</dt><dd>{value(stats.new_senses)}</dd></div>
           <div><dt>进入间隔复习的义项</dt><dd>{value(stats.mastered_senses)}</dd></div>
+          <div><dt>待学义项</dt><dd>{value(stats.new_senses)}</dd></div>
         </dl>
         {ready && stats.legacy_unmapped_words > 0 ? <p className="sense-hint">{stats.legacy_unmapped_words} 个旧词的义项待确认</p> : null}
       </details>

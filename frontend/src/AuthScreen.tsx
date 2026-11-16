@@ -3,6 +3,7 @@ import { errorMessage, request } from "./api";
 import { loginWithPasskey, passkeyError, usePasskeyAvailability } from "./passkeys";
 import type { User } from "./types";
 import { ThemeToggle } from "./ThemeSettings";
+import { requestOnboarding } from "./Onboarding";
 
 type Mode = "login" | "register";
 
@@ -20,6 +21,8 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [recovering, setRecovering] = useState(false);
   const [timezone, setTimezone] = useState(browserTimezone);
   const [registrationCode, setRegistrationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,11 +34,20 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
   function switchMode(next: Mode) {
     setMode(next);
     setError("");
+    setConfirmation("");
+    setRecovering(false);
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
+    if (mode === "register") {
+      // The same rules are enforced by the server; checking here answers in Chinese at once.
+      const problem = !/^[A-Za-z0-9_.-]{3,32}$/.test(username) ? "用户名需为 3–32 位字母、数字或 _ . -"
+        : password.length < 8 ? "密码至少需要 8 位"
+        : password !== confirmation ? "两次输入的密码不一致" : "";
+      if (problem) { setError(problem); return; }
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -52,6 +64,12 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
         method: "POST",
         body: JSON.stringify(body)
       });
+      if (mode === "register") {
+        requestOnboarding(payload.user.id);
+        // New learners start beyond function words and the most basic vocabulary.
+        // The guide shows this switch, and Settings keeps it editable.
+        await request("/api/settings", { method: "PATCH", body: JSON.stringify({ skip_basic_600: true }) }).catch(() => {});
+      }
       onAuthenticated(payload.user);
     } catch (caught) {
       setError(errorMessage(caught));
@@ -77,7 +95,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
     <main className="relative flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink">
       <ThemeToggle />
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold">Context Vocabulary Trainer</h1>
+        <h1 className="text-2xl font-semibold">语境学词 · Context</h1>
 
         <div className="mt-7 flex border border-control-line bg-surface">
           <TabButton disabled={busy} active={mode === "login"} onClick={() => switchMode("login")}>
@@ -96,12 +114,10 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
                 className="h-11 w-full border border-control bg-control text-sm font-semibold text-on-control disabled:cursor-not-allowed disabled:border-control-line disabled:bg-control-disabled">
                 {passkeyBusy ? "正在验证通行密钥…" : "使用通行密钥登录"}
               </button>
-              <p className="text-xs text-muted">{availability.ready
-                ? "首次使用需在设置中添加通行密钥"
-                : availability.reason}</p>
+              {availability.ready ? null : <p className="text-xs text-muted">{availability.reason}</p>}
             </div>
           ) : null}
-          <Field label="用户名">
+          <Field label="用户名" hint={mode === "register" ? "3–32 位字母、数字或 _ . -" : undefined}>
             <input
               value={username}
               onChange={(event) => setUsername(event.target.value)}
@@ -112,7 +128,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
             />
           </Field>
 
-          <Field label="密码">
+          <Field label="密码" hint={mode === "register" ? "至少 8 位" : undefined}>
             <input
               type="password"
               value={password}
@@ -125,6 +141,16 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
           {mode === "register" ? (
             <>
+              <Field label="确认密码">
+                <input
+                  type="password"
+                  value={confirmation}
+                  onChange={(event) => setConfirmation(event.target.value)}
+                  autoComplete="new-password"
+                  disabled={busy}
+                  className="h-11 w-full border border-control-line px-3 outline-none focus:border-control"
+                />
+              </Field>
               <Field label="时区">
                 <input
                   value={timezone}
@@ -149,14 +175,17 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
 
           <button
             type="submit"
-            disabled={busy || !username || !password}
+            disabled={busy || !username || !password || (mode === "register" && !confirmation)}
             className="h-11 w-full border border-control bg-surface text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:border-control-line disabled:text-muted"
           >
             {submitting ? "处理中" : mode === "login" ? "密码登录" : "创建账号"}
           </button>
 
-          {mode === "register" ? (
-            <p className="text-xs text-muted">密码至少 8 位；用户名 3–32 位，支持字母、数字、_ . -。</p>
+          {mode === "login" ? (
+            <p className="text-center text-xs text-muted">
+              {recovering ? "请联系管理员重置密码，凭临时密码登录后在设置中修改。"
+                : <button type="button" className="underline" onClick={() => setRecovering(true)}>忘记密码？</button>}
+            </p>
           ) : null}
         </form>
       </div>
