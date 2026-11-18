@@ -247,6 +247,10 @@ pub fn handle(c: &mut Connection, config: &Config, request: &Request) -> Result<
             serde_json::from_str(include_str!("../../../../fixtures/assessment-routes.json"))
                 .expect("assessment routes");
         routes.as_array_mut().unwrap().extend(extension);
+        let account: Vec<Value> =
+            serde_json::from_str(include_str!("../../../../fixtures/account-routes.json"))
+                .expect("account routes");
+        routes.as_array_mut().unwrap().extend(account);
         routes
     });
     let matches = routes

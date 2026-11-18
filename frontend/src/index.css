@@ -477,3 +477,37 @@ h1, h2, p { margin: 0; }
 .assessment-bands > div { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .assessment-bands dd { font-variant-numeric: tabular-nums; font-weight: 600; }
 .assessment-options button:active { background: var(--soft); border-color: var(--accent); }
+
+/* Home entries with a secondary line, e.g. the selected word lists. */
+.calendar-entry + .today-panel { margin-top: 16px; }
+.calendar-entry .entry-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.calendar-entry .entry-text small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Two dots show that the finished card sits to the left of the live one. */
+.study-deck-pager { display: flex; justify-content: center; gap: 7px; padding: 10px 0 2px; flex-shrink: 0; }
+.study-deck-pager span { width: 7px; height: 7px; border-radius: 50%; background: var(--switch-track); transition: background .2s; }
+.study-deck-pager span.is-active { background: var(--accent); }
+
+/* First-run guide: one full screen above every page and the bottom navigation. */
+.onboarding { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink);
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 20px calc(20px + env(safe-area-inset-bottom, 0px)); }
+.onboarding > * { width: 100%; max-width: 520px; margin-left: auto; margin-right: auto; }
+.onboarding-header { display: flex; align-items: center; justify-content: space-between; min-height: 46px; flex-shrink: 0; }
+.onboarding-header .text-button { width: 46px; color: var(--muted); }
+.onboarding-dots { display: flex; gap: 7px; }
+.onboarding-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--switch-track); }
+.onboarding-dots span.is-active { width: 20px; border-radius: 4px; background: var(--accent); }
+.onboarding-body { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 0 16px; }
+.onboarding-body h1 { font-size: 26px; font-weight: 650; letter-spacing: -.02em; margin-bottom: 18px; }
+.onboarding-text { color: var(--muted); font-size: 15px; line-height: 1.7; margin-top: 16px; }
+.onboarding-demo .meaning-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.onboarding-blank { display: inline-block; padding: 0 8px; border-bottom: 3px solid var(--accent); border-radius: 6px 6px 0 0; background: var(--soft); color: var(--accent); }
+.onboarding-points { display: flex; flex-direction: column; gap: 18px; }
+.onboarding-points li { display: flex; align-items: flex-start; gap: 14px; }
+.onboarding-points li > span { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; background: var(--soft); color: var(--accent); }
+.onboarding-points svg { width: 20px; height: 20px; }
+.onboarding-points p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.onboarding-points strong { display: block; color: var(--ink); font-size: 16px; font-weight: 600; }
+.onboarding-lists { padding: 2px 18px 18px; }
+.onboarding-lists .setting-row { margin-top: 16px; }
+.onboarding-actions { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }

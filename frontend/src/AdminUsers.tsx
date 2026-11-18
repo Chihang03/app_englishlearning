@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { errorMessage, isUnauthorized, request } from "./api";
 import { AdminHeader, AdminPagination, AdminChevron, adminDate, PAGE_SIZE, useAdminRead } from "./adminData";
 import type { AdminSession } from "./adminData";
 
@@ -32,6 +34,19 @@ export function AdminUsers({ session, timezone, offset, onOffset, onBack, onUser
 
 export function AdminUserDetail({ id, session, timezone, onBack }: { id: number; session: AdminSession; timezone: string; onBack: () => void }) {
   const { data, busy, error, refresh } = useAdminRead<Detail>(`/api/admin/users/${id}`, session);
+  const [reset, setReset] = useState<"idle" | "confirm" | "busy">("idle");
+  const [temporary, setTemporary] = useState("");
+  const [resetError, setResetError] = useState("");
+  async function resetPassword() {
+    setReset("busy"); setResetError("");
+    try {
+      const result = await request<{ temporary_password: string }>(`/api/admin/users/${id}/password`, { method: "POST" });
+      setTemporary(result.temporary_password);
+    } catch (caught) {
+      if (isUnauthorized(caught)) session.onSignedOut();
+      else setResetError(errorMessage(caught));
+    } finally { setReset("idle"); }
+  }
   const activity = data?.activity;
   const metrics = activity ? [
     ["累计作答", activity.reviews.toLocaleString()], ["今日作答", activity.today_reviews.toLocaleString()],
@@ -52,6 +67,15 @@ export function AdminUserDetail({ id, session, timezone, onBack }: { id: number;
       </dl></section>
       <section className="overview-grid admin-metrics" aria-label="学习详情">{metrics.map(([label, value]) =>
         <div className="metric-card panel" key={label}><strong>{value}</strong><span className="metric-label">{label}</span></div>)}</section>
+      <section className="settings-group panel admin-detail"><h2>重置密码</h2>
+        {temporary ? <dl><div><dt>临时密码</dt><dd><code>{temporary}</code></dd></div></dl> : null}
+        {resetError ? <p className="warning-notice" role="alert">{resetError}</p> : null}
+        {reset === "idle" ? <button type="button" className="secondary-button" onClick={() => setReset("confirm")}>{temporary ? "重新生成" : "生成临时密码"}</button>
+          : <div className="voice-shortcuts">
+            <button type="button" className="secondary-button" disabled={reset === "busy"} onClick={() => { void resetPassword(); }}>{reset === "busy" ? "处理中…" : "确认重置"}</button>
+            <button type="button" className="secondary-button" disabled={reset === "busy"} onClick={() => setReset("idle")}>取消</button>
+          </div>}
+      </section>
       <section className="settings-group panel admin-detail"><h2>学习词库</h2>
         {data.word_lists.length ? <ul className="admin-word-lists">{data.word_lists.map(list => <li key={list.list_id}>{list.title}</li>)}</ul> : <p>未选择词库</p>}
       </section>

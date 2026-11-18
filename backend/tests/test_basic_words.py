@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 from app import database
-from app.learning_filters import BASIC_WORDS
+from app.learning_filters import BASIC_WORDS, BASIC_ZIPF_CENT
 from app.senses import save_senses
 import test_senses as fixtures
 
@@ -24,13 +24,13 @@ class BasicWordsTests(unittest.TestCase):
     def test_all_senses_across_lists_and_active_rounds_are_filtered_without_credit(self):
         catalog = fixtures.catalog()
         catalog['words'].append({
-            'word': 'husband', 'pronunciation': 'husband', 'part_of_speech': '名词',
-            'definition_cn': '丈夫', 'example_sentence': 'Her husband is here.',
+            'word': 'kitchen', 'pronunciation': 'kitchen', 'part_of_speech': '名词',
+            'definition_cn': '厨房', 'example_sentence': 'Her kitchen is here.',
             'memberships': [{'list_id': 'cet6', 'position': 3}],
-            'senses': [fixtures.sense('husband', '丈夫', 'Her husband is here.', target='husband')]})
+            'senses': [fixtures.sense('kitchen', '厨房', 'Her kitchen is here.', target='kitchen')]})
         self.catalog_path.write_text(json.dumps(catalog, ensure_ascii=False))
         database.init_database()
-        card = self.next()  # address is NGSL rank 558; bank is rank 627.
+        card = self.next()  # address has Zipf 4.91 and bank 5.16; both are basic.
         before = self.client.get('/api/stats').json()
         self.assertFalse(self.client.get('/api/settings').json()['skip_basic_600'])
         self.skip()
@@ -46,7 +46,7 @@ class BasicWordsTests(unittest.TestCase):
             self.assertEqual(stats[name], before[name])
         self.client.patch('/api/settings', json={'selected_word_list_ids': ['cet6']})
         retained = self.next()
-        self.assertEqual(retained['word'], 'husband')  # rank 801; bank is now skipped.
+        self.assertEqual(retained['word'], 'kitchen')  # Zipf 4.65; bank is now skipped.
         self.skip(False)
         # Toggling does not retire an unrelated round on this or another device.
         self.assertEqual(self.next()['attempt_id'], retained['attempt_id'])
@@ -88,22 +88,24 @@ class BasicWordsTests(unittest.TestCase):
         self.assertNotEqual(restored['attempt_id'], card['attempt_id'])
         self.assertTrue(restored['is_relearning'])
 
-    def test_exact_800_boundary_and_case_insensitive_legacy_private_words(self):
-        self.assertEqual(len(BASIC_WORDS), 800)
-        self.assertIn('contact', BASIC_WORDS)  # rank 600
-        self.assertIn('particularly', BASIC_WORDS)  # rank 601
-        self.assertIn('red', BASIC_WORDS)  # rank 800
-        self.assertNotIn('husband', BASIC_WORDS)  # rank 801
+    def test_frequency_boundary_and_case_insensitive_legacy_private_words(self):
+        self.assertEqual(BASIC_ZIPF_CENT, 490)
+        self.assertIn('address', BASIC_WORDS)  # Zipf 4.91
+        self.assertIn('contact', BASIC_WORDS)  # Zipf 4.99
+        self.assertIn('red', BASIC_WORDS)  # Zipf 5.32
+        self.assertNotIn('basic', BASIC_WORDS)  # Zipf 4.89, just below the threshold
+        self.assertNotIn('kitchen', BASIC_WORDS)  # Zipf 4.65
+        self.assertNotIn('mine', BASIC_WORDS)  # Pronoun forms are decided per sense.
         self.client.patch('/api/settings', json={'selected_word_list_ids': []})
         # The full source list also covers later/private imports.
-        for word in ('Contact', 'upon', 'I', 'Address', 'particularly', 'RED', 'husband'):
+        for word in ('Contact', 'upon', 'I', 'Address', 'particularly', 'RED', 'kitchen'):
             fixtures.legacy_private_word(self.uid, {
                 'word': word, 'part_of_speech': '词汇', 'definition_cn': '测试',
                 'example_sentence': f'This example contains {word}.'})
         self.skip()
         stats = self.client.get('/api/stats').json()
         self.assertEqual((stats['new_words'], stats['new_senses']), (1, 1))
-        self.assertEqual(self.next()['word'], 'husband')
+        self.assertEqual(self.next()['word'], 'kitchen')
         self.skip(False)
         self.assertEqual(self.client.get('/api/stats').json()['new_words'], 7)
 
@@ -209,7 +211,6 @@ class BasicWordFormTests(unittest.TestCase):
         self.assertIsNone(self.next())
         stats = self.client.get('/api/stats').json()
         self.assertEqual((stats['new_words'], stats['new_senses'], stats['due_senses']), (0, 0, 0))
-        self.assertEqual(len(BASIC_WORDS), 800)
         self.skip(False)
         self.assertEqual(self.client.get('/api/stats').json()['new_words'], len(forms))
 
@@ -320,7 +321,7 @@ class BasicWordFormTests(unittest.TestCase):
         self.assertEqual(self.review(noun, 'mine').status_code, 200)
 
     def test_independent_nouns_and_derivatives_remain_learnable(self):
-        retained = ('mine', 'mining', 'meeting', 'building', 'saying', 'hopeful')
+        retained = ('mine', 'mining', 'greeting', 'wording', 'saying', 'hopeful')
         for word in retained:
             self.word(word, '名词')
         self.skip()

@@ -126,7 +126,7 @@ pub fn handle(c: &Connection, config: &Config, r: &Request) -> Result<Reply> {
         timezone(tz)?;
         if one(
             c,
-            "SELECT id FROM users WHERE username=?",
+            "SELECT id FROM users WHERE username=? COLLATE NOCASE",
             &[json!(username)],
         )?
         .is_some()

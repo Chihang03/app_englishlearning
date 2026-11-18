@@ -1,0 +1,11 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/admin/users/{user_id}/password",
+    "writes": true,
+    "source": "rust/crates/storage/src/api/admin.rs",
+    "dependencies": [
+      "admin"
+    ]
+  }
+]

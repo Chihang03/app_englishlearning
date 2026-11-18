@@ -1,6 +1,6 @@
 import { Icon, SettingsPageHeader } from "./Navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { request, isUnauthorized } from "./api";
+import { errorMessage, request, isUnauthorized } from "./api";
 
 type Result = { label: string; range: string[]; bands: { band: number; answered: number; correct: number }[];
   recall: { answered: number; correct: number }; sufficient: boolean; boundary: boolean; confirmation_band?: number; passed?: boolean };
@@ -20,7 +20,7 @@ export function ProficiencySettings({ onOpen, onSignedOut, children }: {
     setPendingMode(mode);
     setBusy(true); setError("");
     try { setProfile(await request<Profile>("/api/proficiency/mode", { method: "PATCH", body: JSON.stringify({ mode }) })); }
-    catch (e) { if (isUnauthorized(e)) onSignedOut(); else setError(e instanceof Error ? e.message : "保存失败"); }
+    catch (e) { if (isUnauthorized(e)) onSignedOut(); else setError(errorMessage(e)); }
     finally { setPendingMode(null); setBusy(false); }
   }
   return <>
@@ -58,7 +58,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
         const existing = await request<Session>(`/api/assessments/${p.session.id}`);
         if (live.current) setSession(existing);
       }
-    }).catch(e => { if (isUnauthorized(e)) onSignedOut(); else if (live.current) setError(e.message); })
+    }).catch(e => { if (isUnauthorized(e)) onSignedOut(); else if (live.current) setError(errorMessage(e)); })
       .finally(() => { if (live.current) setBusy(false); });
     return () => { live.current = false; };
   }, [onSignedOut]);
@@ -71,7 +71,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
       setSession(next); setAnswer(""); retry.current = null;
       if (action === "apply") { setHasProfile(true);onApplied(); const r=await request<{units:typeof deferred}>("/api/proficiency/readiness");if(live.current)setDeferred(r.units); }
     } catch (e) {
-      if (isUnauthorized(e)) onSignedOut(); else if (live.current) setError(e instanceof Error ? e.message : "请求失败");
+      if (isUnauthorized(e)) onSignedOut(); else if (live.current) setError(errorMessage(e));
     } finally { pending.current = false; if (live.current) setBusy(false); }
   }
   function submit(value: string) {
@@ -106,7 +106,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
     </div> : null}
     {session?.state === "completed" && result ? <div className="panel assessment-result">
       <h2>{result.sufficient ? result.label : "暂未取得足够证据"}</h2>
-      {result.confirmation_band !== undefined ? <p>{labels[result.confirmation_band]}：{result.passed ? "已通过确认" : "继续学习"}</p> : <p>词汇理解范围：{result.range[0]}{result.range[0] !== result.range[1] ? ` — ${result.range[1]}` : ""}</p>}
+      {result.confirmation_band !== undefined ? <p>{labels[result.confirmation_band]}：{result.passed ? "已通过确认" : "继续学习"}</p> : result.range[0] !== result.range[1] ? <p>词汇理解范围：{result.range[0]} — {result.range[1]}</p> : null}
       <dl className="assessment-bands">{result.bands.map(b => <div key={b.band}><dt>{labels[b.band] ?? `层级 ${b.band + 1}`}</dt>
         <dd>{b.correct} / {b.answered}</dd></div>)}</dl>
       {result.recall.answered > 0 ? <p>线索提取：{result.recall.correct} / {result.recall.answered}</p> : null}
@@ -114,7 +114,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
       {result.passed && !session.applied && session.preview ? <p>本组可暂缓 {session.preview.eligible_scope_units} 个学习单元</p> : null}
       {result.sufficient && result.passed !== false ? <button type="button" className="primary-button" disabled={busy || session.applied}
         onClick={() => void perform("apply")}>{session.applied ? "已应用到学习" : "按此水平开始"}</button> : null}
-      {session.readiness ? <p>按水平暂缓 {session.readiness.deferred_units} 个学习单元</p> : null}
+      {session.applied && session.readiness ? <p>按水平暂缓 {session.readiness.deferred_units} 个学习单元</p> : null}
       <button type="button" className="secondary-button" disabled={busy} onClick={() => void perform("start")}>重新测验</button>
 
     </div> : null}
@@ -125,7 +125,7 @@ export function Assessment({ onBack, onApplied, onSignedOut }: {
       </div> : null}
     {deferred.length ? <details className="panel assessment-deferred"><summary>按水平暂缓的内容</summary>
       {deferred.map(unit=><div key={unit.id}><strong>{unit.word}</strong><p>{unit.meaning}</p>
-        <button type="button" disabled={busy} onClick={()=>{if(pending.current)return;pending.current=true;setBusy(true);void request<{units:typeof deferred;summary?:{deferred_units:number}}>("/api/proficiency/readiness",{method:"POST",body:JSON.stringify({learning_unit_id:unit.id})}).then(r=>{if(live.current){setDeferred(r.units);if(r.summary)setSession(old=>old?{...old,readiness:r.summary}:old);onApplied();}}).catch(e=>{if(isUnauthorized(e))onSignedOut();else setError(e.message);}).finally(()=>{pending.current=false;if(live.current)setBusy(false);});}}>继续学习</button></div>)}
+        <button type="button" disabled={busy} onClick={()=>{if(pending.current)return;pending.current=true;setBusy(true);void request<{units:typeof deferred;summary?:{deferred_units:number}}>("/api/proficiency/readiness",{method:"POST",body:JSON.stringify({learning_unit_id:unit.id})}).then(r=>{if(live.current){setDeferred(r.units);if(r.summary)setSession(old=>old?{...old,readiness:r.summary}:old);onApplied();}}).catch(e=>{if(isUnauthorized(e))onSignedOut();else setError(errorMessage(e));}).finally(()=>{pending.current=false;if(live.current)setBusy(false);});}}>继续学习</button></div>)}
     </details> : null}
     {error ? <div role="alert" className="error-notice"><p>{error}</p>
       {retry.current ? <button type="button" disabled={busy} onClick={() => void perform("answers", retry.current)}>重试提交</button> : null}

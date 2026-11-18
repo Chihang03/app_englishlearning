@@ -151,6 +151,9 @@ export function StudyDeck(props: Props) {
         {props.previousContent}
       </div> : null}
     </div>
+    {previous ? <div className="study-deck-pager" aria-hidden="true">
+      <span className={reviewing ? "is-active" : ""} /><span className={reviewing ? "" : "is-active"} />
+    </div> : null}
     <div className="study-deck-navigation sr-only" aria-label="切换学习卡片">
       {reviewing ? <button type="button" disabled={!interactive} onClick={() => changeView(false)}>返回当前题 →</button> : <>
         <button type="button" disabled={!previous || !interactive} onClick={() => changeView(true)}>← 上一题</button>

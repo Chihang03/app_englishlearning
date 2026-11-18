@@ -3,6 +3,7 @@ import { StudyContentCache } from "./studyContentCache";
 import type { CatalogWord, CatalogSummary } from "./studyContentCache";
 import type { User } from "./types";
 import { chineseMeaning, learningMeanings } from "./learningMeanings";
+import { posLabels } from "./StudyTools";
 
 export function OfflineLibrary({ user, onRetry, connecting = false }: { user: User; onRetry: () => void; connecting?: boolean }) {
   const cache = useMemo(() => new StudyContentCache(user.id), [user.id]);
@@ -25,8 +26,8 @@ export function OfflineLibrary({ user, onRetry, connecting = false }: { user: Us
     {selected ? <>
       <button type="button" className="secondary-button" onClick={() => setSelected(null)}>返回词表</button>
       {selected.morphology_entries?.filter(entry => entry.morphology.inflected_forms.length || entry.morphology.derived_words.length || entry.morphology.related_words.length).map(entry => <section className="panel offline-sense" key={entry.lexical_unit_id}>
-        <h2>{entry.headword} · {entry.pos_group}</h2>
-        {entry.morphology.inflected_forms.length ? <p>{entry.morphology.inflected_forms.map(form => `${form.spelling}（${form.label}）`).join("、")}</p> : null}
+        <h2>{entry.headword} · {posLabels[entry.pos_group] || entry.pos_group}</h2>
+        {entry.morphology.inflected_forms.length ? <p>{[...new Set(entry.morphology.inflected_forms.map(form => `${form.spelling}（${form.label}）`))].join("、")}</p> : null}
         {entry.morphology.derived_words.length ? <p>派生词：{entry.morphology.derived_words.map(peer => peer.headword).join("、")}</p> : null}
         {entry.morphology.related_words.length ? <p>相关词：{entry.morphology.related_words.map(peer => peer.headword).join("、")}</p> : null}
       </section>)}

@@ -37,6 +37,70 @@ function readDetail(body: unknown, fallback: string): string {
   return fallback;
 }
 
+// The API reports problems in English. Learners read Chinese, so every message
+// shown in the interface passes through this table first.
+const exact: Record<string, string> = {
+  "Incorrect username or password": "用户名或密码不正确",
+  "Incorrect password": "当前密码不正确",
+  "Username already taken": "该用户名已被使用",
+  "Invalid username": "用户名需为 3–32 位字母、数字或 _ . -",
+  "Invalid registration code": "邀请码不正确",
+  "Not authenticated": "登录已失效，请重新登录",
+  "Session expired": "登录已失效，请重新登录",
+  "Administrator access required": "需要管理员权限",
+  "Learning is unavailable for administrator accounts": "管理员账号不能用于学习",
+  "Not Found": "内容不存在",
+  "Unknown endpoint": "内容不存在",
+  "Method Not Allowed": "当前操作不可用",
+  "Answer too long": "答案过长",
+  "Report too long": "补充说明过长",
+  "Too many notification devices": "接收提醒的设备已达上限",
+  "Learning reminders are unavailable": "学习提醒暂不可用",
+  "Notification origin is not allowed": "当前站点不能开启学习提醒",
+  "This sense has no usable example": "该词义暂无可用例句",
+  "Request data budget exceeded": "服务繁忙，请稍后重试",
+  "Unknown word": "单词不存在",
+  "Unknown learning unit": "学习内容不存在",
+  "Unknown dictionary sense": "词义不存在"
+};
+
+const patterns: [RegExp, (match: RegExpMatchArray) => string][] = [
+  [/should match pattern/i, () => "用户名需为 3–32 位字母、数字或 _ . -"],
+  [/at least (\d+) characters?/i, (match) => `至少需要 ${match[1]} 个字符`],
+  [/at most (\d+) characters?/i, (match) => `最多 ${match[1]} 个字符`],
+  [/^Unknown timezone/i, () => "无法识别的时区"],
+  [/^Field required/i, () => "请填写完整"]
+];
+
+function localizedApiMessage(status: number, message: string): string {
+  const parts = message.split("; ").map((part) => {
+    if (exact[part]) return exact[part];
+    for (const [pattern, translate] of patterns) {
+      const match = part.match(pattern);
+      if (match) return translate(match);
+    }
+    return part;
+  });
+  const text = [...new Set(parts)].join("；");
+  // Anything still untranslated is replaced by a status-level explanation.
+  if (/[㐀-鿿]/.test(text)) return text;
+  if (status === 401) return "登录已失效，请重新登录";
+  if (status === 403) return "没有权限执行此操作";
+  if (status === 404) return "内容不存在";
+  if (status === 409) return "当前状态已变化，请刷新后重试";
+  if (status === 422 || status === 400) return "提交的内容不符合要求";
+  if (status === 429 || status === 503) return "服务繁忙，请稍后重试";
+  return "服务暂时不可用，请稍后重试";
+}
+
+function localizedFailure(error: unknown): string {
+  if (error instanceof DOMException && error.name === "AbortError") return "请求超时，请重试";
+  // fetch rejects with a TypeError when the network or server is unreachable.
+  if (error instanceof TypeError) return "网络连接不可用，请检查网络后重试";
+  if (error instanceof Error) return /[㐀-鿿]/.test(error.message) ? error.message : "操作未能完成，请重试";
+  return "操作未能完成，请重试";
+}
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   // /api/next allocates a server attempt, despite its GET transport.
@@ -63,7 +127,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       } catch {
         // A non-JSON error body leaves the status text as the message.
       }
-      throw new ApiError(response.status, message);
+      throw new ApiError(response.status, localizedApiMessage(response.status, message));
     }
     return await response.json() as T;
   } finally {
@@ -83,5 +147,5 @@ export function isUnauthorized(error: unknown): boolean {
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof ApiError ? error.message : localizedFailure(error);
 }

@@ -6,20 +6,10 @@ from pathlib import Path
 from .muted_words import unmuted_sql
 
 
-# The source snapshot includes all 800 heads, even words that currently lack a
-# usable example in the catalog. This also covers later/private imports.
-_SOURCE_PATH = Path(__file__).resolve().parents[1] / "data" / "source_word_lists.json"
-_lists = json.loads(_SOURCE_PATH.read_text(encoding="utf-8"))["lists"]
-BASIC_WORDS = frozenset(
-    word.strip().lower()
-    for word in next(item["words"] for item in _lists if item["id"] == "ngsl_core")[:800]
-)
-_BASIC_WORDS_SQL = ",".join("'" + word.replace("'", "''") + "'" for word in sorted(BASIC_WORDS))
-
-
-# NGSL lists these grammatical families under their headword. Exam lists can
-# also contain the object, possessive, reflexive or plural forms as new entries.
-# This is an explicit grammar mapping, not a stemmer or a derivation rule.
+# Object, possessive, reflexive and plural forms of the basic pronouns. They are
+# skipped only where the sense itself is grammatical, so an independent meaning
+# at the same spelling (mine, the noun) stays learnable. This is an explicit
+# grammar mapping, not a stemmer or a derivation rule.
 _GRAMMATICAL_FAMILIES = {
     "i": ("me", "my", "mine", "myself"),
     "he": ("him", "his", "himself"),
@@ -33,6 +23,34 @@ _GRAMMATICAL_FAMILIES = {
     "that": ("those",),
     "one": ("oneself",),
 }
+_FAMILY_FORMS = frozenset(form for forms in _GRAMMATICAL_FAMILIES.values() for form in forms)
+
+
+# Basic words are the headwords every learner already meets constantly: a
+# wordfreq Zipf score of 4.9 or more, about 1,000 entries of the catalogue. Usage
+# frequency covers function words, numerals, everyday nouns and common
+# inflected spellings in every list, where a rank in one course list did not.
+_FREQUENCY_PATH = Path(__file__).resolve().parents[1] / "data" / "word_frequencies.json"
+BASIC_ZIPF_CENT = 490
+BASIC_WORDS = frozenset(
+    word.strip().lower()
+    for word, zipf in json.loads(_FREQUENCY_PATH.read_text(encoding="utf-8"))["words"].items()
+    if zipf is not None and zipf >= BASIC_ZIPF_CENT
+) - _FAMILY_FORMS
+# Closed sets stay complete even where a member is less frequent or is stored
+# only as a form of its headword: be/have/do forms, irregular comparatives and
+# the elementary numerals.
+BASIC_SUPPLEMENT = frozenset((
+    "am", "is", "are", "was", "were", "been", "has", "had", "does", "did", "done",
+    "better", "best", "worse", "worst",
+    "zero", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "twenty", "thirty", "hundred", "thousand", "million", "billion",
+    "third", "fourth", "fifth",
+))
+_BASIC_WORDS_SQL = ",".join(
+    "'" + word.replace("'", "''") + "'" for word in sorted(BASIC_WORDS | BASIC_SUPPLEMENT))
+
+
 BASIC_WORD_FORMS = frozenset(
     form for head, forms in _GRAMMATICAL_FAMILIES.items() if head in BASIC_WORDS
     for form in forms
